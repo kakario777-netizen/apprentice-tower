@@ -14,3 +14,5 @@ minotaur, wyvern_fire, loot_*, fx_*
 ## 이 프로젝트에서 직접 만든 그림
 - `assets/sprites/chest.png`, `chest_open.png`: tools/models.py + tools/sdf.py 로 렌더링
 - `assets/tiles/*`: tools/textures.py 로 생성
+
+- `assets/ui/icons.png`, `assets/ui/glyphs.png`: Flare `mods/fantasycore/images/icons/icons.png` (CC-BY-SA 3.0). 마법 문양은 돌판 배경을 지우고 흰 문양만 남김, 아이템은 검은 배경을 투명 처리.
