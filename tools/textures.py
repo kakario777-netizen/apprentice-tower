@@ -221,3 +221,83 @@ def hedge_tiles():
 if __name__ == '__main__':
     for f in (floor_tiles, face_tiles, top_tiles, grass_tiles, cobble_tiles, hedge_tiles):
         f(); print(f.__name__, 'ok', flush=True)
+
+# ================= 2.5D 버전 (원작처럼 매끈한 판석 + 높은 벽) =================
+def floor_smooth():
+    tiles = []
+    for v in range(16):
+        dark = v >= 8
+        r = np.random.default_rng(3000 + v)
+        n1 = fbm(3, 5, seed=3100 + v); n2 = fbm(10, 3, seed=3200 + v)
+        base = np.array([0.20, 0.19, 0.215]) * (0.86 if dark else 1.0) * (1 + r.normal(0, 0.03))
+        alb = base * (0.9 + 0.2 * n1)[..., None] + (n2[..., None] - 0.5) * 0.025
+        # 아주 얕은 모서리와 가는 이음매
+        e = np.minimum(np.minimum(xx, TS - 1 - xx), np.minimum(yy, TS - 1 - yy)).astype(float)
+        h = np.clip(e / 4, 0, 1) * 0.35 + n1 * 0.05
+        seam = e < 1.2
+        alb[seam] = alb[seam] * 0.45
+        # 긁힘·얼룩
+        im = Image.new('L', (TS, TS), 0); dr = ImageDraw.Draw(im)
+        for _ in range(r.integers(1, 4)):
+            x, y = r.random() * TS, r.random() * TS; a = r.random() * np.pi
+            dr.line([(x, y), (x + np.cos(a) * r.integers(10, 40), y + np.sin(a) * r.integers(10, 40))], fill=int(60 + r.random() * 60), width=1)
+        sc = np.asarray(im, float) / 255; alb = alb * (1 - sc[..., None] * 0.25)
+        stain = fbm(4, 3, seed=3300 + v); alb *= (0.92 + 0.12 * stain)[..., None]
+        col = shade(alb, h, strength=1.6, spec=0.06, ao_amt=0.6, amb=0.55)
+        tiles.append(col)
+    save('floor2', tiles)
+
+WH = 160  # 벽 앞면 텍스처 높이 (타일 128 대비 1.25배: 월드 32px 타일에 40px 높이)
+def wall_face_tall():
+    tiles = []
+    gy, gx = np.mgrid[0:WH, 0:TS]
+    for v in range(6):
+        r = np.random.default_rng(4000 + v)
+        h = np.zeros((WH, TS)); ids = np.full((WH, TS), -1); k = 0
+        y = 6; row = 0
+        while y < WH - 4:
+            bh = min(int(46 + r.integers(-6, 6)), WH - 4 - y); x = -int(r.integers(20, 50)) if row % 2 else 0
+            while x < TS:
+                bw = int(56 + r.integers(0, 40))
+                inside = (gx >= x + 2) & (gx < x + bw - 2) & (gy >= y + 2) & (gy < y + bh - 2)
+                d = np.minimum(np.minimum(gx - x - 2, x + bw - 3 - gx), np.minimum(gy - y - 2, y + bh - 3 - gy)).astype(float)
+                prof = np.clip(d / 6, 0, 1); prof = prof * prof * (3 - 2 * prof)
+                h = np.where(inside, prof * (0.55 + 0.12 * r.random()), h); ids = np.where(inside, k, ids); k += 1
+                x += bw
+            y += bh; row += 1
+        det = np.asarray(Image.fromarray((fbm(6, 5, seed=4100 + v) * 255).astype(np.uint8)).resize((TS, WH)), float) / 255
+        h = h + (det - 0.5) * 0.14 * (ids >= 0)
+        alb = np.zeros((WH, TS, 3)) + np.array([0.25, 0.235, 0.255])
+        for kk in range(k): alb[ids == kk] *= (1 + r.normal(0, 0.07))
+        alb[ids < 0] = np.array([0.05, 0.045, 0.055])
+        alb *= (0.85 + 0.3 * det)[..., None]
+        gyy, gxx = np.gradient(h)
+        nrm = np.dstack([-gxx * 5, -gyy * 5, np.ones_like(h)]); nrm /= np.linalg.norm(nrm, axis=2, keepdims=True)
+        L = np.array([-0.4, -0.35, 0.85]); L /= np.linalg.norm(L)
+        diff = np.clip((nrm * L).sum(2), 0, 1)
+        col = alb * (0.45 + 0.75 * diff)[..., None]
+        # 위는 밝고 아래(바닥 쪽)는 어둡게 — 높이감
+        g = (0.55 + 0.6 * (1 - gy / WH)) ** 1.2
+        col *= g[..., None]
+        col[:4] = col[:4] * 0.4 + np.array([0.42, 0.4, 0.44]) * 0.6   # 윗면과 만나는 모서리 빛
+        col[-10:] *= np.linspace(1, 0.35, 10)[:, None, None]
+        tiles.append(np.clip(col, 0, 1))
+    os.makedirs(OUT, exist_ok=True)
+    Image.fromarray((np.concatenate(tiles, 1) * 255).astype(np.uint8)).save(os.path.join(OUT, 'wall2.png'), optimize=True)
+
+def wall_top2():
+    tiles = []
+    base = fbm(5, 5, seed=4500)
+    for m in range(16):
+        alb = np.zeros((TS, TS, 3)) + np.array([0.15, 0.14, 0.165]) * (0.8 + 0.4 * base)[..., None]
+        edge = np.zeros((TS, TS))
+        if m & 1: edge = np.maximum(edge, np.clip(1 - yy / 10, 0, 1))
+        if m & 2: edge = np.maximum(edge, np.clip(1 - (TS - 1 - xx) / 10, 0, 1))
+        if m & 4: edge = np.maximum(edge, np.clip(1 - (TS - 1 - yy) / 12, 0, 1))
+        if m & 8: edge = np.maximum(edge, np.clip(1 - xx / 10, 0, 1))
+        alb = alb * (1 - edge[..., None]) + np.array([0.52, 0.49, 0.55]) * edge[..., None]
+        tiles.append(shade(alb, base * 0.2 + edge * 0.4, strength=3, spec=0.05))
+    save('top2', tiles)
+
+if __name__ == '__main__' and os.environ.get('V2'):
+    floor_smooth(); wall_face_tall(); wall_top2(); print('v2 ok')
