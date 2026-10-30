@@ -12,7 +12,7 @@
 - 확인 방법: CI 가 xvfb 로 스크린샷(shots 아티팩트)과 FPS 측정(BENCH 줄)을 남긴다. `--shot=경로 --floor=N --seed=N --bench`.
 
 ## 단계
-- [ ] 1단계: 뼈대·CI·APK, 마을/1~15층 맵 생성, 3D 바닥·벽·숲·소품·횃불 빛, 플레이어 8방향 이동(키보드·패드·터치 스틱), 계단/입구로 층 이동, FPS 표시
+- [x] 1단계(g0.3 완료): 뼈대·CI·APK, 마을/1~15층 맵 생성, 3D 바닥·벽·숲·소품·횃불 빛, 플레이어 8방향 이동(키보드·패드·터치 스틱), 계단/입구로 층 이동, FPS 표시
 - [ ] 2단계: 몬스터(meta.json 전부), AI(flow 길찾기), 마법 4계열 발사·충돌·피해 숫자, 경험치·레벨업, 체력/마나 HUD, 보스 3종
 - [ ] 3단계: 아이템·가방·장비·상점·NPC 대화, 스킬 트리 화면, 물약 벨트, 안개(시야), 미니맵, 효과(fx_* 스프라이트·파티클), 저장/불러오기, 난이도, 샌드박스, 패드 전체 조작
 - [ ] 4단계: 웹판과 화면·밸런스 비교, 성능 측정, 패키지 이름을 기존 앱과 같게 바꿔 교체
@@ -25,4 +25,9 @@
 - 그리기 draw*: 1624–2460 → world.gd / actor.gd 로 대체
 
 ## 기록
+- CI 결과(스크린샷 town/floor1/floor5.png, import/run/export.log, BENCH 줄)는 `ci-out` 가지에 강제 푸시된다.
+  이 작업 환경에서는 Actions 로그·아티팩트 다운로드가 막혀 있으므로 `git fetch origin +ci-out:refs/remotes/origin/ci-out` 후 `git archive` 로 꺼내 본다.
+- CI 의 xvfb 는 소프트웨어 렌더링이라 FPS 숫자는 의미 없음(폰에서 화면 왼쪽 위 FPS 로 확인).
+- g0.3 APK 약 125MB(텍스처 무손실+밉맵). 4단계에서 ETC2/ASTC 압축으로 줄일 것.
+- 다음 할 일(2단계 시작점): 웹 DATA.monsters(357~) · spawnEnemy · 적 AI(update 1511~, stepToward 668) · 마법 발사(castPrim 근처) 를 scripts/combat.gd 로.
 - 1단계 작성: mapgen.gd, world.gd, actor.gd, main.gd, hud.gd, stick_pad.gd
