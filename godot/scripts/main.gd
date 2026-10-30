@@ -44,7 +44,7 @@ func _ready() -> void:
 	moon.shadow_enabled = false
 	add_child(moon)
 	player = Actor.new(); add_child(player); player.setup("player", 46)
-	plight = OmniLight3D.new(); plight.omni_range = 7.0; plight.light_energy = .7; plight.light_color = Color(1, .92, .85)
+	plight = OmniLight3D.new(); plight.omni_range = 10.0; plight.light_energy = 1.1; plight.light_color = Color(1, .92, .85)
 	add_child(plight)
 	hud = Hud.new(); add_child(hud)
 	if floor_no > 0: _enter_floor(floor_no)
@@ -63,7 +63,7 @@ func _setup_env(town: bool) -> void:
 		moon.visible = true; moon.light_color = Color(.62, .68, .95); moon.light_energy = .55
 		plight.visible = false
 	else:
-		e.ambient_light_color = Color(.22, .19, .3); e.ambient_light_energy = 1.0
+		e.ambient_light_color = Color(.46, .41, .56); e.ambient_light_energy = 1.0
 		moon.visible = false
 		plight.visible = true
 

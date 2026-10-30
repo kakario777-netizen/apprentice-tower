@@ -164,7 +164,9 @@ func _build_forest() -> void:
 			if not edge and h % 2 == 0: continue
 			var p := Vector2(i + .5 + ((h >> 3) % 9 - 4) * .06, j + .85)
 			if j >= t.y0 + t.h or (edge and (mg.wall_bits(i, j) & 1)):
-				add_prop(PL[h % PL.size()], p, 1.15)
+				# 앞쪽(카메라 쪽)은 낮은 덤불만, 그것도 가장자리 한 줄과 드문드문
+				if j == t.y0 + t.h and h % 3 != 0: add_prop(PL[h % PL.size()], p, 1.0)
+				elif j > t.y0 + t.h and h % 7 == 0: add_prop(PL[h % PL.size()], p, .9)
 			else:
 				add_prop(FOREST[h % FOREST.size()], p, .8 + (h % 5) * .08)
 
