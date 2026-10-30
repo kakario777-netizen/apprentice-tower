@@ -378,15 +378,15 @@ func _render_talk() -> void:
 			b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 			r.add_child(b); g.add_child(p)
 		v.add_child(g)
-		btns.append(btn("그만 볼게요", func(): close_talk()))
+		btns.append(btn("그만 볼게요", close_talk))
 	else:
 		if talk_page < lines.size() - 1:
-			btns.append(btn("그만 들을게요", func(): close_talk(), true))
+			btns.append(btn("그만 들을게요", close_talk, true))
 			btns.append(btn("다음", func():
 				talk_page += 1; _render_talk()))
 		else:
 			game.G.talkSeen[n.id] = 1
-			btns.append(btn("알겠습니다", func(): close_talk()))
+			btns.append(btn("알겠습니다", close_talk))
 	var rr := HBoxContainer.new(); rr.alignment = BoxContainer.ALIGNMENT_END; rr.add_theme_constant_override("separation", 10)
 	for b in btns: rr.add_child(b)
 	v.add_child(rr)
@@ -491,7 +491,7 @@ func _render_bag() -> void:
 		dv.add_child(label("%s %s · %s · %d층에서 발견" % [D.RAR[it.rar].name, bname, "반지" if it.slot == "ring" else D.SLOTNAME[it.slot], int(it.lvl)], 12, MUTED))
 		for m in it.mods: dv.add_child(label("• " + D.mod_text(m), 14))
 		var rr := HFlowContainer.new(); rr.add_theme_constant_override("h_separation", 10); rr.add_theme_constant_override("v_separation", 8)
-		var sbtn := func(t: String, fn: Callable, ghost := false):
+		var sbtn := func(t: String, fn: Callable, ghost: bool):
 			var b := btn(t, fn, ghost); b.add_theme_font_size_override("font_size", 14)
 			for st in ["normal", "hover", "pressed"]: b.add_theme_stylebox_override(st, _small(btn_sb(ghost)))
 			rr.add_child(b)
@@ -510,9 +510,13 @@ func _render_bag() -> void:
 					if dd == 0: continue
 					dv.add_child(label(("▲ " if dd > 0 else "▼ ") + D.mod_text({k = k, v = absf(dd)}), 12, Color("#7fd07f") if dd > 0 else Color("#ff7a6a")))
 			if it.slot == "ring":
-				sbtn.call("반지 1에 착용", func(): _equip("ring1"))
-				sbtn.call("반지 2에 착용", func(): _equip("ring2"))
-			else: sbtn.call("착용", func(): _equip(it.slot))
+				var e1 := func(): _equip("ring1")
+				var e2 := func(): _equip("ring2")
+				sbtn.call("반지 1에 착용", e1, false)
+				sbtn.call("반지 2에 착용", e2, false)
+			else:
+				var e0 := func(): _equip(it.slot)
+				sbtn.call("착용", e0, false)
 			var sellf := func():
 				game.sell(bag_sel.i); bag_sel = null; _render_bag()
 			var dropf := func():
@@ -520,10 +524,11 @@ func _render_bag() -> void:
 			if G.floor == 0: sbtn.call("팔기 · 금화 %d" % it.value, sellf, true)
 			else: sbtn.call("버리기", dropf, true)
 		else:
-			sbtn.call("벗기", func():
+			var unf := func():
 				if game.unequip(bag_sel.slot):
 					bag_sel = null
-				_render_bag())
+				_render_bag()
+			sbtn.call("벗기", unf, false)
 		dv.add_child(rr)
 	wrap.add_child(dt)
 	box.add_child(wrap)
@@ -593,7 +598,8 @@ func _render_sand() -> void:
 		P.hp = P.maxhp; P.mp = P.maxmp)
 	c = _chips(_grp(body_, "층 이동 (지금 %d층)" % G.floor))
 	for f in range(1, D.LAST_FLOOR + 1):
-		_chip(c, "%d★" % f if D.BOSSES.has(f) else str(f), func(): game.sand_goto(f), f == G.floor)
+		var gf := func(): game.sand_goto(f)
+		_chip(c, "%d★" % f if D.BOSSES.has(f) else str(f), gf, f == G.floor)
 	c = _chips(_grp(body_, "레벨 (지금 Lv %d)" % P.lv))
 	_chip(c, "+1 (스킬 선택)", func(): game.gain_xp((P.next - P.xp) / game.diff_d().reward + .5))
 	_chip(c, "+5 즉시", func():
