@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 탑과 마법 별을 그린 아이콘 (108dp 캔버스, 가운데 72dp가 보이는 영역) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- 탑 몸통 -->
+    <path android:fillColor="#3A2F48" android:pathData="M42,40 L66,40 L68,82 L40,82 Z" />
+    <!-- 성벽 톱니 -->
+    <path android:fillColor="#463956" android:pathData="M39,34 h6 v6 h-6z M47,34 h6 v6 h-6z M55,34 h6 v6 h-6z M63,34 h6 v6 h-6z M39,38 h30 v4 h-30z" />
+    <!-- 창문 불빛 -->
+    <path android:fillColor="#E3B04B" android:pathData="M51,50 a3,3 0 0 1 6,0 v7 h-6z M51,66 a3,3 0 0 1 6,0 v7 h-6z" />
+    <!-- 문 -->
+    <path android:fillColor="#1A1522" android:pathData="M49,82 v-6 a5,5 0 0 1 10,0 v6z" />
+    <!-- 마법 별 -->
+    <path android:fillColor="#C39BFF" android:pathData="M54,18 L56.5,25 L64,27.5 L56.5,30 L54,37 L51.5,30 L44,27.5 L51.5,25 Z" />
+    <path android:fillColor="#F3E8FF" android:pathData="M54,23 L55,26.5 L58.5,27.5 L55,28.5 L54,32 L53,28.5 L49.5,27.5 L53,26.5 Z" />
+</vector>
