@@ -1,349 +1,213 @@
 {
  "player": {
-  "px": 160,
-  "view": 1.6,
-  "dirs": 5,
-  "frames": 6,
+  "cw": 150,
+  "ch": 141,
   "anchor": [
-   80.0,
-   121.5
+   74.5,
+   105.5
   ],
-  "tips": [
-   [
-    [
-     102.1,
-     77.0
-    ],
-    [
-     102.1,
-     77.4
-    ],
-    [
-     102.1,
-     77.4
-    ],
-    [
-     102.1,
-     77.0
-    ],
-    [
-     102.1,
-     77.7
-    ],
-    [
-     102.1,
-     77.7
-    ]
-   ],
-   [
-    [
-     115.7,
-     59.2
-    ],
-    [
-     116.5,
-     59.4
-    ],
-    [
-     116.5,
-     59.4
-    ],
-    [
-     115.7,
-     59.2
-    ],
-    [
-     114.8,
-     60.2
-    ],
-    [
-     114.8,
-     60.2
-    ]
-   ],
-   [
-    [
-     108.3,
-     39.5
-    ],
-    [
-     109.5,
-     39.1
-    ],
-    [
-     109.5,
-     39.1
-    ],
-    [
-     108.3,
-     39.5
-    ],
-    [
-     107.1,
-     41.2
-    ],
-    [
-     107.1,
-     41.2
-    ]
-   ],
-   [
-    [
-     84.4,
-     29.4
-    ],
-    [
-     85.2,
-     28.4
-    ],
-    [
-     85.2,
-     28.4
-    ],
-    [
-     84.4,
-     29.4
-    ],
-    [
-     83.6,
-     31.7
-    ],
-    [
-     83.6,
-     31.7
-    ]
-   ],
-   [
-    [
-     57.9,
-     34.8
-    ],
-    [
-     57.9,
-     33.6
-    ],
-    [
-     57.9,
-     33.6
-    ],
-    [
-     57.9,
-     34.8
-    ],
-    [
-     57.9,
-     37.4
-    ],
-    [
-     57.9,
-     37.4
-    ]
-   ]
-  ]
+  "dirs": 8,
+  "anims": {
+   "stance": {
+    "row": 0,
+    "frames": 4,
+    "dur": 800,
+    "type": "back_forth"
+   },
+   "run": {
+    "row": 8,
+    "frames": 8,
+    "dur": 533,
+    "type": "looped"
+   },
+   "attack": {
+    "row": 16,
+    "frames": 4,
+    "dur": 400,
+    "type": "play_once"
+   },
+   "hit": {
+    "row": 24,
+    "frames": 2,
+    "dur": 133,
+    "type": "play_once"
+   },
+   "die": {
+    "row": 32,
+    "frames": 6,
+    "dur": 800,
+    "type": "play_once"
+   }
+  },
+  "src": "flare",
+  "hgt": 66.5
  },
  "guide": {
-  "px": 160,
-  "view": 1.6,
-  "dirs": 5,
-  "frames": 1,
+  "cw": 56,
+  "ch": 85,
   "anchor": [
-   80.0,
-   121.5
+   17.5,
+   77.5
   ],
-  "tips": [
-   [
-    [
-     102.1,
-     77.0
-    ]
-   ],
-   [
-    [
-     115.7,
-     59.2
-    ]
-   ],
-   [
-    [
-     108.3,
-     39.5
-    ]
-   ],
-   [
-    [
-     84.4,
-     29.4
-    ]
-   ],
-   [
-    [
-     57.9,
-     34.8
-    ]
-   ]
-  ]
+  "dirs": 8,
+  "anims": {
+   "stance": {
+    "row": 0,
+    "frames": 12,
+    "dur": 6400,
+    "type": "looped"
+   }
+  },
+  "src": "flare",
+  "hgt": 76.0
  },
  "shop": {
-  "px": 160,
-  "view": 1.6,
-  "dirs": 5,
-  "frames": 1,
+  "cw": 56,
+  "ch": 87,
   "anchor": [
-   80.0,
-   121.5
+   18.0,
+   80.0
   ],
-  "tips": [
-   [
-    [
-     102.1,
-     77.0
-    ]
-   ],
-   [
-    [
-     115.7,
-     59.2
-    ]
-   ],
-   [
-    [
-     108.3,
-     39.5
-    ]
-   ],
-   [
-    [
-     84.4,
-     29.4
-    ]
-   ],
-   [
-    [
-     57.9,
-     34.8
-    ]
-   ]
-  ]
+  "dirs": 8,
+  "anims": {
+   "stance": {
+    "row": 0,
+    "frames": 6,
+    "dur": 2000,
+    "type": "looped"
+   }
+  },
+  "src": "flare",
+  "hgt": 78.0
  },
  "skel": {
-  "px": 128,
-  "view": 1.5,
-  "dirs": 5,
-  "frames": 6,
+  "cw": 194,
+  "ch": 133,
   "anchor": [
-   64.0,
-   95.4
-  ]
+   97.0,
+   94.0
+  ],
+  "dirs": 8,
+  "anims": {
+   "stance": {
+    "row": 0,
+    "frames": 4,
+    "dur": 533,
+    "type": "back_forth"
+   },
+   "run": {
+    "row": 8,
+    "frames": 8,
+    "dur": 533,
+    "type": "looped"
+   },
+   "attack": {
+    "row": 16,
+    "frames": 4,
+    "dur": 400,
+    "type": "play_once"
+   },
+   "hit": {
+    "row": 24,
+    "frames": 2,
+    "dur": 133,
+    "type": "back_forth"
+   },
+   "die": {
+    "row": 32,
+    "frames": 6,
+    "dur": 800,
+    "type": "play_once"
+   }
+  },
+  "src": "flare",
+  "hgt": 75.0
  },
  "archer": {
-  "px": 128,
-  "view": 1.5,
-  "dirs": 5,
-  "frames": 6,
+  "cw": 162,
+  "ch": 122,
   "anchor": [
-   64.0,
-   95.4
-  ]
- },
- "mage_ice": {
-  "px": 144,
-  "view": 1.7,
-  "dirs": 5,
-  "frames": 6,
-  "anchor": [
-   72.0,
-   106.0
-  ]
- },
- "mage_poison": {
-  "px": 144,
-  "view": 1.7,
-  "dirs": 5,
-  "frames": 6,
-  "anchor": [
-   72.0,
-   106.0
-  ]
+   74.0,
+   94.5
+  ],
+  "dirs": 8,
+  "anims": {
+   "stance": {
+    "row": 0,
+    "frames": 4,
+    "dur": 533,
+    "type": "back_forth"
+   },
+   "run": {
+    "row": 8,
+    "frames": 8,
+    "dur": 533,
+    "type": "looped"
+   },
+   "attack": {
+    "row": 16,
+    "frames": 4,
+    "dur": 400,
+    "type": "play_once"
+   },
+   "hit": {
+    "row": 24,
+    "frames": 2,
+    "dur": 133,
+    "type": "back_forth"
+   },
+   "die": {
+    "row": 32,
+    "frames": 6,
+    "dur": 800,
+    "type": "play_once"
+   }
+  },
+  "src": "flare",
+  "hgt": 80.0
  },
  "zombie": {
-  "px": 128,
-  "view": 1.5,
-  "dirs": 5,
-  "frames": 6,
+  "cw": 104,
+  "ch": 115,
   "anchor": [
-   64.0,
+   46.5,
    92.5
-  ]
- },
- "shade": {
-  "px": 128,
-  "view": 1.4,
-  "dirs": 5,
-  "frames": 6,
-  "anchor": [
-   64.0,
-   91.5
-  ]
- },
- "demon": {
-  "px": 192,
-  "view": 2.5,
-  "dirs": 5,
-  "frames": 6,
-  "anchor": [
-   96.0,
-   134.5
-  ]
- },
- "imp": {
-  "px": 112,
-  "view": 1.2,
-  "dirs": 1,
-  "frames": 6,
-  "anchor": [
-   56.0,
-   78.5
-  ]
- },
- "bat": {
-  "px": 128,
-  "view": 1.4,
-  "dirs": 1,
-  "frames": 6,
-  "anchor": [
-   64.0,
-   93.4
-  ]
- },
- "golem": {
-  "px": 224,
-  "view": 2.2,
-  "dirs": 5,
-  "frames": 6,
-  "anchor": [
-   112.0,
-   163.1
-  ]
- },
- "flesh": {
-  "px": 192,
-  "view": 1.5,
-  "dirs": 5,
-  "frames": 6,
-  "anchor": [
-   96.0,
-   126.8
-  ]
- },
- "warlock": {
-  "px": 192,
-  "view": 2.3,
-  "dirs": 5,
-  "frames": 6,
-  "anchor": [
-   96.0,
-   140.7
-  ]
+  ],
+  "dirs": 8,
+  "anims": {
+   "stance": {
+    "row": 0,
+    "frames": 4,
+    "dur": 533,
+    "type": "back_forth"
+   },
+   "run": {
+    "row": 8,
+    "frames": 8,
+    "dur": 800,
+    "type": "looped"
+   },
+   "attack": {
+    "row": 16,
+    "frames": 4,
+    "dur": 533,
+    "type": "play_once"
+   },
+   "hit": {
+    "row": 24,
+    "frames": 2,
+    "dur": 133,
+    "type": "play_once"
+   },
+   "die": {
+    "row": 32,
+    "frames": 6,
+    "dur": 400,
+    "type": "play_once"
+   }
+  },
+  "src": "flare",
+  "hgt": 73.5
  },
  "chest": {
   "px": 112,
@@ -364,5 +228,799 @@
    56.0,
    74.7
   ]
+ },
+ "minotaur": {
+  "cw": 194,
+  "ch": 179,
+  "anchor": [
+   97.0,
+   138.5
+  ],
+  "dirs": 8,
+  "anims": {
+   "stance": {
+    "row": 0,
+    "frames": 8,
+    "dur": 1600,
+    "type": "looped"
+   },
+   "run": {
+    "row": 8,
+    "frames": 8,
+    "dur": 533,
+    "type": "looped"
+   },
+   "attack": {
+    "row": 16,
+    "frames": 8,
+    "dur": 1066,
+    "type": "play_once"
+   },
+   "hit": {
+    "row": 24,
+    "frames": 3,
+    "dur": 200,
+    "type": "back_forth"
+   },
+   "die": {
+    "row": 32,
+    "frames": 8,
+    "dur": 1066,
+    "type": "back_forth"
+   }
+  },
+  "src": "flare",
+  "hgt": 110.0
+ },
+ "wyvern_fire": {
+  "cw": 185,
+  "ch": 178,
+  "anchor": [
+   88.5,
+   145.0
+  ],
+  "dirs": 8,
+  "anims": {
+   "stance": {
+    "row": 0,
+    "frames": 8,
+    "dur": 800,
+    "type": "looped"
+   },
+   "run": {
+    "row": 8,
+    "frames": 8,
+    "dur": 533,
+    "type": "looped"
+   },
+   "attack": {
+    "row": 16,
+    "frames": 8,
+    "dur": 1066,
+    "type": "play_once"
+   },
+   "hit": {
+    "row": 24,
+    "frames": 8,
+    "dur": 533,
+    "type": "play_once"
+   },
+   "die": {
+    "row": 32,
+    "frames": 8,
+    "dur": 1066,
+    "type": "play_once"
+   }
+  },
+  "src": "flare",
+  "hgt": 97.0
+ },
+ "loot_coins": {
+  "cw": 99,
+  "ch": 42,
+  "anchor": [
+   49.5,
+   33.6
+  ],
+  "dirs": 1,
+  "anims": {
+   "idle": {
+    "row": 0,
+    "frames": 1,
+    "dur": 1000,
+    "type": "looped"
+   }
+  },
+  "src": "flare"
+ },
+ "loot_hp": {
+  "cw": 28,
+  "ch": 30,
+  "anchor": [
+   14.0,
+   24.0
+  ],
+  "dirs": 1,
+  "anims": {
+   "idle": {
+    "row": 0,
+    "frames": 1,
+    "dur": 1000,
+    "type": "looped"
+   }
+  },
+  "src": "flare"
+ },
+ "loot_mp": {
+  "cw": 29,
+  "ch": 35,
+  "anchor": [
+   14.5,
+   28.0
+  ],
+  "dirs": 1,
+  "anims": {
+   "idle": {
+    "row": 0,
+    "frames": 1,
+    "dur": 1000,
+    "type": "looped"
+   }
+  },
+  "src": "flare"
+ },
+ "loot_scroll": {
+  "cw": 77,
+  "ch": 44,
+  "anchor": [
+   38.5,
+   35.2
+  ],
+  "dirs": 1,
+  "anims": {
+   "idle": {
+    "row": 0,
+    "frames": 1,
+    "dur": 1000,
+    "type": "looped"
+   }
+  },
+  "src": "flare"
+ },
+ "loot_ring": {
+  "cw": 18,
+  "ch": 13,
+  "anchor": [
+   9.0,
+   10.4
+  ],
+  "dirs": 1,
+  "anims": {
+   "idle": {
+    "row": 0,
+    "frames": 1,
+    "dur": 1000,
+    "type": "looped"
+   }
+  },
+  "src": "flare"
+ },
+ "loot_staff": {
+  "cw": 85,
+  "ch": 99,
+  "anchor": [
+   42.5,
+   79.2
+  ],
+  "dirs": 1,
+  "anims": {
+   "idle": {
+    "row": 0,
+    "frames": 1,
+    "dur": 1000,
+    "type": "looped"
+   }
+  },
+  "src": "flare"
+ },
+ "loot_wand": {
+  "cw": 42,
+  "ch": 15,
+  "anchor": [
+   21.0,
+   12.0
+  ],
+  "dirs": 1,
+  "anims": {
+   "idle": {
+    "row": 0,
+    "frames": 1,
+    "dur": 1000,
+    "type": "looped"
+   }
+  },
+  "src": "flare"
+ },
+ "loot_cloak": {
+  "cw": 58,
+  "ch": 34,
+  "anchor": [
+   29.0,
+   27.200000000000003
+  ],
+  "dirs": 1,
+  "anims": {
+   "idle": {
+    "row": 0,
+    "frames": 1,
+    "dur": 1000,
+    "type": "looped"
+   }
+  },
+  "src": "flare"
+ },
+ "loot_gem": {
+  "cw": 14,
+  "ch": 13,
+  "anchor": [
+   7.0,
+   10.4
+  ],
+  "dirs": 1,
+  "anims": {
+   "idle": {
+    "row": 0,
+    "frames": 1,
+    "dur": 1000,
+    "type": "looped"
+   }
+  },
+  "src": "flare"
+ },
+ "fx_fireball": {
+  "cw": 85,
+  "ch": 45,
+  "anchor": [
+   49.0,
+   69.5
+  ],
+  "dirs": 1,
+  "anims": {
+   "idle": {
+    "row": 0,
+    "frames": 4,
+    "dur": 266,
+    "type": "looped"
+   }
+  },
+  "src": "flare"
+ },
+ "fx_icicle": {
+  "cw": 92,
+  "ch": 22,
+  "anchor": [
+   49.0,
+   54.5
+  ],
+  "dirs": 1,
+  "anims": {
+   "idle": {
+    "row": 0,
+    "frames": 4,
+    "dur": 400,
+    "type": "looped"
+   }
+  },
+  "src": "flare"
+ },
+ "fx_lightning": {
+  "cw": 52,
+  "ch": 54,
+  "anchor": [
+   27.5,
+   87.0
+  ],
+  "dirs": 1,
+  "anims": {
+   "idle": {
+    "row": 0,
+    "frames": 6,
+    "dur": 200,
+    "type": "looped"
+   }
+  },
+  "src": "flare"
+ },
+ "fx_plasma": {
+  "cw": 49,
+  "ch": 49,
+  "anchor": [
+   24.5,
+   72.5
+  ],
+  "dirs": 1,
+  "anims": {
+   "idle": {
+    "row": 0,
+    "frames": 4,
+    "dur": 400,
+    "type": "looped"
+   }
+  },
+  "src": "flare"
+ },
+ "fx_blast": {
+  "cw": 351,
+  "ch": 228,
+  "anchor": [
+   178.5,
+   121.0
+  ],
+  "dirs": 1,
+  "anims": {
+   "idle": {
+    "row": 0,
+    "frames": 6,
+    "dur": 600,
+    "type": "play_once"
+   }
+  },
+  "src": "flare"
+ },
+ "fx_freeze": {
+  "cw": 61,
+  "ch": 70,
+  "anchor": [
+   35.5,
+   52.5
+  ],
+  "dirs": 1,
+  "anims": {
+   "idle": {
+    "row": 0,
+    "frames": 4,
+    "dur": 400,
+    "type": "play_once"
+   }
+  },
+  "src": "flare"
+ },
+ "fx_runes": {
+  "cw": 98,
+  "ch": 49,
+  "anchor": [
+   49.0,
+   24.5
+  ],
+  "dirs": 1,
+  "anims": {
+   "idle": {
+    "row": 0,
+    "frames": 4,
+    "dur": 533,
+    "type": "play_once"
+   }
+  },
+  "src": "flare"
+ },
+ "fx_heal": {
+  "cw": 94,
+  "ch": 98,
+  "anchor": [
+   45.0,
+   97.0
+  ],
+  "dirs": 1,
+  "anims": {
+   "idle": {
+    "row": 0,
+    "frames": 6,
+    "dur": 600,
+    "type": "play_once"
+   }
+  },
+  "src": "flare"
+ },
+ "fx_shield": {
+  "cw": 137,
+  "ch": 155,
+  "anchor": [
+   68.5,
+   118.0
+  ],
+  "dirs": 1,
+  "anims": {
+   "idle": {
+    "row": 0,
+    "frames": 4,
+    "dur": 400,
+    "type": "looped"
+   }
+  },
+  "src": "flare"
+ },
+ "fx_spark_red": {
+  "cw": 97,
+  "ch": 87,
+  "anchor": [
+   48.0,
+   93.0
+  ],
+  "dirs": 1,
+  "anims": {
+   "idle": {
+    "row": 0,
+    "frames": 4,
+    "dur": 400,
+    "type": "play_once"
+   }
+  },
+  "src": "flare"
+ },
+ "fx_spark_blue": {
+  "cw": 97,
+  "ch": 87,
+  "anchor": [
+   48.0,
+   93.0
+  ],
+  "dirs": 1,
+  "anims": {
+   "idle": {
+    "row": 0,
+    "frames": 4,
+    "dur": 400,
+    "type": "play_once"
+   }
+  },
+  "src": "flare"
+ },
+ "fx_spark_green": {
+  "cw": 97,
+  "ch": 87,
+  "anchor": [
+   48.0,
+   93.0
+  ],
+  "dirs": 1,
+  "anims": {
+   "idle": {
+    "row": 0,
+    "frames": 4,
+    "dur": 400,
+    "type": "play_once"
+   }
+  },
+  "src": "flare"
+ },
+ "fx_spark_orange": {
+  "cw": 97,
+  "ch": 87,
+  "anchor": [
+   48.0,
+   93.0
+  ],
+  "dirs": 1,
+  "anims": {
+   "idle": {
+    "row": 0,
+    "frames": 4,
+    "dur": 400,
+    "type": "play_once"
+   }
+  },
+  "src": "flare"
+ },
+ "fx_quake": {
+  "cw": 202,
+  "ch": 111,
+  "anchor": [
+   104.5,
+   65.0
+  ],
+  "dirs": 1,
+  "anims": {
+   "idle": {
+    "row": 0,
+    "frames": 4,
+    "dur": 400,
+    "type": "play_once"
+   }
+  },
+  "src": "flare"
+ },
+ "fx_ember": {
+  "cw": 12,
+  "ch": 5,
+  "anchor": [
+   5.5,
+   50.5
+  ],
+  "dirs": 1,
+  "anims": {
+   "idle": {
+    "row": 0,
+    "frames": 1,
+    "dur": 33,
+    "type": "looped"
+   }
+  },
+  "src": "flare"
+ },
+ "fx_mist": {
+  "cw": 194,
+  "ch": 168,
+  "anchor": [
+   97.0,
+   145.0
+  ],
+  "dirs": 1,
+  "anims": {
+   "idle": {
+    "row": 0,
+    "frames": 10,
+    "dur": 1000,
+    "type": "play_once"
+   }
+  },
+  "src": "flare"
+ },
+ "mage": {
+  "cw": 153,
+  "ch": 129,
+  "anchor": [
+   67.0,
+   102.0
+  ],
+  "dirs": 8,
+  "anims": {
+   "stance": {
+    "row": 0,
+    "frames": 4,
+    "dur": 533,
+    "type": "back_forth"
+   },
+   "run": {
+    "row": 8,
+    "frames": 8,
+    "dur": 533,
+    "type": "looped"
+   },
+   "attack": {
+    "row": 16,
+    "frames": 4,
+    "dur": 400,
+    "type": "play_once"
+   },
+   "hit": {
+    "row": 24,
+    "frames": 2,
+    "dur": 133,
+    "type": "back_forth"
+   },
+   "die": {
+    "row": 32,
+    "frames": 6,
+    "dur": 800,
+    "type": "play_once"
+   }
+  },
+  "src": "flare",
+  "hgt": 76.5
+ },
+ "goblin": {
+  "cw": 112,
+  "ch": 93,
+  "anchor": [
+   52.0,
+   76.0
+  ],
+  "dirs": 8,
+  "anims": {
+   "stance": {
+    "row": 0,
+    "frames": 4,
+    "dur": 800,
+    "type": "back_forth"
+   },
+   "run": {
+    "row": 8,
+    "frames": 8,
+    "dur": 533,
+    "type": "looped"
+   },
+   "attack": {
+    "row": 16,
+    "frames": 3,
+    "dur": 300,
+    "type": "play_once"
+   },
+   "hit": {
+    "row": 24,
+    "frames": 2,
+    "dur": 133,
+    "type": "play_once"
+   },
+   "die": {
+    "row": 32,
+    "frames": 6,
+    "dur": 400,
+    "type": "play_once"
+   }
+  },
+  "src": "flare",
+  "hgt": 41.0
+ },
+ "antlion": {
+  "cw": 209,
+  "ch": 151,
+  "anchor": [
+   102.8,
+   106.1
+  ],
+  "dirs": 8,
+  "anims": {
+   "stance": {
+    "row": 0,
+    "frames": 4,
+    "dur": 533,
+    "type": "back_forth"
+   },
+   "run": {
+    "row": 8,
+    "frames": 8,
+    "dur": 533,
+    "type": "looped"
+   },
+   "attack": {
+    "row": 16,
+    "frames": 4,
+    "dur": 266,
+    "type": "play_once"
+   },
+   "hit": {
+    "row": 24,
+    "frames": 2,
+    "dur": 133,
+    "type": "back_forth"
+   },
+   "die": {
+    "row": 32,
+    "frames": 6,
+    "dur": 800,
+    "type": "play_once"
+   }
+  },
+  "src": "flare",
+  "hgt": 52.3
+ },
+ "antlion_small": {
+  "cw": 96,
+  "ch": 70,
+  "anchor": [
+   47.5,
+   49.0
+  ],
+  "dirs": 8,
+  "anims": {
+   "stance": {
+    "row": 0,
+    "frames": 4,
+    "dur": 533,
+    "type": "back_forth"
+   },
+   "run": {
+    "row": 8,
+    "frames": 8,
+    "dur": 533,
+    "type": "looped"
+   },
+   "attack": {
+    "row": 16,
+    "frames": 4,
+    "dur": 266,
+    "type": "play_once"
+   },
+   "hit": {
+    "row": 24,
+    "frames": 2,
+    "dur": 133,
+    "type": "back_forth"
+   },
+   "die": {
+    "row": 32,
+    "frames": 6,
+    "dur": 800,
+    "type": "play_once"
+   }
+  },
+  "src": "flare",
+  "hgt": 24.0
+ },
+ "fire_ant": {
+  "cw": 190,
+  "ch": 138,
+  "anchor": [
+   93.5,
+   96.5
+  ],
+  "dirs": 8,
+  "anims": {
+   "stance": {
+    "row": 0,
+    "frames": 4,
+    "dur": 533,
+    "type": "back_forth"
+   },
+   "run": {
+    "row": 8,
+    "frames": 8,
+    "dur": 533,
+    "type": "looped"
+   },
+   "attack": {
+    "row": 16,
+    "frames": 4,
+    "dur": 266,
+    "type": "play_once"
+   },
+   "hit": {
+    "row": 24,
+    "frames": 2,
+    "dur": 133,
+    "type": "back_forth"
+   },
+   "die": {
+    "row": 32,
+    "frames": 6,
+    "dur": 800,
+    "type": "play_once"
+   }
+  },
+  "src": "flare",
+  "hgt": 47.5
+ },
+ "lich": {
+  "cw": 153,
+  "ch": 129,
+  "anchor": [
+   67.0,
+   102.0
+  ],
+  "dirs": 8,
+  "anims": {
+   "stance": {
+    "row": 0,
+    "frames": 4,
+    "dur": 533,
+    "type": "back_forth"
+   },
+   "run": {
+    "row": 8,
+    "frames": 8,
+    "dur": 533,
+    "type": "looped"
+   },
+   "attack": {
+    "row": 16,
+    "frames": 4,
+    "dur": 400,
+    "type": "play_once"
+   },
+   "hit": {
+    "row": 24,
+    "frames": 2,
+    "dur": 133,
+    "type": "back_forth"
+   },
+   "die": {
+    "row": 32,
+    "frames": 6,
+    "dur": 800,
+    "type": "play_once"
+   }
+  },
+  "src": "flare",
+  "hgt": 76.5
  }
 }
