@@ -30,6 +30,7 @@ var bench_t := 0.0
 var bench_n := 0
 var test_floor := 0
 var test_inp = null
+var samples_dir := ""
 
 func _ready() -> void:
 	Ui.init_fonts()
@@ -42,6 +43,7 @@ func _ready() -> void:
 		elif a.begins_with("--floor="): test_floor = int(a.substr(8))
 		elif a.begins_with("--mode="): shot_mode = a.substr(7)
 		elif a == "--bench": bench = true
+		elif a.begins_with("--samples="): samples_dir = a.substr(10)
 		elif a.begins_with("--seed="): seed(int(a.substr(7)))
 	add_child(game)
 	World.set_fog(PackedByteArray())
@@ -60,6 +62,7 @@ func _ready() -> void:
 	_title_scene()
 	ui.open_title()
 	if test_floor > 0 or shot_mode != "": _test_setup()
+	if samples_dir != "": _run_samples()
 
 func _setup_env(town: bool) -> void:
 	var e: Environment = env.environment
@@ -355,3 +358,50 @@ func _test_hooks(dt: float) -> void:
 		if shot_frames == 70:
 			var img = get_viewport().get_texture().get_image()
 			img.save_png(shot_path); print("SHOT ", shot_path); get_tree().quit()
+
+# ---------------- 한 번 실행으로 주요 화면 여러 장 캡처 ----------------
+func _frames(n: int) -> void:
+	for i in n: await get_tree().process_frame
+
+func _snap(name: String) -> void:
+	await _frames(2)
+	var img := get_viewport().get_texture().get_image()
+	img.save_png("%s/%s.png" % [samples_dir, name]); print("SAMPLE ", name)
+
+func _fight(n: int) -> void:
+	for i in n:
+		var e = game.nearest_enemy(game.P.x, game.P.y, 420, true, null)
+		test_inp = {mx = 0.0, my = 0.0, firing = true, ang = atan2(e.y - game.P.y, e.x - game.P.x) if e != null else 0.0}
+		await get_tree().process_frame
+	test_inp = null
+
+func _run_samples() -> void:
+	DirAccess.make_dir_recursive_absolute(samples_dir)
+	hud.touch_ui = true
+	await _frames(20); await _snap("1_title")
+	ui.hide_all(); game.new_game("norm"); game.G.sb = {god = true, mana = true, nocd = true, still = false}
+	var P = game.P
+	P.prim.fire = 3; P.prim.arcane = 2; P.active = "fire"
+	P.sec.ward = 1; P.secOrder.append("ward"); P.sec.nova = 1; P.secOrder.append("nova")
+	P.lv = 6; P.next = Game.xp_need(6); game.recalc()
+	for r in ["rare", "epic", "magic"]: P.bag.append(game.make_item(r, 3))
+	hud.build_buttons()
+	await _frames(10)
+	P.x = game.G.npcs[0].x + 40; P.y = game.G.npcs[0].y + 30
+	await _frames(12); await _snap("2_town")
+	ui.open_talk(game.G.npcs[1]); await _frames(4); await _snap("3_shop"); ui.close_talk()
+	game.G.resume = 1; game.enter_tower(); await _frames(3)
+	var r0: Dictionary = game.mg.rooms[0]; P.x = r0.cx; P.y = r0.cy
+	var n := 0
+	for e in game.G.enemies:
+		if n < 6:
+			e.x = P.x - 150 + n * 60; e.y = P.y - 80 + (n % 2) * 50; e.aggro = true; n += 1
+	game.mg.reveal(P.x, P.y); game.mg.dirty = true
+	await _frames(4); game.cast_sec("ward"); await _fight(26); await _snap("4_fight")
+	game.cast_sec("nova"); await _frames(6); await _snap("5_nova")
+	game.G.pendingLv = 1; game.set_state("levelup"); ui.open_level(); await _frames(4); await _snap("6_levelup"); ui.hide_all(); game.G.pendingLv = 0; game.set_state("play")
+	ui.open_bag(); ui.bag_sel = {from = "bag", i = 0}; ui._render_bag(); await _frames(4); await _snap("7_bag"); ui.close_bag()
+	game.sand_goto(5); await _frames(3)
+	P.y -= 120; await _fight(20); await _snap("8_boss")
+	open_pause(); await _frames(4); await _snap("9_pause")
+	get_tree().quit()

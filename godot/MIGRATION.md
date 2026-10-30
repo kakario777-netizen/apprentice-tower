@@ -35,3 +35,5 @@
 - 주의: GDScript 에서 `pass` 는 예약어라 P["pass"] 로 씀. 함수 안에서는 `:=` 대신 `=`(Variant 추론 오류 방지).
 - CI 에 스크립트 검사 단계(check.log) 있음. 시험 장면: --mode=title|levelup|bag|talk|pause|sand, --floor=N.
 - 남은 일(4단계): 폰 피드백 반영, 텍스처 압축(용량), 패키지 이름을 기존 앱으로 바꿔 교체, 웹판과 세부 비교(러그·균열 장식, 타이틀 탑 그림 등은 아직 없음).
+- 빠른 캡처(로컬, 약 75초): 고도 실행 파일을 `https://github.com/godotengine/godot/releases/download/4.5.1-stable/Godot_v4.5.1-stable_linux.x86_64.zip` 에서 바로 받아 /tmp/claude-0/godot 에 풀고,
+  `cp -r www/assets godot/assets`, 글꼴은 로컬 미리보기용으로 Noto CJK KR 을 fontTools 로 뽑아 godot/fonts 에 넣은 뒤 `--headless --import`, 그리고 `tools/samples.sh OUT_DIR` (한 번 실행으로 9장).
