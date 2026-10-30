@@ -6,6 +6,8 @@ on:
     paths-ignore:
       - 'godot/**'
       - '.github/workflows/godot.yml'
+      - 'tools/samples.sh'
+      - 'tools/godot_icons.py'
   workflow_dispatch:
 
 permissions:
