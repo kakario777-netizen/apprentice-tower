@@ -2,7 +2,8 @@
 class_name D
 extends RefCounted
 
-const LAST_FLOOR := 70
+const LAST_FLOOR := 99   # 99층 위는 옥상(ROOF) — 최종 보스
+const ROOF := 100
 const PRIMARY_MAX := 10
 const T := 32.0
 const MW := 82
@@ -117,9 +118,9 @@ const DIFFICULTIES := [
 ]
 
 const SHOP := [
-	{id = "pothp", name = "생명 물약", desc = "생명을 45% 즉시 회복", price = 20, max = 5},
-	{id = "potmp", name = "마나 물약", desc = "마나를 60% 즉시 회복", price = 20, max = 5},
-	{id = "scroll", name = "귀환 주문서", desc = "탑 어디서든 마을로 가는 문을 연다", price = 45, max = 3},
+	{id = "pothp", name = "생명 물약", desc = "생명을 45% 즉시 회복", price = 40, max = 5},
+	{id = "potmp", name = "마나 물약", desc = "마나를 60% 즉시 회복", price = 40, max = 5},
+	{id = "scroll", name = "귀환 주문서", desc = "탑 어디서든 마을로 가는 문을 연다", price = 120, max = 3},
 ]
 static func shop(id: String) -> Dictionary:
 	for s in SHOP:
@@ -173,17 +174,18 @@ const EPICNAMES := {weapon = ["대현자의 지팡이", "벼락 삼킨 가지", 
 
 # 층 구성: 5층마다 보스(5 네임드 · 10 준보스 · 15 네임드 · 20 계층 보스 반복), 20층마다 분위기
 static func boss_kind(f: int) -> String:
-	if f == LAST_FLOOR: return "final"
+	if f == ROOF: return "final"
 	if f % 20 == 0: return "tier"
 	if f % 10 == 0: return "sub"
 	if f % 5 == 0: return "named"
 	return ""
-static func theme(f: int) -> int: return clampi((f - 1) / 20, 0, 3)
+static func theme(f: int) -> int: return clampi((f - 1) / 20, 0, 4)
 const THEMES := [
 	{name = "돌의 회랑", amb = Color(.46, .41, .56), tint = Color(1, 1, 1), torch = Color(1, .6, .3), floor = "floor2"},
 	{name = "이끼 낀 지하묘지", amb = Color(.36, .46, .4), tint = Color(.82, .95, .84), torch = Color(.95, .75, .4), floor = "floor"},
 	{name = "잿불의 층", amb = Color(.52, .34, .3), tint = Color(1.05, .82, .74), torch = Color(1, .42, .18), floor = "floor2"},
 	{name = "별빛 서고", amb = Color(.36, .38, .62), tint = Color(.8, .84, 1.1), torch = Color(.55, .7, 1), floor = "floor"},
+	{name = "검은 첨탑", amb = Color(.42, .3, .5), tint = Color(.78, .7, .9), torch = Color(.8, .4, 1), floor = "floor2"},
 ]
 
 static func mod_text(m: Dictionary) -> String:

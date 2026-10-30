@@ -325,9 +325,9 @@ func open_boss_stairs() -> void:
 	dirty = true
 
 # ---------------- 야외 테라스 ----------------
-func gen_terrace(fl: int) -> void:
+func gen_terrace(fl: int, roof := false) -> void:
 	_reset(); floor_no = fl; terrace = true
-	var w := ri(30, 40); var h := ri(16, 22); var x := MW / 2 - w / 2; var y := MH / 2 - h / 2
+	var w := ri(30, 40) if not roof else 30; var h := ri(16, 22) if not roof else 22; var x := MW / 2 - w / 2; var y := MH / 2 - h / 2
 	carve(x, y, w, h); rooms.append(_room(x, y, w, h, true))
 	# 화단·기둥
 	for k in ri(3, 6):
@@ -335,9 +335,12 @@ func gen_terrace(fl: int) -> void:
 		for j in 2:
 			for i in 2: map[(py + j) * MW + px + i] = 1
 	seen.fill(1)
-	door = carve_alcove(rooms[0], 1, "back")
-	if door == null: door = {x = rooms[0].cx, y = (y + 1) * T, found = true, alcove = false, kind = "back"}
-	start = Vector2(door.x, door.y + 44)
+	if roof:
+		start = Vector2(rooms[0].cx, (y + h - 3) * T)
+	else:
+		door = carve_alcove(rooms[0], 1, "back")
+		if door == null: door = {x = rooms[0].cx, y = (y + 1) * T, found = true, alcove = false, kind = "back"}
+		start = Vector2(door.x, door.y + 44)
 	for c in [[x + 1, y + 1], [x + w - 2, y + 1], [x + 1, y + h - 2], [x + w - 2, y + h - 2]]:
 		torches.append({pos = Vector2((c[0] + .5) * T, (c[1] + .5) * T), wall = false, lamp = true})
 	const PL := ["flower1", "flower2", "fern1", "shrub1", "shrub2", "grass1", "grass3", "rock1", "rock2"]

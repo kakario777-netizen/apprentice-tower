@@ -194,6 +194,15 @@ func gen_floor() -> void:
 	var kind := D.boss_kind(G.floor)
 	seed(G.runSeed * 131 + G.floor * 7919)
 	mg = MapGen.new()
+	if G.floor == D.ROOF:
+		# 옥상: 탁 트인 하늘 아래 최종 보스
+		mg.gen_terrace(G.floor, true)
+		P.x = mg.start.x; P.y = mg.start.y
+		var r0: Dictionary = mg.rooms[0]
+		var fb := spawn_floor_boss("final", r0.cx, r0.cy - 40)
+		G.banner = {text = "탑의 옥상 · %s" % fb.name, t = 3.4}
+		randomize(); mg.build_flow(P.x, P.y); level_changed = true
+		return
 	mg.gen_floor(G.floor, kind != "", kind == "" and G.floor >= 2 and randf() < .4)
 	if kind != "":
 		var r: Dictionary = mg.rooms[0]
@@ -373,7 +382,7 @@ func kill_enemy(e: Dictionary) -> void:
 	if roll < .10: G.drops.append({x = e.x, y = e.y, kind = "hp", t = 0.0, id = nid()})
 	elif roll < .25: G.drops.append({x = e.x, y = e.y, kind = "mp", t = 0.0, id = nid()})
 	if randf() < .5 or e.isBoss:
-		G.drops.append({x = e.x + rnd(-8, 8), y = e.y + rnd(-8, 8), kind = "gold", v = int(round((60 if e.isBoss else ri(1, 3) + G.floor) * diff_d().reward * (1 + P.st.gold))), t = 0.0, vx = rnd(-90, 90), vy = rnd(-90, 90), h = 0.0, vh = rnd(70, 120), id = nid()})
+		G.drops.append({x = e.x + rnd(-8, 8), y = e.y + rnd(-8, 8), kind = "gold", v = int(round((300 + G.floor * 30 if e.isBoss else (ri(2, 6) + G.floor) * 4) * diff_d().reward * (1 + P.st.gold))), t = 0.0, vx = rnd(-90, 90), vy = rnd(-90, 90), h = 0.0, vh = rnd(70, 120), id = nid()})
 	if not e.isBoss and e.xp > 1 and randf() < (.07 if (e.type == "demon" or e.type == "mage") else .03): drop_item(e.x, e.y)
 	if e.isBoss and not e.split:
 		drop_item(e.x - 10, e.y, "epic"); drop_item(e.x + 10, e.y, "rare")
@@ -388,12 +397,19 @@ func _other_boss_alive(ex) -> bool:
 
 func boss_cleared() -> void:
 	var r: Dictionary = mg.rooms[0]
+	if G.floor == D.ROOF:
+		G.eshots = []
+		for e in G.enemies:
+			if not e.dead: kill_enemy(e)
+		G.banner = {text = "흑마법사를 쓰러뜨렸다!", t = 3.0}
+		get_tree().create_timer(3.0).timeout.connect(func(): game_over(true))
+		return
 	mg.open_boss_stairs(); level_changed = true
 	if G.floor < D.LAST_FLOOR and G.floor % 10 == 0: G.portal = {x = r.cx - 70, y = r.cy, resume = G.floor + 1}
 	G.eshots = []
 	for e in G.enemies:
 		if not e.dead: kill_enemy(e)
-	G.banner = {text = "흑마법사를 쓰러뜨렸다!" if G.floor >= D.LAST_FLOOR else "보스 격파! 계단이 열렸다", t = 3.0}
+	G.banner = {text = "보스 격파! 계단이 열렸다", t = 3.0}
 	G.drops.append({x = r.cx + 30, y = r.cy, kind = "hp", t = 0.0, id = nid()})
 	G.drops.append({x = r.cx - 30, y = r.cy, kind = "mp", t = 0.0, id = nid()})
 
@@ -866,7 +882,8 @@ func make_item(rar: String, lvl: int, base_id := "") -> Dictionary:
 		it.name = "%s %s" % [pf, bn]
 	elif rar == "rare": it.name = "%s의 %s" % [pick(D.RARENAMES), bn]
 	else: it.name = pick(D.EPICNAMES[base.slot])
-	it.value = int(round((8 + lvl * 3) * R.mult * (3 if rar == "epic" else (1.8 if rar == "rare" else 1.0))))
+	# 파는 값(사는 값은 이것의 5배쯤) — 솔로몬킵처럼 몇백~몇천 금화 단위
+	it.value = int(round((30 + lvl * 14) * R.mult * (1 + .18 * it.mods.size()) * (3 if rar == "epic" else (1.8 if rar == "rare" else 1.0)) / 5.0)) * 5
 	return it
 
 func roll_rarity(bonus := 0.0) -> String:
@@ -910,7 +927,7 @@ func buy(id: String) -> void:
 # ================= 층 이동 / 종료 =================
 func open_chest(c: Dictionary) -> void:
 	c.open = true; ring(c.x, c.y, 4, 34, .35, "#ffd76a"); burst(c.x, c.y - 6, "#ffd76a", 18, 140, .5, 2.5)
-	var n = ri(5, 9); var v: int = max(1, int(round((1 + G.floor * .6) * diff_d().reward)))
+	var n = ri(5, 9); var v: int = max(1, int(round((6 + G.floor * 3) * diff_d().reward)))
 	for i in n: G.drops.append({id = nid(), x = c.x, y = c.y, kind = "gold", v = v, t = 0.0, vx = rnd(-130, 130), vy = rnd(-130, 130), h = 0.0, vh = rnd(90, 160)})
 	if randf() < .35: drop_item(c.x, c.y, roll_rarity(.05 + G.floor * .006))
 	var r = randf()
@@ -943,7 +960,7 @@ func leave_terrace() -> void:
 	mg.dirty = true; mg.build_flow(P.x, P.y); level_changed = true
 
 func next_floor() -> void:
-	if G.floor >= D.LAST_FLOOR:
+	if G.floor >= D.ROOF:
 		game_over(true); return
 	G.floor += 1; G.resume = G.floor; P.hp = min(P.maxhp, P.hp + P.maxhp * .3); P.mp = P.maxmp; P.ward = 0.0; gen_floor(); save()
 
@@ -1299,7 +1316,8 @@ func roll_shop() -> void:
 	for i in 4:
 		var it := make_item("magic", lv)
 		while it.mods.size() > 2: it.mods.pop_back()
-		it.price = it.value * 5
+		it.value = int(round((30 + lv * 14) * (1 + .18 * it.mods.size()) / 5.0)) * 5
+		it.price = int(round(it.value * 5 / 10.0)) * 10
 		G.shop.append(it)
 
 func buy_item(i: int) -> bool:

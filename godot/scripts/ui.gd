@@ -150,6 +150,8 @@ func hide_all() -> void:
 func _begin(id: String, dim := .88, align := BoxContainer.ALIGNMENT_CENTER, left := false) -> void:
 	cur = id; root.visible = true
 	for c in box.get_children(): c.queue_free()
+	var bc = root.get_node_or_null("bagclose")
+	if bc and id != "bag": bc.queue_free()
 	bg.color = Color(.035, .027, .055, dim); bg.material = null
 	box.alignment = align
 	var m: MarginContainer = scroll.get_node("m")
@@ -551,9 +553,18 @@ func _render_bag() -> void:
 	_begin("bag", .88, BoxContainer.ALIGNMENT_BEGIN)
 	game.recalc()
 	var P = game.P; var G = game.G
-	var wrap = HBoxContainer.new(); wrap.add_theme_constant_override("separation", 12); _center(wrap, 1040)
+	# 화면 크기에 맞춰: 장비창 | 가방창 을 나란히, 자세히 보기는 밑(세로 여유가 있으면) 또는 옆
+	var vs = get_viewport().get_visible_rect().size; var ins: Dictionary = main.hud.inset()
+	var AW: float = vs.x - 32 - ins.l - ins.r; var AH: float = vs.y - 40 - ins.t - ins.b
+	var EH: float = clamp(AH - 6, 250.0, 340.0); var EW: float = clamp(EH * .84, 230.0, 290.0)
+	var SL: float = clamp((EH - 70) / 5.2, 40.0, 54.0)          # 가방 칸 크기
+	var below: bool = AH >= EH + 200                             # 세로가 넉넉하면(폴드 펼침 등) 자세히 보기는 아래로
+	var cols := 6 if below else 4
+	var IW: float = cols * SL + (cols - 1) * 5 + 28
+	if not below and AW - EW - IW - 20 < 210: cols = 3; IW = cols * SL + (cols - 1) * 5 + 28
+	var wrap = HBoxContainer.new(); wrap.add_theme_constant_override("separation", 10); wrap.alignment = BoxContainer.ALIGNMENT_CENTER
+	wrap.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	# 왼쪽: 큰 장비창 — 뒤에 마법사 윤곽을 아주 옅게, 그 위에 7칸
-	var EW := 300.0; var EH := 318.0
 	var ep = PanelContainer.new(); ep.add_theme_stylebox_override("panel", sb(Color(.07, .055, .1, .95), 12, LINE, 1, Vector4(0, 0, 0, 0)))
 	ep.custom_minimum_size = Vector2(EW, EH)
 	var lay = Control.new(); lay.custom_minimum_size = Vector2(EW, EH); ep.add_child(lay)
@@ -561,45 +572,47 @@ func _render_bag() -> void:
 	var tl = label("장비", 17, GOLD, display); tl.position = Vector2(12, 8); lay.add_child(tl)
 	var POS := {amulet = Vector2(.5, .17), weapon = Vector2(.17, .42), cloak = Vector2(.83, .42), ring1 = Vector2(.17, .68), ring2 = Vector2(.83, .68), belt = Vector2(.5, .62), boots = Vector2(.5, .86)}
 	for k in D.SLOTS:
-		var sz := 58.0
+		var sz: float = clamp(EH / 5.6, 46.0, 58.0)
 		var b = _slot(P.eq[k], D.SLOTNAME[k], bag_sel != null and bag_sel.from == "eq" and bag_sel.slot == k, sz, func():
 			bag_sel = {from = "eq", slot = k}; _render_bag())
 		if P.eq[k] == null:
 			var ph = TextureRect.new(); ph.texture = load("res://ui/slot_%s.png" % ("ring" if k.begins_with("ring") else k)); ph.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 			ph.position = Vector2(sz * .12, sz * .06); ph.size = Vector2(sz * .76, sz * .76); ph.mouse_filter = Control.MOUSE_FILTER_IGNORE; b.add_child(ph)
 		b.position = Vector2(POS[k].x * EW - sz / 2, POS[k].y * EH - sz / 2); b.set_meta("key", "eq:" + k); lay.add_child(b)
-	var c1 = VBoxContainer.new(); c1.add_theme_constant_override("separation", 6)
-	c1.add_child(ep)
-	var tot = {}
-	for k in D.SLOTS:
-		var it = P.eq[k]
-		if it != null:
-			for m in it.mods: tot[m.k] = tot.get(m.k, 0) + m.v
-	var es = HFlowContainer.new(); es.add_theme_constant_override("h_separation", 10); es.custom_minimum_size.x = EW
-	if tot.is_empty(): es.add_child(label("착용한 장비가 없어요.", 12, MUTED))
-	for k in tot.keys(): es.add_child(label(D.mod_text({k = k, v = snappedf(tot[k], .01)}), 12, MUTED))
-	c1.add_child(es)
-	wrap.add_child(c1)
-	# 가운데: 가방(칸은 상점에서 금화로 늘릴 수 있음)
-	var c2 = VBoxContainer.new(); c2.add_theme_constant_override("separation", 8)
-	c2.add_child(label("가방 %d/%d" % [P.bag.size(), P.bagMax], 17, GOLD, display))
-	var gsc = ScrollContainer.new(); gsc.custom_minimum_size = Vector2(5 * 50 + 4 * 5 + 8, 6 * 55); gsc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	var bg_ = GridContainer.new(); bg_.columns = 5; bg_.add_theme_constant_override("h_separation", 5); bg_.add_theme_constant_override("v_separation", 5)
+	wrap.add_child(ep)
+	# 오른쪽: 가방창(칸은 상점에서 금화로 늘릴 수 있음)
+	var ip = PanelContainer.new(); ip.add_theme_stylebox_override("panel", sb(Color(.07, .055, .1, .95), 12, LINE, 1, Vector4(12, 8, 12, 10)))
+	ip.custom_minimum_size = Vector2(IW, EH)
+	var c2 = VBoxContainer.new(); c2.add_theme_constant_override("separation", 6); ip.add_child(c2)
+	var hh = HBoxContainer.new(); c2.add_child(hh)
+	var bt = label("가방 %d/%d" % [P.bag.size(), P.bagMax], 17, GOLD, display); bt.size_flags_horizontal = Control.SIZE_EXPAND_FILL; hh.add_child(bt)
+	hh.add_child(label("금화 %d" % G.gold, 13, Color("#ffd76a")))
+	var gsc = ScrollContainer.new(); gsc.custom_minimum_size = Vector2(IW - 24, EH - 50); gsc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	var bg_ = GridContainer.new(); bg_.columns = cols; bg_.add_theme_constant_override("h_separation", 5); bg_.add_theme_constant_override("v_separation", 5)
 	for i in P.bagMax:
 		var it = P.bag[i] if i < P.bag.size() else null
-		var b = _slot(it, "", bag_sel != null and bag_sel.from == "bag" and bag_sel.i == i, 50, func():
+		var b = _slot(it, "", bag_sel != null and bag_sel.from == "bag" and bag_sel.i == i, SL, func():
 			if i >= P.bag.size(): return
 			bag_sel = {from = "bag", i = i}; _render_bag())
 		b.set_meta("key", "bag:%d" % i); bg_.add_child(b)
 	gsc.add_child(bg_); c2.add_child(gsc)
-	if P.bagMax < D.BAG_LIMIT: c2.add_child(label("칸이 모자라면 미라 교수에게서 늘릴 수 있어요", 11, MUTED))
-	wrap.add_child(c2)
+	wrap.add_child(ip)
 	# 자세히
 	var dt = PanelContainer.new(); dt.custom_minimum_size = Vector2(230, 90); dt.size_flags_horizontal = Control.SIZE_EXPAND_FILL; dt.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	var dv = VBoxContainer.new(); dv.add_theme_constant_override("separation", 6); dt.add_child(dv)
 	var it = _sel_item()
 	if it == null:
-		var p = label("아이템을 누르면 자세히 볼 수 있어요.", 12, MUTED); p.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER; dv.add_child(p)
+		dv.add_child(label("착용 효과", 14, GOLD, display))
+		var tot = {}
+		for k in D.SLOTS:
+			var e = P.eq[k]
+			if e != null:
+				for m in e.mods: tot[m.k] = tot.get(m.k, 0) + m.v
+		var es = HFlowContainer.new(); es.add_theme_constant_override("h_separation", 12)
+		if tot.is_empty(): es.add_child(label("착용한 장비가 없어요.", 12, MUTED))
+		for k in tot.keys(): es.add_child(label(D.mod_text({k = k, v = snappedf(tot[k], .01)}), 13, INK))
+		dv.add_child(es)
+		var p = label("아이템을 누르면 자세히 볼 수 있어요.", 12, MUTED); dv.add_child(p)
 	else:
 		dv.add_child(label(it.name, 16, Color(D.RAR[it.rar].color), display))
 		var bname: String = String(D.base(it.base).names[0]).split(" ")[-1]
@@ -645,11 +658,24 @@ func _render_bag() -> void:
 				_render_bag()
 			sbtn.call("벗기", unf, false)
 		dv.add_child(rr)
-	var c3 = VBoxContainer.new(); c3.add_theme_constant_override("separation", 8); c3.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var cb = btn("닫기", func(): close_bag()); cb.size_flags_horizontal = Control.SIZE_SHRINK_END
-	c3.add_child(cb); c3.add_child(dt)
-	wrap.add_child(c3)
 	box.add_child(wrap)
+	if below:
+		dt.custom_minimum_size = Vector2(EW + IW + 10, 80); dt.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		box.add_child(dt)
+	else:
+		dt.custom_minimum_size = Vector2(min(300.0, AW - EW - IW - 20), EH); dt.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+		dt.size_flags_vertical = Control.SIZE_FILL
+		var dsc = ScrollContainer.new(); dsc.custom_minimum_size = dt.custom_minimum_size; dsc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+		dv.custom_minimum_size.x = dt.custom_minimum_size.x - 26
+		for ch in dv.get_children():
+			if ch is Label: ch.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		dsc.add_child(dt); wrap.add_child(dsc)
+	# 닫기: 오른쪽 위 고정
+	var cb = btn("닫기", func(): close_bag())
+	cb.position = Vector2(vs.x - ins.r - 92, ins.t + 8)
+	var oldc = root.get_node_or_null("bagclose")
+	if oldc: oldc.queue_free()
+	cb.name = "bagclose"; root.add_child(cb)
 	main.hud.build_buttons()
 	if keep_focus != "":
 		await get_tree().process_frame
@@ -678,6 +704,8 @@ func _equip(slot: String) -> void:
 	game.equip(bag_sel.i, slot); bag_sel = {from = "eq", slot = slot}; _render_bag()
 
 func close_bag() -> void:
+	var c = root.get_node_or_null("bagclose")
+	if c: c.queue_free()
 	hide_all(); game.set_state("play"); game.save()
 
 # ================= 샌드박스 =================
@@ -728,9 +756,10 @@ func _render_sand() -> void:
 	_chip(c, "체력·마나 회복", func():
 		P.hp = P.maxhp; P.mp = P.maxmp)
 	c = _chips(_grp(body_, "층 이동 (지금 %d층)" % G.floor))
-	for f in range(1, D.LAST_FLOOR + 1):
+	for f in range(1, D.ROOF + 1):
+		if f > 20 and f % 5 != 0 and f % 10 != 1 and f != D.LAST_FLOOR: continue
 		var gf = func(): game.sand_goto(f)
-		_chip(c, "%d★" % f if D.BOSSES.has(f) else str(f), gf, f == G.floor)
+		_chip(c, "옥상" if f == D.ROOF else ("%d★" % f if D.boss_kind(f) != "" else str(f)), gf, f == G.floor)
 	c = _chips(_grp(body_, "레벨 (지금 Lv %d)" % P.lv))
 	_chip(c, "+1 (스킬 선택)", func(): game.gain_xp((P.next - P.xp) / game.diff_d().reward + .5))
 	_chip(c, "+5 즉시", func():

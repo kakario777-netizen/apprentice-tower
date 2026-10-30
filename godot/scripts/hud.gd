@@ -91,7 +91,8 @@ func _process(dt: float) -> void:
 	if not on: talk_b.visible = false
 	pause_b.position = Vector2(ins.l + 14, ins.t + 10)
 	bag_b.position = Vector2(ins.l + 54, ins.t + 6)
-	belt.position = Vector2(ins.l + 8, ins.t + 54)
+	belt.reset_size()
+	belt.position = Vector2(ins.l + 14, pad_pos(0).y - STICKR - 16 - belt.size.y)
 	skills.reset_size(); skills.position = Vector2(vs.x - ins.r - 16 - skills.size.x, ins.t + 112)
 	if on:
 		bag_dot.visible = game.G.bagNew
@@ -298,7 +299,7 @@ class HudDraw extends Control:
 		text(Vector2(cx + bw + 22, Tp + 11), "%d/%d" % [floori(P.mp), P.maxmp], 10, Color("#b8ccff"), HORIZONTAL_ALIGNMENT_LEFT)
 		if G.goldPulse > 0: G.goldPulse -= 1.0 / 60
 		var gp: float = max(0.0, G.goldPulse)
-		var info = "%s · %s · 금화 %d%s" % ["%d층" % G.floor if G.floor else "마을", game.act_name(), G.gold, " · 샌드박스" if G.sb != null else ""]
+		var info = "%s · %s · 금화 %d%s" % [("옥상" if G.floor == D.ROOF else "%d층" % G.floor) if G.floor else "마을", game.act_name(), G.gold, " · 샌드박스" if G.sb != null else ""]
 		text(Vector2(cx, Tp + 34), info, 11 + int(round(gp * 5)), Color("#fff3c4") if gp > 0 else Color("#e8dcc6"))
 		# 미니맵 표시
 		var mm: TextureRect = hud.mini
