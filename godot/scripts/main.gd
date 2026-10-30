@@ -404,4 +404,9 @@ func _run_samples() -> void:
 	game.sand_goto(5); await _frames(3)
 	P.y -= 120; await _fight(20); await _snap("8_boss")
 	open_pause(); await _frames(4); await _snap("9_pause")
+	resume(); game.G.enemies = []; game.G.eshots = []
+	for k in 4:
+		test_inp = {mx = 0.0, my = 0.0, firing = true, ang = k * PI / 2 + .3}
+		await _frames(10); await _snap("tip_%d" % k)
+	test_inp = null
 	get_tree().quit()

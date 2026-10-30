@@ -996,7 +996,7 @@ func update(dt: float) -> void:
 	G.anims = G.anims.filter(func(a): return a.t < a.life)
 	P.at += dt
 	if P.hitT > 0: P.hitT -= dt
-	_set_anim(P, "hit" if P.hitT > 0 else ("attack" if (P.firing and P.active != null and G.floor > 0) else ("run" if hyp(P.vx, P.vy) > 22 else "stance")))
+	_set_anim(P, "hit" if P.hitT > 0 else ("run" if hyp(P.vx, P.vy) > 22 else "stance"))   # 시전도 한 손 스태프 자세 그대로(끝만 빛남)
 	if P.anim == "attack" and P.at >= anim_dur("player", "attack"): P.at = 0.0
 	var live: Array = G.enemies.filter(func(e): return not e.dead)
 	for i in live.size():

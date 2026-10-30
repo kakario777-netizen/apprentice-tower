@@ -29,6 +29,11 @@ var lines_add := ImmediateMesh.new()
 var lines_mix := ImmediateMesh.new()
 var batches := {}       # fx 그림 이름 → MultiMeshInstance3D
 var shot_lights: Array = []
+var tips := {}
+var tip_glow: MeshInstance3D
+var tip_core: MeshInstance3D
+var tip_light: OmniLight3D
+var tip_a := 0.0
 
 static var _dot_tex: Texture2D
 static func dot_tex() -> Texture2D:
@@ -61,6 +66,13 @@ func _ready() -> void:
 		mi.custom_aabb = AABB(Vector3(-10, -10, -10), Vector3(200, 50, 200))
 		add_child(mi)
 	ward_q = _anim_quad("fx_shield"); harden_q = _anim_quad("")
+	var f = FileAccess.open("res://ui/staff_tips.json", FileAccess.READ)
+	if f: tips = JSON.parse_string(f.get_as_text())
+	tip_glow = world.glow_quad(Color(1, 1, 1, 0), .9); add_child(tip_glow)
+	tip_core = world.glow_quad(Color(1, 1, 1, 0), .28); add_child(tip_core)
+	for q in [tip_glow, tip_core]:
+		var mm: StandardMaterial3D = q.material_override; mm.no_depth_test = true; mm.render_priority = 4
+	tip_light = OmniLight3D.new(); tip_light.omni_range = 3.0; tip_light.light_energy = 0.0; add_child(tip_light)
 	for i in 4:
 		var L = OmniLight3D.new(); L.omni_range = 4.0; L.light_energy = 0.0; L.visible = false
 		add_child(L); shot_lights.append(L)
@@ -192,6 +204,7 @@ func sync(dt: float) -> void:
 	player.spr.modulate = Color(2.2, 2.2, 2.2) if blink else Color.WHITE
 	P.tip = {x = P.x + cos(P.face) * 16, y = P.y - 30 + sin(P.face) * 6}
 	_ward(P, G)
+	_staff_tip(P, G, dt)
 	# 마을 사람
 	for n in G.npcs:
 		if not npcs.has(n.id):
@@ -279,6 +292,29 @@ func sync(dt: float) -> void:
 		portal_node.position = w3(G.portal.x, G.portal.y)
 		if randf() < .3: G.fx.append({x = G.portal.x + Game.rnd(-12, 12), y = G.portal.y + Game.rnd(-18, 18), vx = 0.0, vy = -30.0, life = .6, max = .6, color = "#9fd0ff", size = 1.6})
 	_sync_fx(G, P)
+
+# 스태프 끝: 시전하는 동안 스킬 색으로 반짝임
+func _staff_tip(P, G, dt: float) -> void:
+	var casting: bool = P.firing and P.active != null and G.floor > 0 and G.state == "play"
+	tip_a = move_toward(tip_a, 1.0 if casting else 0.0, dt * (10.0 if casting else 5.0))
+	var vis := tip_a > .01 and tips.size() > 0
+	tip_glow.visible = vis; tip_core.visible = vis; tip_light.visible = vis
+	if not vis: return
+	var cf: Array = player.cur_frame()
+	var an: String = "run" if cf[0] == "run" else "stance"
+	var row: Array = tips[an][cf[1]]
+	var t = row[min(cf[2], row.size() - 1)]
+	if t == null: t = row[0]
+	if t == null: return
+	var ps: float = player.spr.pixel_size
+	var pos := player.position + Vector3(t[0] * ps, -t[1] * ps, .08)
+	var col := Color(game.act_color())
+	var pulse := .8 + .2 * sin(G.time * 18.0) + .1 * sin(G.time * 31.0)
+	var gm: StandardMaterial3D = tip_glow.material_override; gm.albedo_color = Color(col, .75 * tip_a * pulse)
+	var cm: StandardMaterial3D = tip_core.material_override; cm.albedo_color = Color(1, 1, 1, .9 * tip_a)
+	(tip_glow.mesh as QuadMesh).size = Vector2.ONE * (.75 + .2 * pulse)
+	tip_glow.position = pos; tip_core.position = pos + Vector3(0, 0, .01)
+	tip_light.position = pos + Vector3(0, 0, .3); tip_light.light_color = col; tip_light.light_energy = 1.4 * tip_a * pulse
 
 func _ward(P, G) -> void:
 	var M = Actor.meta()
@@ -397,7 +433,6 @@ func _sync_fx(G, P) -> void:
 		if s.kind == "arrow": continue
 		var col = Color({ice = "#9fd0ff", poison = "#8fd14f", fire = "#ff6a2a", skull = "#b77bff", spit = "#d98a9a"}.get(s.kind, "#ffffff"))
 		glow.append([s.x, s.y, s.r * 1.8, Color(col, .3)])
-	if P.firing and P.tip != null and G.floor > 0 and P.active != null: glow.append([P.tip.x, P.tip.y, 16, Color(Color(game.act_color()), .6)])
 	for pair in [[mm_add_glow, glow], [mm_add_dot, dot], [mm_mix_dot, mix]]:
 		var mm: MultiMesh = pair[0].multimesh; var L: Array = pair[1]
 		if mm.instance_count < L.size(): mm.instance_count = max(64, L.size() + 64)

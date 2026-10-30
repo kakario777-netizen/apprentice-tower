@@ -70,6 +70,10 @@ func _frame(A: Dictionary) -> int:
 		return q if q < n else mm - q
 	return int(p * n) % n
 
+func cur_frame() -> Array:
+	var A: Dictionary = m.anims.get(anim, m.anims.get("stance", m.anims.values()[0]))
+	return [anim, fdir(face) if int(m.dirs) == 8 else 0, _frame(A)]
+
 func tick(dt: float) -> void:
 	at += dt
 	_apply()
