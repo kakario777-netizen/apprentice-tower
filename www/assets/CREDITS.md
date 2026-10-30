@@ -16,3 +16,4 @@ minotaur, wyvern_fire, loot_*, fx_*
 - `assets/tiles/*`: tools/textures.py 로 생성
 
 - `assets/ui/icons.png`, `assets/ui/glyphs.png`: Flare `mods/fantasycore/images/icons/icons.png` (CC-BY-SA 3.0). 마법 문양은 돌판 배경을 지우고 흰 문양만 남김, 아이템은 검은 배경을 투명 처리.
+- `assets/props/*`, `assets/tiles/grass3.png`, `path3.png`: Flare 타일셋(`tileset_grassland`, `tileset_dungeon`, CC-BY-SA 3.0)에서 잘라냄. 바닥은 아이소메트릭 마름모를 정사각형으로 펼침 (`tools/flare_props.py`).
