@@ -29,6 +29,7 @@ var bench := false
 var bench_t := 0.0
 var bench_n := 0
 var test_floor := 0
+var test_inp = null
 
 func _ready() -> void:
 	Ui.init_fonts()
@@ -266,6 +267,7 @@ func _read_input(st: Dictionary) -> void:
 			firing = true; var e = game.nearest_enemy(P.x, P.y, 420, true, null)
 			if e != null: ang = atan2(e.y - P.y, e.x - P.x)
 	game.inp = {mx = mx, my = my, firing = firing, ang = ang}
+	if test_inp != null: game.inp = test_inp
 
 # ---------------- 매 프레임 ----------------
 func _process(dt: float) -> void:
@@ -314,7 +316,7 @@ func _test_setup() -> void:
 	P.bag.append(game.make_item("rare", 3)); P.bag.append(game.make_item("epic", 5)); P.bag.append(game.make_item("magic", 2))
 	if test_floor > 0:
 		game.G.resume = test_floor; game.enter_tower()
-		var r: Dictionary = game.mg.rooms[min(1, game.mg.rooms.size() - 1)]
+		var r: Dictionary = game.mg.rooms[0]
 		P.x = r.cx; P.y = r.cy
 		var n = 0
 		for e in game.G.enemies:
@@ -335,9 +337,9 @@ func _test_hooks(dt: float) -> void:
 			# 싸우는 장면: 오른쪽 조준 버튼을 누르고 있는 것처럼
 			game.cast_sec("ward")
 		if shot_frames > 5 and shot_frames < 60 and G.state == "play" and test_floor > 0:
-			game.inp = {mx = .3, my = 0.0, firing = true, ang = 0.0}
+			test_inp = {mx = .3, my = 0.0, firing = true, ang = 0.0}
 			var e = game.nearest_enemy(game.P.x, game.P.y, 420, true, null)
-			if e != null: game.inp.ang = atan2(e.y - game.P.y, e.x - game.P.x)
+			if e != null: test_inp.ang = atan2(e.y - game.P.y, e.x - game.P.x)
 		if shot_frames == 40:
 			match shot_mode:
 				"levelup":

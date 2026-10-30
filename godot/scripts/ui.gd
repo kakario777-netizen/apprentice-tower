@@ -241,7 +241,7 @@ func _title_block() -> Control:
 	t.add_theme_color_override("font_outline_color", Color("#2a1606")); t.add_theme_constant_override("outline_size", 6)
 	t.add_theme_color_override("font_shadow_color", Color(.94, .75, .35, .35)); t.add_theme_constant_override("shadow_outline_size", 18); t.add_theme_constant_override("shadow_offset_x", 0); t.add_theme_constant_override("shadow_offset_y", 0)
 	v.add_child(t)
-	var ld = label("마법학교 졸업 시험은 단 하나. 흑마법사가 차지한 탑을 꼭대기까지 올라가 쓰러뜨리는 것.", 14, MUTED); ld.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; ld.custom_minimum_size.x = 420
+	var ld = label("마법학교 졸업 시험은 단 하나. 흑마법사가 차지한 탑을 꼭대기까지 올라가 쓰러뜨리는 것.", 14, MUTED); ld.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; ld.custom_minimum_size.x = 540
 	v.add_child(ld)
 	var sv = Game.read_save()
 	var items: Array = []
@@ -363,7 +363,7 @@ func _render_talk() -> void:
 	var btns: Array = []
 	if n.id == "shop":
 		tx.text = "%s (가진 금화 %d)" % [lines[0], game.G.gold]
-		var g = GridContainer.new(); g.columns = 2 if get_viewport().get_visible_rect().size.x > 640 else 1
+		var g = GridContainer.new(); g.columns = 2 if get_viewport().get_visible_rect().size.x > 1000 else 1
 		g.add_theme_constant_override("h_separation", 8); g.add_theme_constant_override("v_separation", 8)
 		for it in D.SHOP:
 			var p = PanelContainer.new(); p.add_theme_stylebox_override("panel", sb(PANEL, 6, LINE, 1, Vector4(10, 8, 10, 8))); p.size_flags_horizontal = Control.SIZE_EXPAND_FILL
