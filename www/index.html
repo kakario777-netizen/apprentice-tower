@@ -23,7 +23,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font-family
 #c{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
 #safe{position:fixed;visibility:hidden;pointer-events:none;inset:0;
   padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)}
-.ov{position:fixed;inset:0;z-index:5;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+.ov{position:fixed;inset:0;z-index:5;display:flex;flex-direction:column;align-items:center;justify-content:safe center;gap:14px;
   background:rgba(9,7,14,.88);overflow-y:auto;
   padding-top:calc(20px + env(safe-area-inset-top,0px));padding-bottom:calc(20px + env(safe-area-inset-bottom,0px));
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
@@ -115,9 +115,15 @@ h2{font-family:var(--display);font-size:24px;margin:0;color:var(--gold);text-ali
 .detail .up{color:#7fd07f}.detail .down{color:#ff7a6a}
 .detail .row{justify-content:flex-start}
 .detail .btn{padding:9px 14px;font-size:14px}
+.hint{display:none;position:absolute;left:-6px;top:-6px;min-width:20px;height:20px;padding:0 4px;box-sizing:border-box;border-radius:10px;background:#efe4cf;color:#1b1206;font:700 10px/20px var(--body);text-align:center;pointer-events:none}
+body.pad .hint{display:block}
+.padfocus{outline:3px solid var(--gold)!important;outline-offset:2px!important;box-shadow:0 0 0 6px rgba(227,176,75,.18)!important}
+#padInfo{font-size:12px;color:var(--muted);text-align:center}
+.prow{display:flex;gap:28px;flex-wrap:wrap;justify-content:center;align-items:flex-start;width:100%;max-width:760px}
+.prow .list{flex:1 1 280px;max-height:42vh;overflow-y:auto}
 #hudbtns{position:fixed;z-index:3;right:calc(10px + env(safe-area-inset-right,0px));top:50%;transform:translateY(-30%);
   display:flex;flex-direction:column;gap:10px;align-items:center}
-.sbtn{all:unset;box-sizing:border-box;width:58px;height:58px;border-radius:50%;display:grid;place-items:center;text-align:center;
+.sbtn{all:unset;box-sizing:border-box;position:relative;width:58px;height:58px;border-radius:50%;display:grid;place-items:center;text-align:center;
   font-size:11px;line-height:1.15;color:var(--ink);border:1.5px solid rgba(227,176,75,.55);background:rgba(22,18,32,.78);cursor:pointer;
   padding:4px;word-break:keep-all}
 .sbtn.wide{width:66px;height:40px;border-radius:20px;font-size:11px}
@@ -150,7 +156,7 @@ h2{font-family:var(--display);font-size:24px;margin:0;color:var(--gold);text-ali
     <button class="btn ghost" id="sandStart">샌드박스 (테스트용)</button>
   </div>
   <p class="help" id="contInfo" hidden></p>
-  <p class="help">왼쪽 화면을 끌어 이동, 오른쪽 화면을 누르고 끌어 조준·발사합니다. 오른쪽을 짧게 누르고만 있으면 가장 가까운 적을 자동 조준해요.<br>PC: WASD 이동 · 마우스 조준/클릭 발사 · 1~3 보조 마법 · Q 마법 교체 · E 말 걸기 · Z/X 물약</p>
+  <p class="help">왼쪽 화면을 끌어 이동, 오른쪽 화면을 누르고 끌어 조준·발사합니다. 오른쪽을 짧게 누르고만 있으면 가장 가까운 적을 자동 조준해요.<br>PC: WASD 이동 · 마우스 조준/클릭 발사 · 1~3 보조 마법 · Q 마법 교체 · E 말 걸기 · Z/X 물약<br>컨트롤러: 왼스틱 이동 · 오른스틱 조준·발사 · RT 또는 A 자동 조준 공격 · X·Y·B 보조 마법 · LB·RB 물약 · START 일시정지 · SELECT 가방</p>
 </section>
 
 <section class="ov" id="ovNew" hidden>
@@ -194,14 +200,18 @@ h2{font-family:var(--display);font-size:24px;margin:0;color:var(--gold);text-ali
 
 <section class="ov" id="ovPause" hidden>
   <h2>잠시 쉬는 중</h2>
-  <div class="stats" id="pauseStats"></div>
-  <div class="list" id="pauseList"></div>
+  <div class="prow">
+    <div class="stats" id="pauseStats"></div>
+    <div class="list" id="pauseList"></div>
+  </div>
   <div class="row">
     <button class="btn" id="resumeBtn">계속하기</button>
     <button class="btn ghost" id="bagOpen">가방</button>
     <button class="btn ghost" id="sandOpen">샌드박스</button>
     <button class="btn ghost" id="restartBtn">처음 화면으로</button>
   </div>
+  <div class="row"><button class="btn ghost" id="padSwapBtn">컨트롤러 버튼 배치</button></div>
+  <p id="padInfo"></p>
 </section>
 
 <section class="ov" id="ovSand" hidden>
@@ -825,7 +835,7 @@ function shotHit(s,e){
 /* ========== 보조 마법 ========== */
 function castSec(id){
   if(!G||G.state!=='play')return;
-  const l=P.esec[id]; if(!l)return; const s=SEC[id];
+  const l=P.esec[id]||P.sec[id]; if(!l)return; const s=SEC[id];
   if((P.secCd[id]||0)>0) return;
   const m=s.mana(l); if(P.mp<m){ toast('마나가 부족해요'); return; }
   P.mp-=m; P.secCd[id]=s.cd*(1-.12*(P.pass.focus||0))*(1-P.st.cdr);
@@ -856,7 +866,7 @@ function hurtPlayer(d){
   if(P.hardenT>0) d*=1-.2*(P.es.harden||0);
   d*=1-Math.min(.5,P.st.res);
   if(P.ward>0){ const a=Math.min(P.ward,d); P.ward-=a; d-=a; }
-  P.hp-=d; P.inv=.25; if(d>0) floatText(P.x,P.y-16,Math.round(d),'#ff6b6b');
+  P.hp-=d; P.inv=.25; if(d>0) padRumble(d>15?160:90,d>15?.9:.5); if(d>0) floatText(P.x,P.y-16,Math.round(d),'#ff6b6b');
   G.shake=.15;
   if(P.hp<=0){ P.hp=0; gameOver(false); }
 }
@@ -988,7 +998,7 @@ function revive(){
 }
 /* ========== 효과 ========== */
 function burst(x,y,color,n,sp,life,size){ for(let i=0;i<n;i++){ const a=rnd(0,TAU), v=rnd(.3,1)*sp; G.fx.push({x,y,vx:Math.cos(a)*v,vy:Math.sin(a)*v,life:life*rnd(.6,1),max:life,color,size:size*rnd(.6,1.3)}); } if(G.fx.length>700) G.fx.splice(0,G.fx.length-700); }
-function lvFx(){ ring(P.x,P.y,8,90,.6,'#e3b04b'); ring(P.x,P.y,4,50,.45,'#fff2c2'); for(let i=0;i<40;i++){ const a=rnd(0,TAU); G.fx.push({x:P.x+Math.cos(a)*rnd(0,16),y:P.y+rnd(-4,10),vx:Math.cos(a)*rnd(10,40),vy:-rnd(60,190),life:rnd(.6,1.1),max:1.1,color:pick(['#e3b04b','#fff2c2','#ffd27a']),size:rnd(1.5,3.5)}); } G.banner={text:'레벨 업!',t:1.4}; }
+function lvFx(){ padRumble(120,.4); ring(P.x,P.y,8,90,.6,'#e3b04b'); ring(P.x,P.y,4,50,.45,'#fff2c2'); for(let i=0;i<40;i++){ const a=rnd(0,TAU); G.fx.push({x:P.x+Math.cos(a)*rnd(0,16),y:P.y+rnd(-4,10),vx:Math.cos(a)*rnd(10,40),vy:-rnd(60,190),life:rnd(.6,1.1),max:1.1,color:pick(['#e3b04b','#fff2c2','#ffd27a']),size:rnd(1.5,3.5)}); } G.banner={text:'레벨 업!',t:1.4}; }
 function ring(x,y,r0,r1,life,color){ G.rings.push({x,y,r0,r1,life,max:life,color}); }
 function floatText(x,y,t,color){ G.texts.push({x:x+rnd(-6,6),y,t,color,life:.7}); if(G.texts.length>60) G.texts.shift(); }
 
@@ -996,6 +1006,7 @@ function floatText(x,y,t,color){ G.texts.push({x:x+rnd(-6,6),y,t,color,life:.7})
 const IN={keys:{},movePid:null,aimPid:null,mo:null,mc:null,ao:null,ac:null,mouse:null,mouseDown:false};
 function clearInput(){ IN.movePid=null; IN.aimPid=null; IN.mouseDown=false; IN.keys={}; }
 C.addEventListener('pointerdown',e=>{
+  if(e.pointerType!=='mouse'&&PAD.on){ PAD.on=false; onPadMode(false); }
   if(!G||G.state!=='play')return; e.preventDefault();
   try{C.setPointerCapture(e.pointerId);}catch(_){}
   if(e.pointerType==='mouse'){ IN.mouseDown=true; IN.mouse={x:e.clientX,y:e.clientY}; return; }
@@ -1036,18 +1047,120 @@ function readInput(){
     if(Math.hypot(dx,dy)>12) ang=Math.atan2(dy,dx); else { const t=nearestEnemy(P.x,P.y,420,true,null); if(t) ang=Math.atan2(t.y-P.y,t.x-P.x); } }
   else if(IN.mouse){ ang=Math.atan2(IN.mouse.y-H/2,IN.mouse.x-W/2); firing=IN.mouseDown; }
   if(K.Space){ firing=true; const t=nearestEnemy(P.x,P.y,420,true,null); if(t) ang=Math.atan2(t.y-P.y,t.x-P.x); }
+  if(PAD.on){
+    const B=PAD.b; let px=PAD.lx+(B.right?1:0)-(B.left?1:0), py=PAD.ly+(B.down?1:0)-(B.up?1:0); const pl=Math.hypot(px,py); if(pl>1){px/=pl;py/=pl;}
+    if(pl>0){ mx=px; my=py; }
+    const rm=Math.hypot(PAD.rx,PAD.ry);
+    if(rm>.35){ firing=true; ang=Math.atan2(PAD.ry,PAD.rx);
+      // 스틱 방향 근처의 적에게 살짝 맞춰 줌
+      let best=null,bd=.35; for(const e of G.enemies){ if(e.dead) continue; const d=Math.hypot(e.x-P.x,e.y-P.y); if(d>460) continue; const ad=Math.abs(angDiff(Math.atan2(e.y-P.y,e.x-P.x),ang)); if(ad<bd&&los(P.x,P.y,e.x,e.y)){bd=ad;best=e;} }
+      if(best) ang=Math.atan2(best.y-P.y,best.x-P.x); }
+    else if(B.rt||(B.a&&!(G.floor===0&&nearNpc()))){ firing=true; const t=nearestEnemy(P.x,P.y,420,true,null); if(t) ang=Math.atan2(t.y-P.y,t.x-P.x); }
+  }
   return {mx,my,firing,ang};
 }
+
+/* ========== 게임 컨트롤러 (유선·무선) ========== */
+// 앱에서는 PadBridge(안드로이드가 직접 읽은 값), 브라우저에서는 표준 Gamepad API를 쓴다.
+const PB=['a','b','x','y','lb','rb','lt','rt','select','start','l3','r3','up','down','left','right'];
+const PADKEY={sec:['X','Y','B']};
+const PAD={on:false,lx:0,ly:0,rx:0,ry:0,b:{},prev:{},connected:false,wasConn:false,swap:false,name:'',gp:null,lastIdx:0};
+try{ PAD.swap=localStorage.getItem('pad-swap')==='1'; }catch(_){}
+function btnName(k){ const n={a:'A',b:'B',x:'X',y:'Y'}; if(PAD.swap){ return {a:'B',b:'A',x:'Y',y:'X'}[k]||k.toUpperCase(); } return n[k]||k.toUpperCase(); }
+function addHint(el,txt){ if(!txt) return; const h=document.createElement('span'); h.className='hint'; h.textContent=txt; el.appendChild(h); }
+function onPadMode(on){ document.body.classList.toggle('pad',on); if(!on){ for(const e of document.querySelectorAll('.padfocus')) e.classList.remove('padfocus'); } }
+function dz(x,y,d){ const m=Math.hypot(x,y); if(m<d) return [0,0]; const k=Math.min(1,(m-d)/(1-d))/m; return [x*k,y*k]; }
+function readPad(){
+  let st=null; const b={};
+  if(window.PadBridge&&PadBridge.state){
+    try{ const a=String(PadBridge.state()).split(',').map(Number); PAD.connected=!!a[9];
+      if(PAD.connected){ st={lx:a[0],ly:a[1],rx:a[2],ry:a[3]}; for(let i=0;i<PB.length;i++) b[PB[i]]=!!(a[8]&(1<<i));
+        if(a[4]>.4) b.lt=true; if(a[5]>.4) b.rt=true; if(a[6]<-.5) b.left=true; if(a[6]>.5) b.right=true; if(a[7]<-.5) b.up=true; if(a[7]>.5) b.down=true; } }catch(_){}
+  } else if(navigator.getGamepads){
+    let gp=null; try{ for(const g of navigator.getGamepads()) if(g&&g.connected){ gp=g; break; } }catch(_){}
+    PAD.connected=!!gp; PAD.gp=gp;
+    if(gp){ const bt=i=>!!(gp.buttons[i]&&(gp.buttons[i].pressed||gp.buttons[i].value>.4));
+      st={lx:gp.axes[0]||0,ly:gp.axes[1]||0,rx:gp.axes[2]||0,ry:gp.axes[3]||0};
+      const map={a:0,b:1,x:2,y:3,lb:4,rb:5,lt:6,rt:7,select:8,start:9,l3:10,r3:11,up:12,down:13,left:14,right:15}; for(const k in map) b[k]=bt(map[k]); PAD.name=gp.id; }
+  }
+  if(PAD.connected!==PAD.wasConn){
+    PAD.wasConn=PAD.connected;
+    if(PAD.connected){ try{ PAD.name=window.PadBridge?PadBridge.name():PAD.name; }catch(_){} toast('컨트롤러가 연결됐어요'); }
+    else { toast('컨트롤러 연결이 끊겼어요'); if(G&&G.state==='play') openPause(); }
+  }
+  PAD.prev=PAD.b;
+  if(!st){ PAD.b={}; PAD.lx=PAD.ly=PAD.rx=PAD.ry=0; return; }
+  if(PAD.swap){ [b.a,b.b]=[b.b,b.a]; [b.x,b.y]=[b.y,b.x]; }
+  [PAD.lx,PAD.ly]=dz(st.lx,st.ly,.2); [PAD.rx,PAD.ry]=dz(st.rx,st.ry,.25);
+  PAD.b=b;
+  const any=PAD.lx||PAD.ly||PAD.rx||PAD.ry||PB.some(k=>b[k]);
+  if(any&&!PAD.on){ PAD.on=true; onPadMode(true); }
+}
+const padHit=k=>!!(PAD.b[k]&&!PAD.prev[k]);
+function padRumble(ms,str){ if(!PAD.on) return; try{ if(window.PadBridge&&PadBridge.rumble) PadBridge.rumble(ms,str); else if(PAD.gp&&PAD.gp.vibrationActuator) PAD.gp.vibrationActuator.playEffect('dual-rumble',{duration:ms,strongMagnitude:str,weakMagnitude:str*.6}); }catch(_){} }
+// ----- 메뉴 이동 -----
+let navDir=null, navT=0;
+function navStep(dt){
+  const B=PAD.b; let dx=(B.right?1:0)-(B.left?1:0), dy=(B.down?1:0)-(B.up?1:0);
+  if(!dx&&!dy&&(Math.abs(PAD.lx)>.5||Math.abs(PAD.ly)>.5)){ if(Math.abs(PAD.lx)>Math.abs(PAD.ly)) dx=Math.sign(PAD.lx); else dy=Math.sign(PAD.ly); }
+  if(dx&&dy){ dy=0; }
+  if(!dx&&!dy){ navDir=null; return null; }
+  const key=dx+','+dy;
+  if(key!==navDir){ navDir=key; navT=.36; return [dx,dy]; }
+  navT-=dt; if(navT<=0){ navT=.11; return [dx,dy]; } return null;
+}
+function topOverlay(){ const list=[...document.querySelectorAll('.ov')].filter(o=>!o.hidden); return list.length?list[list.length-1]:null; }
+function focusables(root){ return [...root.querySelectorAll('button')].filter(b=>!b.disabled&&b.offsetParent!==null&&b.getClientRects().length); }
+function setPadFocus(el,list){ for(const e of document.querySelectorAll('.padfocus')) if(e!==el) e.classList.remove('padfocus'); if(!el) return; el.classList.add('padfocus'); try{ el.focus({preventScroll:true}); }catch(_){} el.scrollIntoView({block:'nearest',inline:'nearest'}); if(list) PAD.lastIdx=list.indexOf(el); }
+function moveFocus(root,dx,dy){
+  const list=focusables(root); if(!list.length) return;
+  let cur=list.find(e=>e.classList.contains('padfocus')); if(!cur){ setPadFocus(list[0],list); return; }
+  const r0=cur.getBoundingClientRect(), cx=r0.left+r0.width/2, cy=r0.top+r0.height/2;
+  let best=null,bs=1e9;
+  for(const e of list){ if(e===cur) continue; const r=e.getBoundingClientRect(), ex=r.left+r.width/2, ey=r.top+r.height/2, ddx=ex-cx, ddy=ey-cy;
+    const prim=dx?ddx*dx:ddy*dy, sec=dx?Math.abs(ddy):Math.abs(ddx); if(prim<=4) continue; const sc=prim+sec*2.2; if(sc<bs){bs=sc;best=e;} }
+  if(!best){ // 끝에 닿으면 반대편으로 넘어감
+    const i=list.indexOf(cur); best=list[(i+(dx>0||dy>0?1:-1)+list.length)%list.length]; }
+  setPadFocus(best,list);
+}
+function padFrame(dt){
+  readPad(); if(!PAD.on) return;
+  const ov=topOverlay();
+  if(ov&&ov.id!=='ovRotate'){
+    const list=focusables(ov);
+    if(list.length&&!list.some(e=>e.classList.contains('padfocus'))){ const pref=list.find(e=>e.classList.contains('card'))||list[Math.min(PAD.lastIdx,list.length-1)]||list[0]; setPadFocus(PAD.lastIdx&&list[PAD.lastIdx]?list[Math.min(PAD.lastIdx,list.length-1)]:pref,list); }
+    const st=navStep(dt); if(st) moveFocus(ov,st[0],st[1]);
+    if(padHit('a')){ const cur=list.find(e=>e.classList.contains('padfocus')); if(cur){ PAD.lastIdx=list.indexOf(cur); cur.click(); } }
+    else if(padHit('b')||(padHit('start')&&G&&(G.state==='pause'||G.state==='bag'))){ PAD.lastIdx=0; if(window.onAppBack) window.onAppBack(); }
+    else if(padHit('select')&&G&&G.state==='bag'){ closeBag(); }
+    return;
+  }
+  PAD.lastIdx=0;
+  if(!G||G.state!=='play') return;
+  if(padHit('start')) { openPause(); return; }
+  if(padHit('select')) { openBag(); return; }
+  if(padHit('a')&&G.floor===0){ const n=nearNpc(); if(n){ openTalk(n); return; } }
+  if(padHit('x')&&P.secOrder[0]) castSec(P.secOrder[0]);
+  if(padHit('y')&&P.secOrder[1]) castSec(P.secOrder[1]);
+  if(padHit('b')&&P.secOrder[2]) castSec(P.secOrder[2]);
+  if(padHit('lb')) usePot('pothp');
+  if(padHit('rb')) usePot('potmp');
+  if(padHit('lt')) swapActive();
+  if(padHit('r3')) usePot('scroll');
+}
+function padInfoText(){ const el=$('padInfo'); if(!el) return; $('padSwapBtn').textContent=`컨트롤러 버튼 배치: ${PAD.swap?'닌텐도식 (A·B 위치 바꿈)':'엑스박스식'}`;
+  el.textContent=PAD.connected?`연결됨: ${PAD.name||'게임 컨트롤러'} · 왼스틱 이동, 오른스틱 조준·발사, RT/${btnName('a')} 자동 조준 공격, X·Y·B 보조 마법, LB·RB 물약, LT 마법 교체, START 일시정지, SELECT 가방`:'컨트롤러를 연결하면 바로 쓸 수 있어요 (유선·블루투스 모두 가능).'; }
+$('padSwapBtn').addEventListener('click',()=>{ PAD.swap=!PAD.swap; try{ localStorage.setItem('pad-swap',PAD.swap?'1':'0'); }catch(_){} padInfoText(); });
 
 /* ========== 버튼/오버레이 ========== */
 function show(id){ for(const o of ['ovStart','ovLevel','ovPause','ovEnd','ovSand','ovNew','ovFirst','ovTalk','ovBag']) $(o).hidden=o!==id; }
 function swapActive(){ const l=activeList(); if(l.length<2)return; P.active=l[(l.indexOf(P.active)+1)%l.length]; buildButtons(); toast(attackOf(P.active).name); }
 function buildButtons(){
   const box=$('hudbtns'); box.innerHTML='';
-  if(activeList().length>1){ const b=document.createElement('button'); b.className='sbtn wide'; b.type='button'; b.textContent=attackOf(P.active).name; b.style.borderColor=attackOf(P.active).color;
+  if(activeList().length>1){ const b=document.createElement('button'); b.className='sbtn wide'; b.type='button'; b.textContent=attackOf(P.active).name; b.style.borderColor=attackOf(P.active).color; addHint(b,'LT');
     b.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();swapActive();}); box.appendChild(b); }
-  for(const id of P.secOrder){ const s=SEC[id]; const b=document.createElement('button'); b.className='sbtn'; b.type='button'; b.dataset.sec=id; b.textContent=s.short;
-    b.style.whiteSpace='pre-line'; b.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();castSec(id);}); box.appendChild(b); }
+  P.secOrder.forEach((id,si)=>{ const s=SEC[id]; const b=document.createElement('button'); b.className='sbtn'; b.type='button'; b.dataset.sec=id; b.textContent=s.short; addHint(b,PADKEY.sec[si]);
+    b.style.whiteSpace='pre-line'; b.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();castSec(id);}); box.appendChild(b); });
 }
 function updButtons(){
   for(const b of $('hudbtns').querySelectorAll('[data-sec]')){ const id=b.dataset.sec, cd=P.secCd[id]||0, max=SEC[id].cd*(1-.12*(P.pass.focus||0))*(1-P.st.cdr);
@@ -1055,7 +1168,7 @@ function updButtons(){
     b.style.background=f>0?`conic-gradient(rgba(9,7,14,.82) ${f*360}deg, rgba(22,18,32,.78) 0)`:'rgba(22,18,32,.78)'; }
 }
 function openPause(){
-  setState('pause');
+  setState('pause'); padInfoText();
   const st=$('pauseStats'); st.innerHTML='';
   for(const [k,v] of [['층',G.floor?`${G.floor} / ${DATA.lastFloor}`:`마을 (다음 ${G.resume}층)`],['난이도',DIFF().name],['레벨',P.lv],['생명',`${Math.ceil(P.hp)} / ${P.maxhp}`],['마나',`${Math.floor(P.mp)} / ${P.maxmp}`],['처치',G.kills],['금화',G.gold]]){
     const a=document.createElement('span'); a.textContent=k; const b=document.createElement('span'); b.textContent=v; st.append(a,b); }
@@ -1167,7 +1280,7 @@ function buildBelt(){
   for(const id of ['pothp','potmp','scroll']){ const n=P.pot[id]||0; if(id==='scroll'&&(!n||G.floor===0)) continue;
     const b=document.createElement('button'); b.type='button'; b.className='pbtn'+(n?'':' empty'); b.setAttribute('aria-label',DATA.shop.find(x=>x.id===id).name);
     const c=document.createElement('canvas'); c.width=c.height=60; const g=c.getContext('2d'); g.scale(2,2); drawItem(g,15,16,id,.95); b.appendChild(c);
-    const cnt=document.createElement('b'); cnt.textContent=n; b.appendChild(cnt);
+    const cnt=document.createElement('b'); cnt.textContent=n; b.appendChild(cnt); addHint(b,{pothp:'LB',potmp:'RB',scroll:'R3'}[id]);
     b.addEventListener('pointerdown',e=>{ e.preventDefault(); e.stopPropagation(); usePot(id); }); box.appendChild(b); }
 }
 function usePot(id){
@@ -1328,7 +1441,7 @@ function update(dt){
   P.cdShot-=dt; P.inv-=dt; P.slowT-=dt; P.hardenT-=dt; P.potCd-=dt;
   const spd=Math.hypot(P.vx,P.vy); P.walk+=spd*dt*.11; if(spd>60&&Math.random()<dt*9) G.fx.push({x:P.x+rnd(-4,4),y:P.y+P.r,vx:rnd(-12,12),vy:rnd(-14,-4),life:.4,max:.4,color:G.floor?'#5a4a6a':'#6a7a5a',size:rnd(1.5,2.6),dust:1});
   if(G.floor!==0) $('talkBtn').hidden=true;
-  if(G.floor===0){ const n=nearNpc(); const tb=$('talkBtn'); if(n){ tb.hidden=false; tb.textContent=`말 걸기 · ${n.name}`; } else tb.hidden=true;
+  if(G.floor===0){ const n=nearNpc(); const tb=$('talkBtn'); if(n){ tb.hidden=false; tb.textContent=`${PAD.on?btnName('a')+' ':''}말 걸기 · ${n.name}`; } else tb.hidden=true;
     if(Math.hypot(P.x-G.gate.x,P.y-G.gate.y)<26){ P.y+=30; P.vy=0; enterTower(); return; } }
   for(const c of G.chests){ if(c.open){ c.t+=dt; continue; } if(Math.hypot(P.x-c.x,P.y-c.y)<26) openChest(c); }
   if(G.portal&&Math.hypot(P.x-G.portal.x,P.y-G.portal.y)<22){ G.resume=G.portal.resume; goTown(false); return; }
@@ -1741,7 +1854,8 @@ function drawTitleBg(){
 let last=performance.now();
 function loop(now){
   const dt=Math.min(.05,(now-last)/1000); last=now;
-  const needRot=coarse.matches&&H>W&&!rotOk; $('ovRotate').hidden=!needRot;
+  padFrame(dt);
+  const needRot=coarse.matches&&H>W&&!rotOk&&!PAD.on; $('ovRotate').hidden=!needRot;
   if(G&&G.state==='play'&&!needRot) update(dt);
   draw();
   requestAnimationFrame(loop);

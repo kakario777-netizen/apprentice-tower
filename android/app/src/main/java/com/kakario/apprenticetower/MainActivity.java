@@ -4,6 +4,8 @@ import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.os.Build;
 import android.os.Bundle;
+import android.view.KeyEvent;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowInsets;
@@ -19,6 +21,7 @@ import androidx.webkit.WebViewAssetLoader;
 
 public class MainActivity extends Activity {
     private WebView web;
+    private PadBridge pad;
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -43,6 +46,8 @@ public class MainActivity extends Activity {
         s.setDomStorageEnabled(true);
         s.setMediaPlaybackRequiresUserGesture(false);
         s.setTextZoom(100);
+        pad = new PadBridge(this);
+        web.addJavascriptInterface(pad, "PadBridge");
         web.setWebViewClient(new WebViewClient() {
             @Override
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
@@ -78,6 +83,25 @@ public class MainActivity extends Activity {
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
         if (hasFocus) hideBars();
+    }
+
+    // 컨트롤러 버튼은 게임이 직접 처리하도록 가로챈다 (B가 뒤로가기로 바뀌어 앱이 닫히는 일 방지)
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent e) {
+        if (pad != null && pad.onKey(e)) return true;
+        return super.dispatchKeyEvent(e);
+    }
+
+    @Override
+    public boolean dispatchGenericMotionEvent(MotionEvent e) {
+        if (pad != null && pad.onMotion(e)) return true;
+        return super.dispatchGenericMotionEvent(e);
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (pad != null) pad.release();
+        super.onDestroy();
     }
 
     // 뒤로가기: 게임에 먼저 물어보고, 게임이 처리하지 않으면 앱을 닫는다
