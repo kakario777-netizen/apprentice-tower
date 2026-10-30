@@ -1,0 +1,522 @@
+# 움직이는 것들 그리기: 캐릭터·적·시체·상자·떨어진 물건·계단·귀환문·탑 문·탄·효과
+# 게임 상태(game.gd, 픽셀 좌표)를 매 프레임 읽어 3D 로 옮긴다.
+class_name View
+extends Node3D
+
+const S := 1.0 / 32.0
+const UP := World.STAND / 32.0     # 세운 그림에서 웹 px 높이 → 3D 높이
+
+var game: Game
+var world: World
+var player: Actor
+var npcs := {}          # id → Actor
+var enemies := {}       # id → Actor
+var corpses := {}       # id → Actor
+var chests := {}        # id → Sprite3D
+var drops := {}         # id → Node3D
+var stairs_node: Node3D
+var stairs_key := ""
+var portal_node: Node3D
+var gate_node: Node3D
+var ward_q: MeshInstance3D
+var harden_q: MeshInstance3D
+
+# 효과 묶음
+var mm_add_glow: MultiMeshInstance3D
+var mm_add_dot: MultiMeshInstance3D
+var mm_mix_dot: MultiMeshInstance3D
+var lines_add := ImmediateMesh.new()
+var lines_mix := ImmediateMesh.new()
+var batches := {}       # fx 그림 이름 → MultiMeshInstance3D
+var shot_lights: Array = []
+
+static var _dot_tex: Texture2D
+static func dot_tex() -> Texture2D:
+	if _dot_tex == null:
+		var g := Gradient.new()
+		g.set_color(0, Color(1, 1, 1, 1)); g.set_color(1, Color(1, 1, 1, 0))
+		g.add_point(.8, Color(1, 1, 1, 1))
+		var t := GradientTexture2D.new(); t.gradient = g; t.fill = GradientTexture2D.FILL_RADIAL
+		t.fill_from = Vector2(.5, .5); t.fill_to = Vector2(1, .5); t.width = 64; t.height = 64
+		_dot_tex = t
+	return _dot_tex
+
+static func w3(x: float, y: float, h := 0.0) -> Vector3: return Vector3(x * S, h, y * S)
+
+func _ready() -> void:
+	player = Actor.new(); add_child(player); player.setup("player", 46)
+	mm_add_glow = _mm(World.glow_tex(), true)
+	mm_add_dot = _mm(dot_tex(), true)
+	mm_mix_dot = _mm(dot_tex(), false)
+	for im in [[lines_add, true], [lines_mix, false]]:
+		var mi := MeshInstance3D.new(); mi.mesh = im[0]
+		var m := StandardMaterial3D.new()
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		m.vertex_color_use_as_albedo = true
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD if im[1] else BaseMaterial3D.BLEND_MODE_MIX
+		m.no_depth_test = true; m.cull_mode = BaseMaterial3D.CULL_DISABLED
+		m.render_priority = 2 if im[1] else 1
+		mi.material_override = m; mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mi.custom_aabb = AABB(Vector3(-10, -10, -10), Vector3(200, 50, 200))
+		add_child(mi)
+	ward_q = _anim_quad("fx_shield"); harden_q = _anim_quad("")
+	for i in 4:
+		var L := OmniLight3D.new(); L.omni_range = 4.0; L.light_energy = 0.0; L.visible = false
+		add_child(L); shot_lights.append(L)
+
+func _mm(tex: Texture2D, add: bool) -> MultiMeshInstance3D:
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.use_colors = true
+	var q := QuadMesh.new(); q.size = Vector2(1, 1); q.orientation = PlaneMesh.FACE_Y
+	mm.mesh = q
+	var mi := MultiMeshInstance3D.new(); mi.multimesh = mm
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.vertex_color_use_as_albedo = true
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD if add else BaseMaterial3D.BLEND_MODE_MIX
+	m.albedo_texture = tex; m.no_depth_test = true; m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	m.render_priority = 3 if add else 1
+	mi.material_override = m; mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mi.custom_aabb = AABB(Vector3(-10, -10, -10), Vector3(200, 50, 200))
+	add_child(mi)
+	return mi
+
+# 그림 프레임을 도는 평면 효과(불덩이·폭발 등)
+static var FX_SHADER: Shader
+func _batch(name: String) -> MultiMeshInstance3D:
+	if batches.has(name): return batches[name]
+	if FX_SHADER == null:
+		FX_SHADER = Shader.new()
+		FX_SHADER.code = """
+shader_type spatial;
+render_mode unshaded, blend_add, depth_test_disabled, cull_disabled;
+uniform sampler2D tex : source_color, filter_linear_mipmap;
+varying float alpha;
+void vertex() { UV.x = (UV.x + INSTANCE_CUSTOM.x) / INSTANCE_CUSTOM.y; alpha = INSTANCE_CUSTOM.z; }
+void fragment() { vec4 c = texture(tex, UV); ALBEDO = c.rgb; ALPHA = c.a * alpha; }
+"""
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D; mm.use_custom_data = true
+	var q := QuadMesh.new(); q.size = Vector2(1, 1); q.orientation = PlaneMesh.FACE_Y
+	mm.mesh = q
+	var mi := MultiMeshInstance3D.new(); mi.multimesh = mm
+	var m := ShaderMaterial.new(); m.shader = FX_SHADER
+	m.set_shader_parameter("tex", load("res://assets/sprites/%s.png" % name))
+	m.render_priority = 2
+	mi.material_override = m; mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mi.custom_aabb = AABB(Vector3(-10, -10, -10), Vector3(200, 50, 200))
+	add_child(mi); batches[name] = mi
+	return mi
+
+# 세워 두는 반투명 덧셈 그림(보호막 등): 재질 하나를 프레임마다 고친다
+func _anim_quad(name: String) -> MeshInstance3D:
+	var q := QuadMesh.new(); q.size = Vector2(1, 1)
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	m.albedo_texture = load("res://assets/sprites/%s.png" % name) if name != "" else World.glow_tex()
+	var mi := MeshInstance3D.new(); mi.mesh = q; mi.material_override = m; mi.visible = false
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mi); return mi
+
+# ---------------- 맵이 바뀌었을 때 ----------------
+func rebuild() -> void:
+	for d in [npcs, enemies, corpses, chests, drops]:
+		for k in d.keys(): d[k].queue_free()
+		d.clear()
+	if stairs_node: stairs_node.queue_free()
+	stairs_node = null; stairs_key = ""
+	if portal_node: portal_node.queue_free()
+	portal_node = null
+	if gate_node: gate_node.queue_free()
+	gate_node = null
+	if game.mg.gate != null: _build_gate(game.mg.gate)
+
+func _sprite(tex: Texture2D) -> Sprite3D:
+	var s := Sprite3D.new(); s.texture = tex; s.centered = true
+	s.alpha_cut = SpriteBase3D.ALPHA_CUT_OPAQUE_PREPASS; s.shaded = true
+	s.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	return s
+
+# 웹 drawProp 과 같은 크기·기준점으로 소품을 세운다(부모 노드 기준 위치)
+func _prop(parent: Node3D, n: String, sc: float, off := Vector2()) -> Sprite3D:
+	var M := World.props_meta()
+	if not M.has(n): return null
+	var m: Dictionary = M[n]
+	var s := _sprite(World.tex("res://assets/props/%s.png" % n))
+	s.pixel_size = World.PF * sc * UP
+	s.position = Vector3(off.x * S + (m.w / 2.0 - m.ax) * s.pixel_size, (m.ay - m.h / 2.0) * s.pixel_size, off.y * S)
+	parent.add_child(s); return s
+
+func _glow(parent: Node3D, col: Color, size: float, pos: Vector3) -> MeshInstance3D:
+	var g := world.glow_quad(col, size); g.position = pos; parent.add_child(g); return g
+
+func _light(parent: Node3D, pos: Vector3, col: Color, rng: float, en: float) -> OmniLight3D:
+	var L := OmniLight3D.new(); L.position = pos; L.light_color = col; L.omni_range = rng; L.light_energy = en; L.omni_attenuation = 1.2
+	parent.add_child(L); return L
+
+func _build_gate(g: Vector2) -> void:
+	# 마을 북쪽의 탑 문: 돌벽 + 아치 문 + 창문 불빛 + 보랏빛 문
+	gate_node = Node3D.new(); gate_node.position = w3(g.x, g.y); add_child(gate_node)
+	var wm := StandardMaterial3D.new(); wm.albedo_texture = World.tex("res://assets/tiles/wall2.png")
+	wm.uv1_scale = Vector3(2.2, 1, 1); wm.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC; wm.roughness = 1
+	var wall := MeshInstance3D.new(); var bm := BoxMesh.new(); bm.size = Vector3(9.4, 3.6, .7); wall.mesh = bm; wall.material_override = wm
+	wall.position = Vector3(0, 1.8, -.6); gate_node.add_child(wall)
+	for k in 11:
+		var c := MeshInstance3D.new(); var cb := BoxMesh.new(); cb.size = Vector3(.5, .45, .7); c.mesh = cb; c.material_override = wm
+		c.position = Vector3(-4.69 + .25 + k * .875, 3.82, -.6); gate_node.add_child(c)
+	var dm := StandardMaterial3D.new(); dm.albedo_color = Color(.07, .05, .09); dm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	var door := MeshInstance3D.new(); var dq := QuadMesh.new(); dq.size = Vector2(2.25, 2.9); door.mesh = dq; door.material_override = dm
+	door.position = Vector3(0, 1.45, -.24); gate_node.add_child(door)
+	var dg := world.glow_quad(Color(.76, .6, 1, .55), 2.6); dg.position = Vector3(0, 1.3, -.2); gate_node.add_child(dg)
+	(dg.material_override as StandardMaterial3D).billboard_mode = BaseMaterial3D.BILLBOARD_DISABLED
+	for wx in [-110, -70, 70, 110]:
+		var wq := MeshInstance3D.new(); var q := QuadMesh.new(); q.size = Vector2(.42, .7); wq.mesh = q
+		var m := StandardMaterial3D.new(); m.albedo_color = Color(1, .77, .43); m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		wq.material_override = m; wq.position = Vector3(wx * S, 2.75, -.24); gate_node.add_child(wq)
+		var gw := world.glow_quad(Color(1, .69, .31, .5), 1.2); gw.position = Vector3(wx * S, 2.7, -.15); gate_node.add_child(gw)
+	_light(gate_node, Vector3(0, 1.8, .8), Color(.76, .6, 1), 6.0, 1.4)
+
+# ---------------- 매 프레임 ----------------
+func sync(dt: float) -> void:
+	var G = game.G; var P = game.P; var mg := game.mg
+	# 플레이어
+	player.position = w3(P.x, P.y + 2)
+	player.face = P.face
+	player.set_anim(P.anim); player.at = P.at; player.tick(0)
+	var blink: bool = P.inv > 0 and int(G.time * 30) % 2 == 1
+	player.spr.modulate = Color(2.2, 2.2, 2.2) if blink else Color.WHITE
+	P.tip = {x = P.x + cos(P.face) * 16, y = P.y - 30 + sin(P.face) * 6}
+	_ward(P, G)
+	# 마을 사람
+	for n in G.npcs:
+		if not npcs.has(n.id):
+			var a := Actor.new(); add_child(a); a.setup(n.id, 46); npcs[n.id] = a
+		var a: Actor = npcs[n.id]
+		a.position = w3(n.x, n.y + 13); a.face = atan2(P.y - n.y, P.x - n.x); a.at = G.time + n.x; a.tick(0)
+	# 적
+	var live := {}
+	for e in G.enemies:
+		live[e.id] = true
+		if not enemies.has(e.id):
+			var a := Actor.new(); add_child(a); a.setup(Game.spr_name(e), Game.enemy_h(e)); enemies[e.id] = a
+		var a: Actor = enemies[e.id]
+		var vis := mg.is_seen(e.x, e.y)
+		a.visible = vis
+		if not vis: continue
+		a.position = w3(e.x, e.y)
+		a.face = atan2(e.y - P.y, e.x - P.x) if e.fearT > 0 else atan2(P.y - e.y, P.x - e.x)
+		a.set_anim(e.anim); a.at = e.at; a.tick(0)
+		var alpha := 1.0
+		if e.d.has("hidden"):
+			var dp := Game.hyp(P.x - e.x, P.y - e.y)
+			alpha = 1.0 if dp < 110 else (.35 if dp < 170 else .06)
+		var c := Color.WHITE
+		if e.flash > 0: c = Color(2.4, 2.4, 2.4)
+		elif e.frozenT > 0: c = Color(.62, .86, 1.35)
+		elif e.shield > 0: c = Color(.85, .9, 1.2)
+		if e.boss == "flesh" and e.split: c *= Color(1.12, .9, .9)
+		c.a = alpha
+		a.spr.modulate = c
+		a.shadow.visible = alpha > .5
+	for k in enemies.keys():
+		if not live.has(k):
+			enemies[k].queue_free(); enemies.erase(k)
+	# 시체
+	live = {}
+	for c in G.corpses:
+		live[c.id] = true
+		if not corpses.has(c.id):
+			var a := Actor.new(); add_child(a); a.setup(c.name, c.H); a.face = c.ang; a.set_anim("die"); corpses[c.id] = a
+			a.position = w3(c.x, c.y)
+		var a: Actor = corpses[c.id]
+		a.visible = mg.is_seen(c.x, c.y)
+		a.at = c.t; a.tick(0)
+		var al: float = max(0.0, 1 - (c.t - 6) / 3) if c.t > 6 else 1.0
+		a.spr.modulate = Color(1, 1, 1, al); a.shadow.visible = c.t < 1.0
+	for k in corpses.keys():
+		if not live.has(k):
+			corpses[k].queue_free(); corpses.erase(k)
+	# 상자
+	for c in G.chests:
+		if not chests.has(c.id):
+			var n := Node3D.new(); n.position = w3(c.x, c.y + 8); add_child(n); chests[c.id] = n
+			n.set_meta("open", -1)
+		var n: Node3D = chests[c.id]
+		n.visible = mg.is_seen(c.x, c.y)
+		var o := 1 if c.open else 0
+		if n.get_meta("open") != o:
+			for ch in n.get_children(): ch.queue_free()
+			_prop(n, "chest_o" if c.open else "chest_c", .62)
+			n.set_meta("open", o)
+	# 떨어진 물건
+	_sync_drops(G, P)
+	# 계단
+	var sk := ""
+	if mg.stairs != null and G.floor > 0: sk = "%d,%d" % [int(mg.stairs.x), int(mg.stairs.y)]
+	if sk != stairs_key:
+		if stairs_node: stairs_node.queue_free()
+		stairs_node = null; stairs_key = sk
+		if sk != "":
+			stairs_node = Node3D.new(); stairs_node.position = w3(mg.stairs.x, mg.stairs.y); add_child(stairs_node)
+			_prop(stairs_node, "stairs_down", .5, Vector2(0, 18))
+			_glow(stairs_node, Color(1, .8, .35, .5), 2.4, Vector3(0, .5, .5))
+			_light(stairs_node, Vector3(0, 1.2, .5), Color(1, .82, .45), 5.0, 1.0)
+	if stairs_node: stairs_node.visible = mg.is_seen(mg.stairs.x, mg.stairs.y)
+	# 귀환문
+	if G.portal != null and portal_node == null:
+		portal_node = Node3D.new(); add_child(portal_node)
+		_prop(portal_node, "waystone_on", .7, Vector2(0, 22))
+		_glow(portal_node, Color(.44, .61, 1, .7), 2.5, Vector3(0, .9, .3))
+		_light(portal_node, Vector3(0, 1.2, .6), Color(.5, .66, 1), 5.0, 1.4)
+	elif G.portal == null and portal_node != null:
+		portal_node.queue_free(); portal_node = null
+	if portal_node:
+		portal_node.position = w3(G.portal.x, G.portal.y)
+		if randf() < .3: G.fx.append({x = G.portal.x + Game.rnd(-12, 12), y = G.portal.y + Game.rnd(-18, 18), vx = 0.0, vy = -30.0, life = .6, max = .6, color = "#9fd0ff", size = 1.6})
+	_sync_fx(G, P)
+
+func _ward(P, G) -> void:
+	var M := Actor.meta()
+	if P.ward > 0 and M.has("fx_shield"):
+		var m: Dictionary = M.fx_shield; var A: Dictionary = m.anims.idle
+		var fr := int(G.time * 1000 / A.dur * A.frames) % int(A.frames)
+		var k: float = 40.0 / m.get("hgt", m.ch) * UP
+		var mat: StandardMaterial3D = ward_q.material_override
+		mat.uv1_scale = Vector3(1.0 / A.frames, 1, 1); mat.uv1_offset = Vector3(float(fr) / A.frames, 0, 0)
+		mat.albedo_color = Color(1, 1, 1, .75)
+		(ward_q.mesh as QuadMesh).size = Vector2(m.cw * k, m.ch * k)
+		ward_q.position = w3(P.x, P.y + 4, (m.anchor[1] - m.ch / 2.0) * k) + Vector3((m.cw / 2.0 - m.anchor[0]) * k, 0, .05)
+		ward_q.visible = true
+	else: ward_q.visible = false
+	if P.hardenT > 0:
+		(harden_q.mesh as QuadMesh).size = Vector2(1.3, 1.9)
+		(harden_q.material_override as StandardMaterial3D).albedo_color = Color(.8, .95, 1, .5)
+		harden_q.position = w3(P.x, P.y + 2, .95) + Vector3(0, 0, .06); harden_q.visible = true
+	else: harden_q.visible = false
+
+const LOOT := {gold = "loot_coins", pothp = "loot_hp", potmp = "loot_mp", scroll = "loot_scroll", hp = "", mp = ""}
+const GEAR := {staff = "loot_staff", wand = "loot_wand", ring = "loot_ring", cloak = "loot_cloak"}
+
+func _sync_drops(G, P) -> void:
+	var live := {}
+	var M := Actor.meta()
+	var bd := 140.0; G.nearItem = null
+	for d in G.drops:
+		if d.kind == "item":
+			var q := Game.hyp(P.x - d.x, P.y - d.y)
+			if q < bd:
+				bd = q; G.nearItem = d
+	for d in G.drops:
+		live[d.id] = true
+		if not drops.has(d.id):
+			var n := Node3D.new(); add_child(n); drops[d.id] = n
+			var ln: String = GEAR[d.it.base] if d.kind == "item" else LOOT.get(d.kind, "")
+			if ln != "" and M.has(ln):
+				var m: Dictionary = M[ln]
+				var tw: float = 14.0 if d.kind == "gold" else (((12.0 if d.it.base == "ring" else 22.0)) if d.kind == "item" else 14.0)
+				var k: float = tw / max(m.cw, m.ch)
+				var s := _sprite(load("res://assets/sprites/%s.png" % ln)); s.pixel_size = k * UP
+				s.position = Vector3(0, m.ch * .8 * k * UP - m.ch / 2.0 * k * UP + 2 * UP, 0)
+				s.name = "spr"; n.add_child(s)
+				var sh := MeshInstance3D.new(); var sq := QuadMesh.new(); sq.size = Vector2(tw * .9 * S, tw * .3 * S); sq.orientation = PlaneMesh.FACE_Y; sh.mesh = sq
+				var sm := StandardMaterial3D.new(); sm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; sm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+				sm.albedo_texture = World.glow_tex(); sm.albedo_color = Color(0, 0, 0, .45); sh.material_override = sm; sh.position = Vector3(0, .02, 3 * S); n.add_child(sh)
+			if d.kind == "item":
+				var col := Color(D.RAR[d.it.rar].color)
+				var beam := MeshInstance3D.new(); var bq := QuadMesh.new(); bq.size = Vector2((14.0 if d.it.rar == "epic" else 10.0) * S, 90 * UP); beam.mesh = bq
+				var g := Gradient.new(); g.set_color(0, Color(col, .5 if d.it.rar != "magic" else .3)); g.set_color(1, Color(col, 0))
+				var gt := GradientTexture2D.new(); gt.gradient = g; gt.fill_from = Vector2(0, 1); gt.fill_to = Vector2(0, 0); gt.width = 8; gt.height = 64
+				var bm := StandardMaterial3D.new(); bm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; bm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+				bm.blend_mode = BaseMaterial3D.BLEND_MODE_ADD; bm.albedo_texture = gt; beam.material_override = bm; beam.position = Vector3(0, 45 * UP, 0); n.add_child(beam)
+				_glow(n, Color(col, .5), 44 * S * 1.4, Vector3(0, .15, 0))
+			elif d.kind == "hp" or d.kind == "mp":
+				var col := Color("#ff4a5a") if d.kind == "hp" else Color("#5a8cff")
+				_glow(n, Color(col, .7), 32 * S * 1.4, Vector3(0, .3, 0))
+				var orb := MeshInstance3D.new(); var sp := SphereMesh.new(); sp.radius = 5 * S; sp.height = 10 * S; orb.mesh = sp
+				var om := StandardMaterial3D.new(); om.albedo_color = col; om.emission_enabled = true; om.emission = col; om.emission_energy_multiplier = .8; orb.material_override = om
+				orb.position = Vector3(0, .3, 0); orb.name = "spr"; n.add_child(orb)
+		var n: Node3D = drops[d.id]
+		n.visible = game.mg.is_seen(d.x, d.y)
+		var b := sin(G.time * 5 + d.x) * 2
+		n.position = w3(d.x, d.y)
+		var sp = n.get_node_or_null("spr")
+		if sp: sp.position.y = sp.position.y * 0 + _drop_base(d, M) + (d.get("h", 0.0)) * UP + (0.0 if d.kind == "gold" else b * .4 * UP)
+	for k in drops.keys():
+		if not live.has(k):
+			drops[k].queue_free(); drops.erase(k)
+
+func _drop_base(d, M) -> float:
+	if d.kind == "hp" or d.kind == "mp": return .3
+	var ln: String = GEAR[d.it.base] if d.kind == "item" else LOOT.get(d.kind, "")
+	if not M.has(ln): return .3
+	var m: Dictionary = M[ln]
+	var tw: float = 14.0 if d.kind == "gold" else (((12.0 if d.it.base == "ring" else 22.0)) if d.kind == "item" else 14.0)
+	var k: float = tw / max(m.cw, m.ch)
+	return (m.ch * .8 - m.ch / 2.0) * k * UP + 2 * UP
+
+# ---------------- 효과 ----------------
+func _put(mm: MultiMesh, i: int, x: float, y: float, r: float, c: Color, h := .06) -> void:
+	var t := Transform3D(Basis().scaled(Vector3(r * 2 * S, 1, r * 2 * S)), w3(x, y, h))
+	mm.set_instance_transform(i, t); mm.set_instance_color(i, c)
+
+func _sync_fx(G, P) -> void:
+	var glow: Array = []; var dot: Array = []; var mix: Array = []
+	# 먼지·연기·잔해(일반 섞기)
+	for f in G.fx:
+		var a: float = f.life / f.max
+		if f.has("dust") or f.has("smoke"):
+			var c := Color(f.color); c.a = a * (.38 if f.has("smoke") else .6)
+			mix.append([f.x, f.y, f.size * ((2.2 - a * 1.2) if f.has("smoke") else 1.0), c])
+		elif f.has("cone"):
+			var c := Color(f.color); c.a = a * .42; glow.append([f.x, f.y, f.size * (4.5 - a * 2.5), c])
+		elif f.size > 2.6:
+			var c := Color(f.color); c.a = a * .8; glow.append([f.x, f.y, f.size * 2.6, c])
+		else:
+			var c := Color(f.color); c.a = a * .9; dot.append([f.x, f.y, f.size, c])
+	for d in G.debris:
+		if not game.mg.is_seen(d.x, d.y): continue
+		var c := Color(d.color); c.a = min(1.0, d.life)
+		var r: float = 2.5 if d.shape == "bone" else (4.0 if d.shape == "skull" else d.s)
+		mix.append([d.x, d.y - d.h, r, c])
+	# 구역의 빛
+	for z in G.zones:
+		var a: float = min(1.0, z.life / max(z.max, .001) * 3)
+		if z.kind == "ember":
+			var fl := .8 + .2 * sin(G.time * 14 + z.x)
+			glow.append([z.x, z.y - 3, 20 * fl, Color(Color("#ff7a2a"), .7 * a)]); dot.append([z.x, z.y - 2, 2.4 * fl, Color(1, .86, .55, .8 * a)])
+		elif z.kind == "acid": glow.append([z.x, z.y - 34, z.r * .9, Color(Color("#5a7a4a"), .35 * a)])
+		elif z.kind == "stasis": glow.append([z.x, z.y, z.r * .9, Color(Color("#9a70ff"), .18 * a)])
+	# 탄 빛
+	for s in G.shots: glow.append([s.x, s.y, s.r * 4, Color(Color(s.color), .5)])
+	for s in G.eshots:
+		if s.kind == "arrow": continue
+		var col := Color({ice = "#9fd0ff", poison = "#8fd14f", fire = "#ff6a2a", skull = "#b77bff", spit = "#d98a9a"}.get(s.kind, "#ffffff"))
+		glow.append([s.x, s.y, s.r * 1.8, Color(col, .3)])
+	if P.firing and P.tip != null and G.floor > 0 and P.active != null: glow.append([P.tip.x, P.tip.y, 16, Color(Color(game.act_color()), .6)])
+	for pair in [[mm_add_glow, glow], [mm_add_dot, dot], [mm_mix_dot, mix]]:
+		var mm: MultiMesh = pair[0].multimesh; var L: Array = pair[1]
+		if mm.instance_count < L.size(): mm.instance_count = max(64, L.size() + 64)
+		mm.visible_instance_count = L.size()
+		for i in L.size(): _put(mm, i, L[i][0], L[i][1], L[i][2], L[i][3])
+	_sync_sprite_fx(G)
+	_sync_lines(G, P)
+	# 탄에 빛 몇 개
+	var li := 0
+	for s in G.shots:
+		if li >= shot_lights.size(): break
+		var L: OmniLight3D = shot_lights[li]; L.visible = true; L.light_color = Color(s.color); L.light_energy = 1.2; L.position = w3(s.x, s.y, .8); li += 1
+	while li < shot_lights.size():
+		shot_lights[li].visible = false; li += 1
+
+func _sync_sprite_fx(G) -> void:
+	var M := Actor.meta()
+	var lists := {}
+	var addf := func(name: String, x: float, y: float, w: float, h: float, rot: float, fr: float, frames: float, alpha: float, ox: float, oy: float):
+		if not lists.has(name): lists[name] = []
+		lists[name].append([x, y, w, h, rot, fr, frames, alpha, ox, oy])
+	for a in G.anims:
+		if not M.has(a.name): continue
+		var m: Dictionary = M[a.name]; var A: Dictionary = m.anims.idle
+		var fr: int = min(A.frames - 1, int(a.t / a.life * A.frames)); var k: float = a.size / max(m.cw, m.ch)
+		var al: float = max(0.0, 1 - (a.t - a.life * .7) / (a.life * .3)) if a.t > a.life * .7 else 1.0
+		addf.call(a.name, a.x, a.y, m.cw * k, m.ch * k, a.rot, fr, A.frames, al, (m.cw / 2.0 - m.anchor[0]) * k, (m.ch / 2.0 - m.anchor[1]) * k)
+	for z in G.zones:
+		if z.kind == "stasis" and M.has("fx_runes"):
+			var m: Dictionary = M.fx_runes; var A: Dictionary = m.anims.idle
+			var fr := int(G.time * 1000 / A.dur * A.frames) % int(A.frames); var k: float = z.r * 2.1 / m.ch
+			addf.call("fx_runes", z.x, z.y + z.r * .4, m.cw * k, m.ch * k, 0, fr, A.frames, min(1.0, z.life) * .8, (m.cw / 2.0 - m.anchor[0]) * k, (m.ch / 2.0 - m.anchor[1]) * k)
+	for s in G.shots:
+		var sn := "fx_fireball" if s.els.has("fire") else ("fx_icicle" if s.els.has("frost") else ("fx_spark_blue" if s.els.has("storm") else "fx_plasma"))
+		if not M.has(sn): continue
+		var m: Dictionary = M[sn]; var A: Dictionary = m.anims.idle
+		var fr := int(G.time * 12 + s.x) % int(A.frames)
+		var k: float = (s.r * 5 if (sn == "fx_plasma" or sn == "fx_spark_blue") else s.r * 9) / max(m.cw, m.ch)
+		var rot_ := (sn == "fx_fireball" or sn == "fx_icicle")
+		var ang: float = atan2(s.vy, s.vx) + PI if rot_ else 0.0
+		addf.call(sn, s.x, s.y, m.cw * k, m.ch * k, ang, fr, A.frames, 1.0, m.cw * k * (.25 if rot_ else 0.0), 0.0)
+	for s in G.eshots:
+		var sn: String = {ice = "fx_spark_blue", poison = "fx_spark_green", skull = "fx_spark_red", fire = "fx_fireball", spit = "fx_spark_green"}.get(s.kind, "")
+		if sn == "" or not M.has(sn): continue
+		var m: Dictionary = M[sn]; var A: Dictionary = m.anims.idle
+		var fr := int(G.time * 12 + s.x) % int(A.frames)
+		var k: float = (s.r * 8 if sn == "fx_fireball" else s.r * 4.5) / max(m.cw, m.ch)
+		var ang: float = atan2(s.vy, s.vx) + PI if sn == "fx_fireball" else 0.0
+		addf.call(sn, s.x, s.y, m.cw * k, m.ch * k, ang, fr, A.frames, 1.0, m.cw * k * (.25 if sn == "fx_fireball" else 0.0), 0.0)
+	for name in batches.keys():
+		if not lists.has(name): batches[name].multimesh.visible_instance_count = 0
+	for name in lists.keys():
+		var mm: MultiMesh = _batch(name).multimesh; var L: Array = lists[name]
+		if mm.instance_count < L.size(): mm.instance_count = L.size() + 16
+		mm.visible_instance_count = L.size()
+		for i in L.size():
+			var e: Array = L[i]
+			var b := Basis(Vector3.UP, -e[4]) * Basis.from_scale(Vector3(e[2] * S, 1, e[3] * S))
+			var off := Vector2(e[8], e[9]).rotated(e[4])
+			mm.set_instance_transform(i, Transform3D(b, w3(e[0] + off.x, e[1] + off.y, .08)))
+			mm.set_instance_custom_data(i, Color(e[5], e[6], e[7], 0))
+
+# 선(번개·고리·구역·화살)
+func _line(im: ImmediateMesh, pts: Array, w: float, c: Color, h := .07) -> void:
+	if pts.size() < 2: return
+	im.surface_begin(Mesh.PRIMITIVE_TRIANGLE_STRIP)
+	for i in pts.size():
+		var p: Vector2 = pts[i]
+		var dv: Vector2 = (pts[min(i + 1, pts.size() - 1)] - pts[max(i - 1, 0)])
+		var nrm := Vector2(-dv.y, dv.x).normalized() * w * .5
+		im.surface_set_color(c); im.surface_add_vertex(w3(p.x + nrm.x, p.y + nrm.y, h))
+		im.surface_set_color(c); im.surface_add_vertex(w3(p.x - nrm.x, p.y - nrm.y, h))
+	im.surface_end()
+
+func _circle_pts(x: float, y: float, r: float, a0 := 0.0, a1 := TAU, n := 40) -> Array:
+	var out: Array = []
+	for i in n + 1:
+		var a: float = a0 + (a1 - a0) * i / n
+		out.append(Vector2(x + cos(a) * r, y + sin(a) * r))
+	return out
+
+func _disc(im: ImmediateMesh, x: float, y: float, r: float, c: Color, h := .05) -> void:
+	im.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
+	var n := 40
+	for i in n:
+		var a0 := TAU * i / n; var a1 := TAU * (i + 1) / n
+		for p in [Vector2(x, y), Vector2(x + cos(a0) * r, y + sin(a0) * r), Vector2(x + cos(a1) * r, y + sin(a1) * r)]:
+			im.surface_set_color(c); im.surface_add_vertex(w3(p.x, p.y, h))
+	im.surface_end()
+
+func _sync_lines(G, P) -> void:
+	lines_add.clear_surfaces(); lines_mix.clear_surfaces()
+	for b in G.bolts:
+		var c := Color(b.color)
+		if b.has("beam"):
+			_line(lines_add, b.pts, 24, Color(c, .25)); _line(lines_add, b.pts, 11, Color(c, .6)); _line(lines_add, b.pts, 4, Color(1, 1, 1, .9))
+		else:
+			_line(lines_add, b.pts, 9, Color(c, .3)); _line(lines_add, b.pts, 3, Color(c, .85)); _line(lines_add, b.pts, 1.4, Color(1, 1, 1, 1))
+	for r in G.rings:
+		var t: float = 1 - r.life / r.max; var rr: float = r.r0 + (r.r1 - r.r0) * t; var c := Color(r.color)
+		var pts := _circle_pts(r.x, r.y, rr)
+		_line(lines_add, pts, 4 * (1 - t) + 1, Color(c, (1 - t) * .9)); _line(lines_add, pts, 10 * (1 - t) + 2, Color(c, (1 - t) * .25))
+	for z in G.zones:
+		var a: float = min(1.0, z.life / max(z.max, .001) * 3)
+		if z.kind == "stasis":
+			_disc(lines_mix, z.x, z.y, z.r, Color(.63, .47, 1, .1 * a))
+			_line(lines_mix, _circle_pts(z.x, z.y, z.r), 2.5, Color(.78, .67, 1, .6 * a))
+			for k in 10:
+				var a0: float = G.time * .6 + k * TAU / 10
+				_line(lines_mix, _circle_pts(z.x, z.y, z.r * .8, a0, a0 + TAU / 10 * .55, 6), 2.5, Color(.78, .67, 1, .6 * a))
+		elif z.kind == "acid": _disc(lines_mix, z.x, z.y, z.r, Color(.47, .75, .24, .18 * a))
+		elif z.kind == "warn":
+			var t: float = 1 - z.life / z.max
+			_line(lines_mix, _circle_pts(z.x, z.y, z.r), 2.5, Color(.9, .35, .27, .85)); _disc(lines_mix, z.x, z.y, z.r * t, Color(.9, .35, .27, .22))
+	for s in G.eshots:
+		if s.kind == "arrow":
+			var a := atan2(s.vy, s.vx)
+			_line(lines_mix, [Vector2(s.x - cos(a) * 10, s.y - sin(a) * 10), Vector2(s.x, s.y)], 2, Color("#e8dcc0"), .9)
+	# 계단 금빛 고리
+	if game.mg.stairs != null and G.floor > 0 and game.mg.is_seen(game.mg.stairs.x, game.mg.stairs.y):
+		var st = game.mg.stairs; var t: float = G.time
+		_line(lines_add, _circle_pts(st.x, st.y + 4, 40, t * .8, t * .8 + TAU * .8), 2, Color(.89, .69, .29, .45 + .25 * sin(t * 3)))

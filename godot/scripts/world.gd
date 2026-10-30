@@ -21,30 +21,54 @@ static func props_meta() -> Dictionary:
 		if f: PROPM = JSON.parse_string(f.get_as_text())
 	return PROPM
 
-static func mat(t: Texture2D, vcol := true) -> StandardMaterial3D:
-	var m := StandardMaterial3D.new()
-	m.albedo_texture = t
-	m.vertex_color_use_as_albedo = vcol
-	m.roughness = 1.0
-	m.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
-	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
-	m.cull_mode = BaseMaterial3D.CULL_DISABLED
+static var FOG_SHADER: Shader
+static var fog_tex: ImageTexture
+static func mat(t: Texture2D, _vcol := true) -> ShaderMaterial:
+	if FOG_SHADER == null:
+		FOG_SHADER = Shader.new()
+		FOG_SHADER.code = """
+shader_type spatial;
+render_mode cull_disabled, specular_disabled;
+uniform sampler2D tex : source_color, filter_linear_mipmap_anisotropic;
+uniform sampler2D fog : filter_linear;
+varying vec3 wp;
+void vertex() { wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
+void fragment() {
+	vec4 c = texture(tex, UV);
+	float f = texture(fog, wp.xz / vec2(82.0, 62.0)).r;
+	ALBEDO = c.rgb * COLOR.rgb * f;
+	ROUGHNESS = 1.0;
+}
+"""
+	var m := ShaderMaterial.new()
+	m.shader = FOG_SHADER
+	m.set_shader_parameter("tex", t)
+	m.set_shader_parameter("fog", fog_tex)
 	return m
+
+static func set_fog(bytes: PackedByteArray) -> void:
+	var img := Image.create_from_data(MapGen.MW, MapGen.MH, false, Image.FORMAT_L8, bytes)
+	if fog_tex == null: fog_tex = ImageTexture.create_from_image(img)
+	else: fog_tex.update(img)
 
 var mg: MapGen
 var lights: Array = []   # {light, base, ph}
+var fog_nodes: Array = [] # [node, x(px), y(px)] — 아직 못 본 곳이면 숨김
 var time := 0.0
 
 func build(m: MapGen) -> void:
 	mg = m
 	for c in get_children(): c.queue_free()
-	lights.clear()
+	lights.clear(); fog_nodes.clear()
 	_build_ground()
 	if mg.town == null: _build_walls()
 	else: _build_forest()
 	_build_props()
 	_build_torches()
-	if mg.stairs != null: _build_stairs(mg.stairs)
+
+func update_fog() -> void:
+	for f in fog_nodes:
+		if is_instance_valid(f[0]): f[0].visible = mg.is_seen(f[1], f[2])
 
 func _process(dt: float) -> void:
 	time += dt
@@ -76,13 +100,13 @@ func _ao(i: int, j: int) -> Array:
 
 func _build_ground() -> void:
 	var town = mg.town
-	var tf: Texture2D; var tp: Texture2D
+	var tf: Texture2D; var tp: Texture2D = null
 	if town != null:
 		tf = tex("res://assets/tiles/grass3.png"); tp = tex("res://assets/tiles/path3.png")
 	else:
 		tf = tex("res://assets/tiles/floor2.png")
 	var mf := mat(tf)
-	var mp: StandardMaterial3D = null
+	var mp: ShaderMaterial = null
 	if tp != null: mp = mat(tp)
 	for cy in range(0, MapGen.MH, CHUNK):
 		for cx in range(0, MapGen.MW, CHUNK):
@@ -162,7 +186,7 @@ func _build_forest() -> void:
 			if mg.at(i, j) != 1: continue
 			var h := MapGen.hash2(i, j); var edge := mg.wall_bits(i, j) >= 0
 			if not edge and h % 2 == 0: continue
-			var p := Vector2(i + .5 + ((h >> 3) % 9 - 4) * .06, j + .85)
+			var p := Vector2((i + .5) * 32 + ((h >> 3) % 9 - 4) * 2, (j + .85) * 32)
 			if j >= t.y0 + t.h or (edge and (mg.wall_bits(i, j) & 1)):
 				# 앞쪽(카메라 쪽)은 낮은 덤불만, 그것도 가장자리 한 줄과 드문드문
 				if j == t.y0 + t.h and h % 3 != 0: add_prop(PL[h % PL.size()], p, 1.0)
@@ -182,7 +206,8 @@ func add_prop(n: String, p: Vector2, sc := 1.0) -> Sprite3D:
 	s.alpha_cut = SpriteBase3D.ALPHA_CUT_OPAQUE_PREPASS
 	s.shaded = true
 	s.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
-	s.position = Vector3(p.x + (m.w / 2.0 - m.ax) * s.pixel_size, (m.ay - m.h / 2.0) * s.pixel_size, p.y)
+	if mg.town == null: fog_nodes.append([s, p.x, p.y])
+	s.position = Vector3(p.x / 32.0 + (m.w / 2.0 - m.ax) * s.pixel_size, (m.ay - m.h / 2.0) * s.pixel_size, p.y / 32.0)
 	add_child(s); return s
 
 func _build_props() -> void:
@@ -191,7 +216,7 @@ func _build_props() -> void:
 		elif d.kind == "fountain":
 			add_prop("statue2", d.pos, 1.1)
 		elif d.kind == "stall":
-			add_prop("crate2", d.pos + Vector2(-.5, 0), .9); add_prop("barrel1", d.pos + Vector2(.6, .1), .9)
+			add_prop("crate2", d.pos + Vector2(-16, 0), .9); add_prop("barrel1", d.pos + Vector2(19, 3), .9)
 
 # ---------------- 빛 ----------------
 static var _glow_tex: Texture2D
@@ -229,9 +254,9 @@ func add_light(pos: Vector3, col: Color, rng: float, energy: float) -> OmniLight
 
 func _build_torches() -> void:
 	for t in mg.torches:
-		var p: Vector2 = t.pos
+		var p: Vector2 = t.pos / 32.0
 		if t.lamp:
-			add_prop("brazier", p + Vector2(0, .1), .55)
+			add_prop("brazier", t.pos + Vector2(0, 2), .55)
 			var g := glow_quad(Color(1, .6, .25, .9), .9); g.position = Vector3(p.x, .75, p.y + .1); add_child(g)
 			add_light(Vector3(p.x, 1.1, p.y + .3), Color(1, .66, .38), 6.0, 1.4)
 		else:
@@ -241,9 +266,7 @@ func _build_torches() -> void:
 			stick.position = Vector3(p.x, WALLZ * .55, p.y + .06); add_child(stick)
 			var g := glow_quad(Color(1, .55, .2, 1), .7); g.position = Vector3(p.x, WALLZ * .7, p.y + .12); add_child(g)
 			var g2 := glow_quad(Color(1, .9, .6, 1), .22); g2.position = Vector3(p.x, WALLZ * .68, p.y + .14); add_child(g2)
-			add_light(Vector3(p.x, WALLZ * .7, p.y + .6), Color(1, .6, .3), 5.5, 1.5)
+			var L := add_light(Vector3(p.x, WALLZ * .7, p.y + .6), Color(1, .6, .3), 5.5, 1.5)
+			if mg.town == null:
+				for n in [stick, g, g2, L]: fog_nodes.append([n, t.pos.x, t.pos.y + 14])
 
-func _build_stairs(p: Vector2) -> void:
-	add_prop("stairs_down", p + Vector2(0, .4), .5)
-	var g := glow_quad(Color(1, .8, .35, .5), 2.4); g.position = Vector3(p.x, .5, p.y + .5); add_child(g)
-	add_light(Vector3(p.x, 1.2, p.y + .5), Color(1, .82, .45), 5.0, 1.0)

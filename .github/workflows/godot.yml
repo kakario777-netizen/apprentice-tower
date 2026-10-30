@@ -75,10 +75,13 @@ jobs:
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libgl1-mesa-dri mesa-utils > /dev/null
           run() { timeout 120 xvfb-run -a -s "-screen 0 2340x1080x24" godot --path godot --rendering-driver opengl3 --resolution 2340x1080 -- "$@" 2>&1 | grep -v "^$" | tee -a shots/run.log | tail -25; }
-          run --shot=$PWD/shots/town.png --seed=7
+          run --shot=$PWD/shots/title.png --mode=title --seed=7
           run --shot=$PWD/shots/floor1.png --floor=1 --seed=7
           run --shot=$PWD/shots/floor5.png --floor=5 --seed=7
-          run --bench --floor=2 --seed=3 || true
+          run --shot=$PWD/shots/levelup.png --floor=2 --mode=levelup --seed=4
+          run --shot=$PWD/shots/bag.png --floor=3 --mode=bag --seed=4
+          run --shot=$PWD/shots/talk.png --floor=1 --mode=talk --seed=4
+          run --shot=$PWD/shots/pause.png --floor=7 --mode=pause --seed=5
           ls -la shots
 
 
