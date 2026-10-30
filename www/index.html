@@ -180,7 +180,7 @@ body.pad .hint{display:block}
 <div id="belt" hidden></div>
 <button id="talkBtn" class="sbtn wide" hidden></button>
 <button id="pausebtn" class="sbtn" hidden aria-label="일시정지"><span class="bars"></span></button>
-<button id="bagbtn" class="sbtn" hidden aria-label="가방"><canvas width="56" height="56"></canvas><i hidden></i></button>
+<button id="bagbtn" class="sbtn" hidden aria-label="가방"><canvas width="96" height="96"></canvas><i hidden></i></button>
 
 <section class="ov" id="ovStart">
   <div class="eyebrow">마법학교 졸업 시험</div>
@@ -443,12 +443,12 @@ const $=id=>document.getElementById(id);
 
 const IMG={}; let SPR=null; const TINT={};
 const C=$('c'); let X=C.getContext('2d');
-let W=0,H=0,DPR=1,SC=1,inset={t:0,r:0,b:0,l:0}, DPRCAP=2.75;
+let W=0,H=0,DPR=1,SC=1,inset={t:0,r:0,b:0,l:0}, DPRCAP=3;
 try{ const q=parseFloat(localStorage.getItem('gfx-dpr2')); if(q>=1&&q<=3) DPRCAP=q; }catch(_){}
 function resize(){
   DPR=Math.min(DPRCAP,window.devicePixelRatio||1); W=innerWidth; H=innerHeight;
   C.width=Math.round(W*DPR); C.height=Math.round(H*DPR);
-  SC=clamp(Math.min(W,H)/300,0.9,1.7);
+  SC=clamp(Math.min(W,H)/370,0.85,1.45);
   const cs=getComputedStyle($('safe'));
   inset={t:parseFloat(cs.paddingTop)||0,r:parseFloat(cs.paddingRight)||0,b:parseFloat(cs.paddingBottom)||0,l:parseFloat(cs.paddingLeft)||0};
   if(window.__layersReady) makeLayers();
@@ -955,9 +955,9 @@ const GLY={el:{arcane:20,fire:37,storm:7,frost:24},sec:{blink:19,ward:4,stasis:2
 const ITEMI={pothp:64,potmp:65,scroll:72}, GEARI={staff:[104,106,105],wand:[107,107,107],ring:[198,204,207],cloak:[136,184,192]};
 let GSC=null;
 function glyph(g,n,cx,cy,sz,col){ let im; try{ im=IMG.ui_glyphs; }catch(e){ return false; } if(!im||n==null) return false;
-  if(!GSC){ GSC=document.createElement('canvas'); GSC.width=GSC.height=64; }
-  const q=GSC.getContext('2d'); q.globalCompositeOperation='source-over'; q.clearRect(0,0,64,64); q.drawImage(im,(n%8)*64,(n>>3)*64,64,64,0,0,64,64);
-  if(col){ q.globalCompositeOperation='source-atop'; const gr=q.createLinearGradient(0,6,0,58); gr.addColorStop(0,'#ffffff'); gr.addColorStop(.45,'#ffffff'); gr.addColorStop(1,col); q.fillStyle=gr; q.fillRect(0,0,64,64); }
+  if(!GSC){ GSC=document.createElement('canvas'); GSC.width=GSC.height=256; }
+  const q=GSC.getContext('2d'); q.globalCompositeOperation='source-over'; q.clearRect(0,0,256,256); q.drawImage(im,(n%8)*256,(n>>3)*256,256,256,0,0,256,256);
+  if(col){ q.globalCompositeOperation='source-atop'; const gr=q.createLinearGradient(0,24,0,232); gr.addColorStop(0,'#ffffff'); gr.addColorStop(.45,'#ffffff'); gr.addColorStop(1,col); q.fillStyle=gr; q.fillRect(0,0,256,256); }
   g.save(); g.shadowColor=col?hexA(col.length===7?col:'#ffffff',.85):'rgba(255,240,200,.7)'; g.shadowBlur=sz*.28; g.drawImage(GSC,cx-sz/2,cy-sz/2,sz,sz); g.shadowColor='rgba(0,0,0,.85)'; g.shadowBlur=sz*.08; g.shadowOffsetY=sz*.04; g.drawImage(GSC,cx-sz/2,cy-sz/2,sz,sz); g.restore(); return true; }
 function iconImg(g,n,cx,cy,sz){ let im; try{ im=IMG.ui_icons; }catch(e){ return false; } if(!im) return false; g.drawImage(im,(n%8)*64,(n>>3)*64,64,64,cx-sz/2,cy-sz/2,sz,sz); return true; }
 function hexA(c,a){ const n=parseInt(c.slice(1),16); return `rgba(${n>>16},${(n>>8)&255},${n&255},${a})`; }
@@ -1002,7 +1002,7 @@ function passGlyph(g,id){
   else if(id==='swift'){ g.strokeStyle='#cdf2ff'; g.lineWidth=2.5; for(const [y,l] of [[-7,12],[0,16],[7,10]]){ g.beginPath(); g.moveTo(-l/2,y); g.lineTo(l/2,y); g.stroke(); } g.fillStyle='#cdf2ff'; g.beginPath(); g.moveTo(14,-6); g.lineTo(20,0); g.lineTo(14,6); g.fill(); }
 }
 function iconCanvas(spec,color,plain){
-  const c=document.createElement('canvas'); c.width=c.height=108; c.className='ic'; const g=c.getContext('2d'); g.scale(2,2);
+  const c=document.createElement('canvas'); c.width=c.height=162; c.className='ic'; const g=c.getContext('2d'); g.scale(3,3);
   const gr=g.createRadialGradient(27,27,3,27,27,27); gr.addColorStop(0,hexA(color,plain?.22:.38)); gr.addColorStop(1,hexA(color,0)); g.fillStyle=gr; g.fillRect(0,0,54,54);
   if(!plain){ g.fillStyle='rgba(9,7,14,.65)'; g.beginPath(); g.arc(27,27,23,0,TAU); g.fill();
   g.strokeStyle=hexA(color,.85); g.lineWidth=1.5; g.beginPath(); g.arc(27,27,23,0,TAU); g.stroke(); }
@@ -1316,7 +1316,9 @@ function drawWizard(g,x,y,r,o){
 function drawPortrait(n){
   const c=$('tPortrait'), g=c.getContext('2d'); g.setTransform(1,0,0,1,0,0); g.clearRect(0,0,128,128);
   const gr=g.createRadialGradient(64,70,8,64,70,70); gr.addColorStop(0,hexA(n.trim,.35)); gr.addColorStop(1,'rgba(0,0,0,0)'); g.fillStyle=gr; g.fillRect(0,0,128,128);
-  if(sprReady(n.id)&&SPR[n.id].anims){ const m=SPR[n.id], im=IMG['s_'+n.id], row=m.anims.stance.row+6, hh=m.hgt*.6; g.drawImage(im,m.anchor[0]-hh*.5,row*m.ch+m.anchor[1]-m.hgt*1.03,hh,hh,8,8,112,112); }
+  if(sprReady(n.id)&&SPR[n.id].anims){ const m=SPR[n.id], row=m.anims.stance.row+6, hh=m.hgt*.6; let im=IMG['s_'+n.id], ox=0, oy=row*m.ch;
+    if(m.fr){ const f=m.fr[row*m.nf]; if(f){ const tc=mkC(m.cw,m.ch); tc.getContext('2d').drawImage(IMG['s_'+n.id+(f[0]?'_'+f[0]:'')],f[1],f[2],f[3],f[4],f[5],f[6],f[3],f[4]); im=tc; ox=0; oy=0; } }
+    g.save(); g.beginPath(); g.rect(8,8,112,112); g.clip(); g.drawImage(im,ox+m.anchor[0]-hh*.5,oy+m.anchor[1]-m.hgt*1.03,hh,hh,8,8,112,112); g.restore(); }
   else drawWizard(g,64,86,30,{robe:n.robe,hat:n.hat,trim:n.trim,beard:n.id==='guide'?'#d9d3c7':null});
 }
 function itemIcon(id){
@@ -1348,14 +1350,14 @@ function drawGear(g,x,y,it,s){
     g.strokeStyle=col; g.lineWidth=1.4; g.beginPath(); g.moveTo(-11,13); g.quadraticCurveTo(0,9,11,13); g.stroke(); g.fillStyle=gem; g.beginPath(); g.arc(0,-10,2.6,0,TAU); g.fill(); }
   g.restore();
 }
-function gearCanvas(it,px){ const c=document.createElement('canvas'); c.width=c.height=px*2; const g=c.getContext('2d'); g.scale(2,2);
+function gearCanvas(it,px){ const c=document.createElement('canvas'); c.width=c.height=px*3; const g=c.getContext('2d'); g.scale(3,3);
   const gr=g.createRadialGradient(px/2,px/2,2,px/2,px/2,px/2); gr.addColorStop(0,hexA(RAR[it.rar].color,.35)); gr.addColorStop(1,hexA(RAR[it.rar].color,0)); g.fillStyle=gr; g.fillRect(0,0,px,px);
   drawGear(g,px/2,px/2,it,px/34); return c; }
 function buildBelt(){
   const box=$('belt'); if(!box||!P) return; box.innerHTML='';
   for(const id of ['pothp','potmp','scroll']){ const n=P.pot[id]||0; if(id==='scroll'&&(!n||G.floor===0)) continue;
     const b=document.createElement('button'); b.type='button'; b.className='pbtn'+(n?'':' empty'); b.setAttribute('aria-label',DATA.shop.find(x=>x.id===id).name);
-    const c=document.createElement('canvas'); c.width=c.height=60; const g=c.getContext('2d'); g.scale(2,2); drawItem(g,15,16,id,.95); b.appendChild(c);
+    const c=document.createElement('canvas'); c.width=c.height=96; const g=c.getContext('2d'); g.scale(3.2,3.2); drawItem(g,15,16,id,.95); b.appendChild(c);
     const cnt=document.createElement('b'); cnt.textContent=n; b.appendChild(cnt); addHint(b,{pothp:'LB',potmp:'RB',scroll:'R3'}[id]);
     b.addEventListener('pointerdown',e=>{ e.preventDefault(); e.stopPropagation(); usePot(id); }); box.appendChild(b); }
 }
@@ -1382,7 +1384,7 @@ window.onAppPause=()=>{ if(G&&G.state==='play') openPause(); save(); };
 
 /* ========== 가방 ========== */
 let bagSel=null; // {from:'bag'|'eq', i|slot}
-function bagIconDraw(){ const c=$('bagbtn').querySelector('canvas'), g=c.getContext('2d'); g.clearRect(0,0,56,56); g.save(); g.scale(2,2);
+function bagIconDraw(){ const c=$('bagbtn').querySelector('canvas'), g=c.getContext('2d'); g.clearRect(0,0,96,96); g.save(); g.scale(96/28,96/28);
   if(glyph(g,30,14,14,27,'#f0e0c0')){ g.restore(); return; }
   g.fillStyle='#6e4826'; g.beginPath(); g.moveTo(5,11); g.lineTo(23,11); g.lineTo(25,25); g.lineTo(3,25); g.closePath(); g.fill(); g.strokeStyle='#c9a24a'; g.lineWidth=1.5; g.beginPath(); g.moveTo(9,11); g.quadraticCurveTo(14,2,19,11); g.stroke(); g.fillStyle='#c9a24a'; g.fillRect(12,15,4,4); g.restore(); }
 function updBagBtn(){ $('bagbtn').querySelector('i').hidden=!G.bagNew; }
@@ -1641,12 +1643,14 @@ function drawProp(n,x,y,sc,alpha){ if(!propReady(n)) return false; const m=PROPM
 const TREES=['oak1','oak2','oak3','oak4','birch1','birch3','pine1','pine2'], FOREST=['pine1','pine2','pine3','pine4','oak1','oak3','pine1','oak4','birch2','pine3'];
 const PLANTS=['fern1','fern2','leaf1','leaf2','flower1','flower2','shrub1','shrub2','shrub3','grass1','grass2','grass3','grass4','grass2'];
 const BONES=['bones1','bones2','bones3','bones4','bones5','skulls','skeleton1','skeleton2'];
-loadImg('ui_glyphs','assets/ui/glyphs.png'); loadImg('ui_icons','assets/ui/icons.png');
+loadImg('ui_glyphs','assets/ui/glyphs4.png'); loadImg('ui_icons','assets/ui/icons.png');
 { let tries=0; const iv=setInterval(()=>{ tries++; if(IMG.ui_glyphs&&IMG.ui_icons){ clearInterval(iv); try{ bagIconDraw(); if(P&&G){ buildButtons(); buildBelt(); } }catch(e){} } else if(tries>100) clearInterval(iv); },100); }
-fetch('assets/sprites/meta.json').then(r=>r.ok?r.json():null).then(m=>{ if(!m) return; SPR=m; for(const k in m) loadImg('s_'+k,'assets/sprites/'+k+'.png'); }).catch(()=>{});
+fetch('assets/sprites/meta.json').then(r=>r.ok?r.json():null).then(m=>{ if(!m) return; SPR=m; for(const k in m) if(!m[k].fr||['player','guide','shop','skel','goblin'].includes(k)) sprLoad(k); }).catch(()=>{});
+const SPRREQ={};
+function sprLoad(k){ if(SPRREQ[k]||!SPR||!SPR[k]) return; SPRREQ[k]=1; const n=SPR[k].pages||1; for(let i=0;i<n;i++) loadImg('s_'+k+(i?'_'+i:''),'assets/sprites/'+k+(i?'_'+i:'')+'.png'); }
 function tinted(name,col){ const key=name+col; if(TINT[key]) return TINT[key]; const im=IMG['s_'+name]; if(!im) return null;
   const c=mkC(im.width,im.height), g=c.getContext('2d'); g.drawImage(im,0,0); g.globalCompositeOperation='source-atop'; g.fillStyle=col; g.fillRect(0,0,c.width,c.height); TINT[key]=c; return c; }
-function sprReady(name){ return !!(SPR&&SPR[name]&&IMG['s_'+name]); }
+function sprReady(name){ if(!SPR||!SPR[name]) return false; if(!SPRREQ[name]) sprLoad(name); const n=SPR[name].pages||1; for(let i=0;i<n;i++) if(!IMG['s_'+name+(i?'_'+i:'')]) return false; return true; }
 function sprDir(m,ang){ if(m.dirs===1) return {row:0,flip:false}; let a=Math.atan2(Math.sin(ang),Math.cos(ang)), flip=false;
   if(Math.cos(a)<-0.02){ a=Math.atan2(Math.sin(a),-Math.cos(a)); flip=true; }
   return {row:clamp(Math.round((90-a*180/Math.PI)/45),0,4),flip}; }
@@ -1670,16 +1674,20 @@ function animFrame(A,t){ const n=A.frames; if(n<=1) return 0; const p=t*1000/Mat
   return Math.floor(p*n)%n; }
 let SCR=mkC(8,8), SCX=SCR.getContext('2d');
 function drawF(name,x,y,ang,anim,t,H,opt){
-  const m=SPR&&SPR[name], im=IMG['s_'+name]; if(!m||!im||!m.anims) return null;
+  const m=SPR&&SPR[name]; if(!m||!m.anims||!sprReady(name)) return null;
   const A=m.anims[anim]||m.anims.stance||m.anims.idle; const fr=animFrame(A,t), dir=m.dirs===8?FDIR(ang):0;
-  const k=H/(m.hgt||m.ch), sx=fr*m.cw, sy=(A.row+dir)*m.ch, dx=x-m.anchor[0]*k, dy=y-m.anchor[1]*k, dw=m.cw*k, dh=m.ch*k;
+  const k=H/(m.hgt||m.ch);
+  let im=IMG['s_'+name], sx=fr*m.cw, sy=(A.row+dir)*m.ch, sw=m.cw, sh=m.ch, dx=x-m.anchor[0]*k, dy=y-m.anchor[1]*k;
+  if(m.fr){ const f=m.fr[(A.row+dir)*m.nf+fr]; if(!f) return {top:y-(m.hgt||m.ch)*k,k,done:A.type==='play_once'&&t*1000>=A.dur};
+    im=IMG['s_'+name+(f[0]?'_'+f[0]:'')]; sx=f[1]; sy=f[2]; sw=f[3]; sh=f[4]; dx+=f[5]*k; dy+=f[6]*k; }
+  const dw=sw*k, dh=sh*k;
   const a0=X.globalAlpha; if(opt&&opt.alpha!=null) X.globalAlpha=a0*opt.alpha;
   if(opt&&(opt.flash||opt.ice||opt.tint)){
-    if(SCR.width<m.cw||SCR.height<m.ch){ SCR=mkC(Math.max(m.cw,SCR.width),Math.max(m.ch,SCR.height)); SCX=SCR.getContext('2d'); }
-    SCX.globalCompositeOperation='source-over'; SCX.clearRect(0,0,m.cw,m.ch); SCX.drawImage(im,sx,sy,m.cw,m.ch,0,0,m.cw,m.ch);
-    SCX.globalCompositeOperation='source-atop'; SCX.fillStyle=opt.flash?'rgba(255,255,255,.85)':opt.ice?'rgba(160,220,255,.45)':opt.tint; SCX.fillRect(0,0,m.cw,m.ch);
-    X.drawImage(SCR,0,0,m.cw,m.ch,dx,dy,dw,dh);
-  } else X.drawImage(im,sx,sy,m.cw,m.ch,dx,dy,dw,dh);
+    if(SCR.width<sw||SCR.height<sh){ SCR=mkC(Math.max(sw,SCR.width),Math.max(sh,SCR.height)); SCX=SCR.getContext('2d'); }
+    SCX.globalCompositeOperation='source-over'; SCX.clearRect(0,0,sw,sh); SCX.drawImage(im,sx,sy,sw,sh,0,0,sw,sh);
+    SCX.globalCompositeOperation='source-atop'; SCX.fillStyle=opt.flash?'rgba(255,255,255,.85)':opt.ice?'rgba(160,220,255,.45)':opt.tint; SCX.fillRect(0,0,sw,sh);
+    X.drawImage(SCR,0,0,sw,sh,dx,dy,dw,dh);
+  } else X.drawImage(im,sx,sy,sw,sh,dx,dy,dw,dh);
   X.globalAlpha=a0;
   return {top:y-(m.hgt||m.ch)*k,k,done:A.type==='play_once'&&t*1000>=A.dur};
 }

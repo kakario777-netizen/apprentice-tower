@@ -69,7 +69,7 @@ def build(name, layers, want, scale, layer_order=None):
                 minx = min(minx, -ox); miny = min(miny, -oy); maxx = max(maxx, w - ox); maxy = max(maxy, h - oy)
     cw = int((maxx - minx) * scale) + 2; ch = int((maxy - miny) * scale) + 2
     nf = max(base[c]['frames'] for _, c in chosen)
-    sheet = Image.new('RGBA', (cw * nf, ch * 8 * len(chosen)))
+    cells = {}
     st = base[chosen[0][1]]['f'].values()
     hgt = sorted(oy for (x, y, w, h, ox, oy) in st if w > 1)
     meta = {'cw': cw, 'ch': ch, 'anchor': [round(-minx * scale + 1, 1), round(-miny * scale + 1, 1)], 'dirs': 8, 'anims': {}, 'src': 'flare',
@@ -91,11 +91,38 @@ def build(name, layers, want, scale, layer_order=None):
                     if w <= 1: continue
                     src = anims[c]['fim'].get((i, d), anims[c]['im'])
                     big.alpha_composite(src.crop((x, y, x + w, y + h)), (int(-ox - minx) + 1, int(-oy - miny) + 1))
-                cell = big.resize((cw, ch), Image.LANCZOS)
-                sheet.alpha_composite(cell, (i * cw, (ai * 8 + d) * ch))
-    sheet.save(os.path.join(OUT, name + '.png'), optimize=True)
-    print(name, sheet.size, list(meta['anims']), flush=True)
+                cells[(ai * 8 + d, i)] = big.resize((cw, ch), Image.LANCZOS)
+    meta['nf'] = nf
+    meta.update(pack(name, cells, nf, 8 * len(chosen)))
+    print(name, meta['pages'], 'pages', list(meta['anims']), flush=True)
     return meta
+
+def pack(name, cells, nf, nrows, PW=4096, PH=8192):
+    """빈 공간을 잘라낸 프레임들을 한 장(넘치면 여러 장)에 촘촘히 묶는다.
+    fr[row*nf+col] = [쪽, x, y, w, h, 칸 안 x, 칸 안 y] (빈 프레임은 None)"""
+    fr = [None] * (nf * nrows); items = []
+    for (r, c), im in cells.items():
+        bb = im.getbbox()
+        if not bb: continue
+        items.append((r * nf + c, im.crop(bb), bb[0], bb[1]))
+    items.sort(key=lambda t: -t[1].height)
+    pages = []; cur = None; x = y = sh = 0
+    def newpage():
+        nonlocal cur, x, y, sh
+        cur = []; pages.append(cur); x = y = sh = 0
+    newpage()
+    for idx, im, ox, oy in items:
+        w, h = im.size
+        if x + w > PW: x = 0; y += sh + 1; sh = 0
+        if y + h > PH: newpage()
+        cur.append((x, y, im)); fr[idx] = [len(pages) - 1, x, y, w, h, ox, oy]
+        x += w + 1; sh = max(sh, h)
+    for pi, pg in enumerate(pages):
+        W = max(x0 + im.width for x0, y0, im in pg); H = max(y0 + im.height for x0, y0, im in pg)
+        sheet = Image.new('RGBA', (W, H))
+        for x0, y0, im in pg: sheet.alpha_composite(im, (x0, y0))
+        sheet.save(os.path.join(OUT, name + ('' if pi == 0 else '_%d' % pi) + '.png'), optimize=True)
+    return {'fr': fr, 'pages': len(pages)}
 
 def loot(name, anim_rel, scale):
     img, anims = parse_anim(os.path.join(CORE, 'animations', anim_rel))
@@ -109,7 +136,12 @@ def loot(name, anim_rel, scale):
     print(name, c.size, flush=True)
     return {'cw': c.width, 'ch': c.height, 'anchor': [c.width / 2, c.height * 0.8], 'dirs': 1, 'anims': {'idle': {'row': 0, 'frames': 1, 'dur': 1000, 'type': 'looped'}}, 'src': 'flare'}
 
-def hue_copy(src, dst, deg, sat=1.0, scale=1.0):
+def hue_copy(src, dst, deg, sat=1.0, scale=1.0, pages=1):
+    for pi in range(pages):
+        sfx = '' if pi == 0 else '_%d' % pi
+        hue_one(src + sfx, dst + sfx, deg, sat)
+
+def hue_one(src, dst, deg, sat):
     import numpy as np
     im = Image.open(os.path.join(OUT, src + '.png')).convert('RGBA')
     a = np.asarray(im).astype(float) / 255
@@ -150,12 +182,12 @@ if __name__ == '__main__':
     jobs = sys.argv[2:]
     def want(k): return not jobs or k in jobs
     # ---- 몬스터 ----
-    for ours, fl, sc, anims in [('skel', 'skeleton', .5, ENEMY_ANIMS), ('archer', 'skeleton_archer', .5, ENEMY_ANIMS),
-                                ('mage', 'skeleton_mage', .5, CAST_ANIMS), ('zombie', 'zombie', .5, ENEMY_ANIMS),
-                                ('goblin', 'goblin', .5, ENEMY_ANIMS), ('antlion', 'antlion', .55, ENEMY_ANIMS),
-                                ('antlion_small', 'antlion_small', .5, ENEMY_ANIMS), ('fire_ant', 'fire_ant', .5, ENEMY_ANIMS)]:
+    for ours, fl, sc, anims in [('skel', 'skeleton', 1.0, ENEMY_ANIMS), ('archer', 'skeleton_archer', 1.0, ENEMY_ANIMS),
+                                ('mage', 'skeleton_mage', 1.0, CAST_ANIMS), ('zombie', 'zombie', 1.0, ENEMY_ANIMS),
+                                ('goblin', 'goblin', 1.0, ENEMY_ANIMS), ('antlion', 'antlion', 1.0, ENEMY_ANIMS),
+                                ('antlion_small', 'antlion_small', 1.0, ENEMY_ANIMS), ('fire_ant', 'fire_ant', 1.0, ENEMY_ANIMS)]:
         if want(ours): meta[ours] = build(ours, [(E(fl), 'main')], anims, sc)
-    for ours, fl, sc in [('minotaur', 'minotaur', .5), ('wyvern_fire', 'wyvern_fire', .5)]:
+    for ours, fl, sc in [('minotaur', 'minotaur', 1.0), ('wyvern_fire', 'wyvern_fire', 1.0)]:
         if not want(ours): continue
         d = os.path.join(CORE, 'animations', 'enemies')
         # 여러 장으로 나뉜 몬스터: 같은 이름으로 시작하는 애니 파일 중 본체
@@ -170,10 +202,10 @@ if __name__ == '__main__':
         A = lambda n: os.path.join(CORE, 'animations', 'avatar', 'male', n + '.txt')
         layers = [(A('head_short'), 'head'), (A('mage_hood'), 'head'), (A('mage_vest'), 'chest'), (A('mage_sleeves'), 'hands'),
                   (A('mage_skirt'), 'legs'), (A('mage_boots'), 'feet'), (A('greatstaff'), 'main')]
-        meta['player'] = build('player', layers, CAST_ANIMS, .5, order)
+        meta['player'] = build('player', layers, CAST_ANIMS, 1.0, order)
     # ---- 마을 사람 ----
     for ours, fl in [('guide', 'guild_man'), ('shop', 'wandering_trader')]:
-        if want(ours): meta[ours] = build(ours, [(os.path.join(CORE, 'animations', 'npcs', fl + '.txt'), 'main')], [('stance', ('stance',))], .5)
+        if want(ours): meta[ours] = build(ours, [(os.path.join(CORE, 'animations', 'npcs', fl + '.txt'), 'main')], [('stance', ('stance',))], 1.0)
     # ---- 바닥에 떨어진 물건 ----
     for ours, fl in [('loot_coins', 'coins25'), ('loot_hp', 'hp_potion'), ('loot_mp', 'mp_potion'), ('loot_scroll', 'scroll'), ('loot_ring', 'ring'),
                      ('loot_staff', 'greatstaff'), ('loot_wand', 'wand'), ('loot_cloak', 'clothes'), ('loot_gem', 'gem')]:
@@ -187,6 +219,6 @@ if __name__ == '__main__':
             try: meta[ours] = single(ours, os.path.join('powers', fl + '.txt'), .5, (('idle', ('power', 'stance', 'travel')),))
             except Exception as ex: print('건너뜀', ours, ex)
     if want('lich') and 'mage' in meta:
-        hue_copy('mage', 'lich', 200, 1.6); meta['lich'] = dict(meta['mage'])
+        hue_copy('mage', 'lich', 200, 1.6, pages=meta['mage'].get('pages', 1)); meta['lich'] = dict(meta['mage'])
     json.dump(meta, open(mf, 'w'), ensure_ascii=False, indent=1)
     print('meta 저장')
