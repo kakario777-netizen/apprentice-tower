@@ -37,3 +37,6 @@
 - 남은 일(4단계): 폰 피드백 반영, 텍스처 압축(용량), 패키지 이름을 기존 앱으로 바꿔 교체, 웹판과 세부 비교(러그·균열 장식, 타이틀 탑 그림 등은 아직 없음).
 - 빠른 캡처(로컬, 약 75초): 고도 실행 파일을 `https://github.com/godotengine/godot/releases/download/4.5.1-stable/Godot_v4.5.1-stable_linux.x86_64.zip` 에서 바로 받아 /tmp/claude-0/godot 에 풀고,
   `cp -r www/assets godot/assets`, 글꼴은 로컬 미리보기용으로 Noto CJK KR 을 fontTools 로 뽑아 godot/fonts 에 넣은 뒤 `--headless --import`, 그리고 `tools/samples.sh OUT_DIR` (한 번 실행으로 9장).
+- g0.11: 70층(5 네임드·10 준보스·15 네임드·20 계층보스 반복, 70 최종), 20층마다 테마(D.THEMES), 층마다 고정 시드(runSeed), 11·21…층 웨이포인트(마을 탑 문에서 선택),
+  이어하기 시 그 층에서 시작, 북쪽 벽을 판 계단(mapgen.carve_alcove, world._build_alcoves) + 회색 반원 + 빨려 들어가는 페이드(G.pull), 테라스(enter_terrace/leave_terrace, G.stash),
+  장비 7칸(목걸이·스태프·망토·반지2·허리띠·장화), 가방 칸 구매(P.bagMax), 상점 랜덤 장비(G.shop), 떠다니는 조이스틱, 미니맵 내 위치, 거래하기 버튼.

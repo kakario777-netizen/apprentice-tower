@@ -83,17 +83,20 @@ class Card extends PanelContainer:
 	func _init(opt: Dictionary) -> void:
 		color = Color(opt.color)
 		focus_mode = Control.FOCUS_ALL; mouse_filter = Control.MOUSE_FILTER_STOP
-		normal = Ui.sb(Ui.PANEL.lerp(color, .14), 8, Ui.LINE, 1, Vector4(14, 12, 14, 12)); normal.border_color = Ui.LINE.lerp(color, .55); normal.border_width_top = 1
+		var big: bool = opt.get("big", false)
+		var bgc: Color = Ui.PANEL.lerp(color, .14)
+		if big: bgc.a = .8
+		normal = Ui.sb(bgc, 10 if big else 8, Ui.LINE, 1, Vector4(18, 16, 18, 16) if big else Vector4(14, 12, 14, 12)); normal.border_color = Ui.LINE.lerp(color, .55); normal.border_width_top = 1
 		focused = normal.duplicate(); focused.border_color = Ui.GOLD; focused.set_border_width_all(2)
 		add_theme_stylebox_override("panel", normal)
 		var h = HBoxContainer.new(); h.add_theme_constant_override("separation", 12); h.mouse_filter = Control.MOUSE_FILTER_IGNORE; add_child(h)
 		if opt.has("icon") and opt.icon != null:
 			var t = TextureRect.new(); t.texture = load(Ui.icon_path(opt.icon)); t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-			t.custom_minimum_size = Vector2(54, 54); t.size_flags_vertical = Control.SIZE_SHRINK_BEGIN; t.mouse_filter = Control.MOUSE_FILTER_IGNORE; h.add_child(t)
+			t.custom_minimum_size = Vector2(66, 66) if big else Vector2(54, 54); t.size_flags_vertical = Control.SIZE_SHRINK_BEGIN; t.mouse_filter = Control.MOUSE_FILTER_IGNORE; h.add_child(t)
 		var v = VBoxContainer.new(); v.add_theme_constant_override("separation", 4); v.size_flags_horizontal = Control.SIZE_EXPAND_FILL; v.mouse_filter = Control.MOUSE_FILTER_IGNORE; h.add_child(v)
-		v.add_child(Ui.label(opt.tag, 11, Ui.MUTED))
-		var tt = Ui.label(opt.title, 18, Ui.INK, Ui.display); v.add_child(tt)
-		var ds = Ui.label(opt.desc, 13, Ui.MUTED); ds.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; v.add_child(ds)
+		v.add_child(Ui.label(opt.tag, 13 if big else 11, Ui.MUTED))
+		var tt = Ui.label(opt.title, 22 if big else 18, Ui.INK, Ui.display); tt.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; v.add_child(tt)
+		var ds = Ui.label(opt.desc, 15 if big else 13, Ui.MUTED.lightened(.15) if big else Ui.MUTED); ds.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; v.add_child(ds)
 		focus_entered.connect(func(): add_theme_stylebox_override("panel", focused))
 		focus_exited.connect(func(): add_theme_stylebox_override("panel", normal))
 	func _gui_input(ev: InputEvent) -> void:
@@ -200,12 +203,12 @@ func row(items: Array, center := true) -> HFlowContainer:
 	for i in items: r.add_child(i)
 	return r
 
-func cards(opts: Array, on_pick: Callable) -> GridContainer:
+func cards(opts: Array, on_pick: Callable, maxw := 760.0) -> GridContainer:
 	var vs = get_viewport().get_visible_rect().size
-	var g = GridContainer.new(); var w: float = min(760.0, vs.x - 32)
+	var g = GridContainer.new(); var w: float = min(maxw, vs.x - 32)
 	g.columns = clampi(int(w / 220), 1, max(1, opts.size()))
 	g.add_theme_constant_override("h_separation", 10); g.add_theme_constant_override("v_separation", 10)
-	_center(g)
+	_center(g, maxw)
 	for o in opts:
 		var c = Card.new(o); c.custom_minimum_size.x = (w - 10 * (g.columns - 1)) / g.columns
 		c.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -287,13 +290,14 @@ func open_first() -> void:
 
 # ================= 레벨업 =================
 func open_level() -> void:
-	_no_title_grad(); _begin("level")
+	_no_title_grad(); _begin("level", .42)
 	var G = game.G; var P = game.P
 	box.add_child(h2("레벨 업 · Lv %d" % (P.lv - G.pendingLv + 1)))
 	box.add_child(lead("남은 선택 %d번. 셋 중 하나를 익히세요." % G.pendingLv if G.pendingLv > 1 else "셋 중 하나를 익히세요."))
 	var opts = game.build_options()
+	for o in opts: o.big = true
 	box.add_child(cards(opts, func(o):
-		hide_all(); game.apply_option(o)))
+		hide_all(); game.apply_option(o), 820.0))
 	_focus_first()
 
 # ================= 일시정지 =================
@@ -332,6 +336,26 @@ func open_pause() -> void:
 	box.add_child(pi)
 	_focus_first()
 
+# ================= 탑 문(웨이포인트) =================
+func open_gate() -> void:
+	_no_title_grad(); _begin("gate", .7)
+	var G = game.G
+	box.add_child(h2("어디서부터 오를까요?"))
+	box.add_child(lead("열어 둔 웨이포인트 층으로 바로 갈 수 있어요."))
+	var items: Array = []
+	var go = func(f):
+		hide_all(); game.set_state("play"); game.enter_tower(f)
+	items.append(btn("이어서 · %d층" % G.resume, go.bind(G.resume)))
+	var ws: Array = G.waypoints.duplicate(); ws.sort()
+	for f in ws:
+		if f == G.resume: continue
+		items.append(btn("%d층 웨이포인트" % f, go.bind(f), true))
+	box.add_child(row(items))
+	var backf = func():
+		hide_all(); game.set_state("play")
+	box.add_child(row([btn("돌아가기", backf, true)]))
+	_focus_first()
+
 # ================= 끝 =================
 func open_end() -> void:
 	_no_title_grad(); _begin("end")
@@ -362,6 +386,8 @@ func _render_talk() -> void:
 	var tx = label(lines[min(talk_page, lines.size() - 1)], 15); tx.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; v.add_child(tx)
 	var btns: Array = []
 	if n.id == "shop":
+		_render_trade(); return
+	if false:
 		tx.text = "%s (가진 금화 %d)" % [lines[0], game.G.gold]
 		var g = GridContainer.new(); g.columns = 2 if get_viewport().get_visible_rect().size.x > 1000 else 1
 		g.add_theme_constant_override("h_separation", 8); g.add_theme_constant_override("v_separation", 8)
@@ -391,6 +417,75 @@ func _render_talk() -> void:
 	for b in btns: rr.add_child(b)
 	v.add_child(rr)
 	box.add_child(tb)
+	_focus_first()
+
+# ---------------- 거래창(미라 교수) ----------------
+func _render_trade() -> void:
+	_begin("talk", .72, BoxContainer.ALIGNMENT_CENTER)
+	var G = game.G; var P = game.P
+	var vs = get_viewport().get_visible_rect().size
+	var W: float = min(880.0, vs.x - 24)
+	var head = HBoxContainer.new(); _center(head, W)
+	var t = label("미라 교수의 가게", 22, GOLD, display); t.size_flags_horizontal = Control.SIZE_EXPAND_FILL; head.add_child(t)
+	var gl = label("가진 금화  %d" % G.gold, 17, Color("#ffd76a"), bold); head.add_child(gl)
+	box.add_child(head)
+	var cols = HBoxContainer.new(); cols.add_theme_constant_override("separation", 12); _center(cols, W)
+	# 왼쪽: 물약·주문서
+	var left = PanelContainer.new(); left.add_theme_stylebox_override("panel", sb(Color(.09, .07, .12, .92), 10, LINE, 1, Vector4(12, 12, 12, 12)))
+	left.size_flags_horizontal = Control.SIZE_EXPAND_FILL; left.size_flags_stretch_ratio = 1.0
+	var lv = VBoxContainer.new(); lv.add_theme_constant_override("separation", 8); left.add_child(lv)
+	lv.add_child(label("물약 · 주문서", 14, MUTED))
+	for it in D.SHOP:
+		var r = HBoxContainer.new(); r.add_theme_constant_override("separation", 10)
+		var ic = TextureRect.new(); ic.texture = load("res://ui/item_%s.png" % it.id); ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; ic.custom_minimum_size = Vector2(46, 46); r.add_child(ic)
+		var nv = VBoxContainer.new(); nv.size_flags_horizontal = Control.SIZE_EXPAND_FILL; nv.add_theme_constant_override("separation", 0); r.add_child(nv)
+		nv.add_child(label(it.name, 15)); nv.add_child(label("%s · %d/%d개" % [it.desc, P.pot.get(it.id, 0), it.max], 12, MUTED))
+		var bf = func():
+			game.buy(it.id); _render_trade()
+		var b = btn("금화 %d" % it.price, bf); b.add_theme_font_size_override("font_size", 14)
+		for st in ["normal", "hover", "pressed", "disabled"]: b.add_theme_stylebox_override(st, _small(btn_sb(false, -.3 if st == "disabled" else 0.0)))
+		b.disabled = G.gold < it.price or P.pot.get(it.id, 0) >= it.max; b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		r.add_child(b); lv.add_child(r)
+	# 가방 늘리기
+	lv.add_child(HSeparator.new())
+	var br = HBoxContainer.new(); br.add_theme_constant_override("separation", 10)
+	var bi = TextureRect.new(); bi.texture = load("res://ui/bag.png"); bi.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; bi.custom_minimum_size = Vector2(46, 46); br.add_child(bi)
+	var bv = VBoxContainer.new(); bv.size_flags_horizontal = Control.SIZE_EXPAND_FILL; bv.add_theme_constant_override("separation", 0); br.add_child(bv)
+	bv.add_child(label("가방 칸 늘리기 (+4칸)", 15)); bv.add_child(label("지금 %d칸 · 최대 %d칸" % [P.bagMax, D.BAG_LIMIT], 12, MUTED))
+	var bagf = func():
+		game.buy_bag(); _render_trade()
+	var bb = btn("금화 %d" % D.bag_price(P.bagMax) if P.bagMax < D.BAG_LIMIT else "최대", bagf); bb.add_theme_font_size_override("font_size", 14)
+	for st in ["normal", "hover", "pressed", "disabled"]: bb.add_theme_stylebox_override(st, _small(btn_sb(false, -.3 if st == "disabled" else 0.0)))
+	bb.disabled = P.bagMax >= D.BAG_LIMIT or G.gold < D.bag_price(P.bagMax); bb.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	br.add_child(bb); lv.add_child(br)
+	cols.add_child(left)
+	# 오른쪽: 오늘의 장비(마을에 올 때마다 바뀜)
+	var right = PanelContainer.new(); right.add_theme_stylebox_override("panel", sb(Color(.09, .07, .12, .92), 10, LINE, 1, Vector4(12, 12, 12, 12)))
+	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL; right.size_flags_stretch_ratio = 1.15
+	var rv = VBoxContainer.new(); rv.add_theme_constant_override("separation", 8); right.add_child(rv)
+	rv.add_child(label("오늘의 장비 · 마을에 올 때마다 바뀌어요", 14, MUTED))
+	if G.shop.is_empty(): rv.add_child(label("오늘 물건은 다 팔렸어요.", 13, MUTED))
+	for i in G.shop.size():
+		var it = G.shop[i]
+		var r = HBoxContainer.new(); r.add_theme_constant_override("separation", 10)
+		var ic = TextureRect.new(); ic.texture = load(gear_path(it)); ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; ic.custom_minimum_size = Vector2(46, 46); r.add_child(ic)
+		var nv = VBoxContainer.new(); nv.size_flags_horizontal = Control.SIZE_EXPAND_FILL; nv.add_theme_constant_override("separation", 0); r.add_child(nv)
+		nv.add_child(label("%s · %s" % [it.name, "반지" if it.slot == "ring" else D.SLOTNAME[it.slot]], 14, Color(D.RAR[it.rar].color)))
+		var ms: Array = []
+		for m in it.mods: ms.append(D.mod_text(m))
+		var ml = label(" · ".join(ms), 12, MUTED); ml.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; nv.add_child(ml)
+		var bif = func():
+			game.buy_item(i); _render_trade()
+		var b = btn("금화 %d" % it.price, bif); b.add_theme_font_size_override("font_size", 14)
+		for st in ["normal", "hover", "pressed", "disabled"]: b.add_theme_stylebox_override(st, _small(btn_sb(false, -.3 if st == "disabled" else 0.0)))
+		b.disabled = G.gold < it.price; b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		r.add_child(b); rv.add_child(r)
+	cols.add_child(right)
+	box.add_child(cols)
+	var tip = label("안 쓰는 장비는 마을에서 가방을 열면 팔 수 있어요.", 12, MUTED); tip.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER; box.add_child(tip)
+	var obf = func():
+		talk_npc = null; open_bag()
+	box.add_child(row([btn("가방 열기", obf, true), btn("닫기", close_talk)]))
 	_focus_first()
 
 func _small(s: StyleBoxFlat) -> StyleBoxFlat:
@@ -447,40 +542,51 @@ func _render_bag() -> void:
 	_begin("bag", .88, BoxContainer.ALIGNMENT_BEGIN)
 	game.recalc()
 	var P = game.P; var G = game.G
-	var wrap = HFlowContainer.new(); wrap.add_theme_constant_override("h_separation", 16); wrap.add_theme_constant_override("v_separation", 12); _center(wrap, 1040)
-	# 장비
-	var c1 = VBoxContainer.new(); c1.add_theme_constant_override("separation", 8); c1.custom_minimum_size.x = 270
-	c1.add_child(label("장비", 19, GOLD, display))
-	var eg = HBoxContainer.new(); eg.add_theme_constant_override("separation", 8)
+	var wrap = HBoxContainer.new(); wrap.add_theme_constant_override("separation", 12); _center(wrap, 1040)
+	# 왼쪽: 큰 장비창 — 뒤에 마법사 윤곽을 아주 옅게, 그 위에 7칸
+	var EW := 300.0; var EH := 318.0
+	var ep = PanelContainer.new(); ep.add_theme_stylebox_override("panel", sb(Color(.07, .055, .1, .95), 12, LINE, 1, Vector4(0, 0, 0, 0)))
+	ep.custom_minimum_size = Vector2(EW, EH)
+	var lay = Control.new(); lay.custom_minimum_size = Vector2(EW, EH); ep.add_child(lay)
+	lay.add_child(_silhouette(EW, EH))
+	var tl = label("장비", 17, GOLD, display); tl.position = Vector2(12, 8); lay.add_child(tl)
+	var POS := {amulet = Vector2(.5, .17), weapon = Vector2(.17, .42), cloak = Vector2(.83, .42), ring1 = Vector2(.17, .68), ring2 = Vector2(.83, .68), belt = Vector2(.5, .62), boots = Vector2(.5, .86)}
 	for k in D.SLOTS:
-		var b = _slot(P.eq[k], D.SLOTNAME[k], bag_sel != null and bag_sel.from == "eq" and bag_sel.slot == k, 62, func():
+		var sz := 58.0
+		var b = _slot(P.eq[k], D.SLOTNAME[k], bag_sel != null and bag_sel.from == "eq" and bag_sel.slot == k, sz, func():
 			bag_sel = {from = "eq", slot = k}; _render_bag())
-		b.set_meta("key", "eq:" + k); eg.add_child(b)
-	c1.add_child(eg)
+		if P.eq[k] == null:
+			var ph = TextureRect.new(); ph.texture = load("res://ui/slot_%s.png" % ("ring" if k.begins_with("ring") else k)); ph.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			ph.position = Vector2(sz * .12, sz * .06); ph.size = Vector2(sz * .76, sz * .76); ph.mouse_filter = Control.MOUSE_FILTER_IGNORE; b.add_child(ph)
+		b.position = Vector2(POS[k].x * EW - sz / 2, POS[k].y * EH - sz / 2); b.set_meta("key", "eq:" + k); lay.add_child(b)
+	var c1 = VBoxContainer.new(); c1.add_theme_constant_override("separation", 6)
+	c1.add_child(ep)
 	var tot = {}
 	for k in D.SLOTS:
 		var it = P.eq[k]
 		if it != null:
 			for m in it.mods: tot[m.k] = tot.get(m.k, 0) + m.v
-	var es = HFlowContainer.new(); es.add_theme_constant_override("h_separation", 12)
-	if tot.is_empty(): es.add_child(label("착용한 장비가 없어요.", 13, MUTED))
-	for k in tot.keys(): es.add_child(label(D.mod_text({k = k, v = snappedf(tot[k], .01)}), 13, MUTED))
+	var es = HFlowContainer.new(); es.add_theme_constant_override("h_separation", 10); es.custom_minimum_size.x = EW
+	if tot.is_empty(): es.add_child(label("착용한 장비가 없어요.", 12, MUTED))
+	for k in tot.keys(): es.add_child(label(D.mod_text({k = k, v = snappedf(tot[k], .01)}), 12, MUTED))
 	c1.add_child(es)
 	wrap.add_child(c1)
-	# 가방
-	var c2 = VBoxContainer.new(); c2.add_theme_constant_override("separation", 8); c2.custom_minimum_size.x = 226
-	c2.add_child(label("가방 %d/%d" % [P.bag.size(), D.BAGMAX], 19, GOLD, display))
-	var bg_ = GridContainer.new(); bg_.columns = 4; bg_.add_theme_constant_override("h_separation", 6); bg_.add_theme_constant_override("v_separation", 6)
-	for i in D.BAGMAX:
+	# 가운데: 가방(칸은 상점에서 금화로 늘릴 수 있음)
+	var c2 = VBoxContainer.new(); c2.add_theme_constant_override("separation", 8)
+	c2.add_child(label("가방 %d/%d" % [P.bag.size(), P.bagMax], 17, GOLD, display))
+	var gsc = ScrollContainer.new(); gsc.custom_minimum_size = Vector2(5 * 50 + 4 * 5 + 8, 6 * 55); gsc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	var bg_ = GridContainer.new(); bg_.columns = 5; bg_.add_theme_constant_override("h_separation", 5); bg_.add_theme_constant_override("v_separation", 5)
+	for i in P.bagMax:
 		var it = P.bag[i] if i < P.bag.size() else null
-		var b = _slot(it, "", bag_sel != null and bag_sel.from == "bag" and bag_sel.i == i, 52, func():
+		var b = _slot(it, "", bag_sel != null and bag_sel.from == "bag" and bag_sel.i == i, 50, func():
 			if i >= P.bag.size(): return
 			bag_sel = {from = "bag", i = i}; _render_bag())
 		b.set_meta("key", "bag:%d" % i); bg_.add_child(b)
-	c2.add_child(bg_)
+	gsc.add_child(bg_); c2.add_child(gsc)
+	if P.bagMax < D.BAG_LIMIT: c2.add_child(label("칸이 모자라면 미라 교수에게서 늘릴 수 있어요", 11, MUTED))
 	wrap.add_child(c2)
 	# 자세히
-	var dt = PanelContainer.new(); dt.custom_minimum_size = Vector2(300, 90)
+	var dt = PanelContainer.new(); dt.custom_minimum_size = Vector2(230, 90); dt.size_flags_horizontal = Control.SIZE_EXPAND_FILL; dt.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	var dv = VBoxContainer.new(); dv.add_theme_constant_override("separation", 6); dt.add_child(dv)
 	var it = _sel_item()
 	if it == null:
@@ -530,10 +636,11 @@ func _render_bag() -> void:
 				_render_bag()
 			sbtn.call("벗기", unf, false)
 		dv.add_child(rr)
-	wrap.add_child(dt)
+	var c3 = VBoxContainer.new(); c3.add_theme_constant_override("separation", 8); c3.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var cb = btn("닫기", func(): close_bag()); cb.size_flags_horizontal = Control.SIZE_SHRINK_END
+	c3.add_child(cb); c3.add_child(dt)
+	wrap.add_child(c3)
 	box.add_child(wrap)
-	var cb = btn("닫기", func(): close_bag())
-	box.add_child(row([cb]))
 	main.hud.build_buttons()
 	if keep_focus != "":
 		await get_tree().process_frame
@@ -542,6 +649,21 @@ func _render_bag() -> void:
 			if c.has_meta("key") and c.get_meta("key") == keep_focus:
 				c.grab_focus(); return
 	_focus_first()
+
+func _silhouette(w: float, h: float) -> Control:
+	var c = Control.new(); c.size = Vector2(w, h); c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var m: Dictionary = Actor.meta().get("player", {})
+	if m.has("fr"):
+		var f = m.fr[(int(m.anims.stance.row) + 6) * int(m.nf)]
+		if f != null:
+			var at = AtlasTexture.new(); at.atlas = load("res://assets/sprites/player.png"); at.region = Rect2(f[1], f[2], f[3], f[4])
+			var sc: float = h * .92 / m.hgt
+			var t = TextureRect.new(); t.texture = at; t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; t.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			t.size = Vector2(f[3], f[4]) * sc
+			t.position = Vector2(w / 2 + (f[5] - m.anchor[0]) * sc, h * .96 + (f[6] - m.anchor[1]) * sc)
+			t.modulate = Color(.75, .7, 1, .13)
+			c.add_child(t)
+	return c
 
 func _equip(slot: String) -> void:
 	game.equip(bag_sel.i, slot); bag_sel = {from = "eq", slot = slot}; _render_bag()
@@ -661,5 +783,7 @@ func back() -> bool:
 		"talk": close_talk(); return true
 		"bag": close_bag(); return true
 		"sand", "pause": main.resume(); return true
+		"gate":
+			hide_all(); game.set_state("play"); return true
 		"level", "end": return true
 	return false

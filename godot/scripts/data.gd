@@ -2,14 +2,19 @@
 class_name D
 extends RefCounted
 
-const LAST_FLOOR := 15
+const LAST_FLOOR := 70
 const PRIMARY_MAX := 10
 const T := 32.0
 const MW := 82
 const MH := 62
 const BAGMAX := 12
-const SLOTS := ["weapon", "ring1", "ring2", "cloak"]
-const SLOTNAME := {weapon = "무기", ring1 = "반지 1", ring2 = "반지 2", cloak = "망토"}
+const SLOTS := ["amulet", "weapon", "cloak", "ring1", "ring2", "belt", "boots"]
+const SLOTNAME := {amulet = "목걸이", weapon = "스태프", cloak = "망토", ring1 = "반지 1", ring2 = "반지 2", belt = "허리띠", boots = "장화"}
+const BAG_START := 12
+const BAG_LIMIT := 36
+static func bag_price(cur: int) -> int:
+	var n := (cur - BAG_START) / 4
+	return [800, 2000, 4000, 7000, 11000, 16000][min(n, 5)]
 
 const PRIMARIES := {
 	arcane = {name = "비전탄", color = "#c39bff", kind = "shot", desc = "적을 스스로 쫓아가는 마력탄. 조준이 서툴러도 잘 맞는다.", cd = .3, speed = 340, homing = 3.2, radius = 5},
@@ -153,6 +158,9 @@ const BASES := [
 	{id = "wand", slot = "weapon", names = ["자작나무 완드", "수정 완드", "은 완드", "유리 완드", "달빛 완드"], imp = {k = "cast", v = .08}},
 	{id = "ring", slot = "ring", names = ["구리 반지", "은 반지", "금 반지", "흑요석 반지", "월장석 반지"], imp = null},
 	{id = "cloak", slot = "cloak", names = ["양모 망토", "가죽 망토", "비단 망토", "그림자 망토", "불사조 망토"], imp = {k = "res", v = .04}},
+	{id = "amulet", slot = "amulet", names = ["은 목걸이", "호박 목걸이", "수정 목걸이", "별빛 목걸이", "용의 눈 목걸이"], imp = null},
+	{id = "belt", slot = "belt", names = ["가죽 허리띠", "징 박힌 허리띠", "은사 허리띠", "수호자 허리띠", "거인 허리띠"], imp = {k = "hp", v = 6}},
+	{id = "boots", slot = "boots", names = ["천 신발", "가죽 장화", "여행자 장화", "바람 장화", "구름 장화"], imp = {k = "spd", v = .03}},
 ]
 static func base(id: String) -> Dictionary:
 	for b in BASES:
@@ -160,7 +168,23 @@ static func base(id: String) -> Dictionary:
 	return BASES[0]
 const PREFIX := {prim = {arcane = "비전의", fire = "불꽃의", storm = "번개의", frost = "서리의"}, hp = "튼튼한", mp = "깊은", regen = "샘솟는", dmg = "날카로운", cast = "재빠른", cdr = "명상가의", res = "단단한", spd = "바람의", gold = "욕심쟁이의", sub = "숙련된", sec = "학자의"}
 const RARENAMES := ["황혼", "망령", "폭풍", "잿빛", "월광", "심연", "서약", "유성", "파수", "은하"]
-const EPICNAMES := {weapon = ["대현자의 지팡이", "벼락 삼킨 가지", "첫 불씨", "겨울 왕의 홀"], ring = ["시간 매듭", "일곱 번째 별", "잊힌 맹세"], cloak = ["밤의 장막", "불사조의 깃", "유령 걸음"]}
+const EPICNAMES := {weapon = ["대현자의 지팡이", "벼락 삼킨 가지", "첫 불씨", "겨울 왕의 홀"], ring = ["시간 매듭", "일곱 번째 별", "잊힌 맹세"], cloak = ["밤의 장막", "불사조의 깃", "유령 걸음"],
+	amulet = ["별의 심장", "마녀의 눈물", "현자의 숨결"], belt = ["거신의 띠", "피의 서약"], boots = ["바람 걸음", "그림자 발자국"]}
+
+# 층 구성: 5층마다 보스(5 네임드 · 10 준보스 · 15 네임드 · 20 계층 보스 반복), 20층마다 분위기
+static func boss_kind(f: int) -> String:
+	if f == LAST_FLOOR: return "final"
+	if f % 20 == 0: return "tier"
+	if f % 10 == 0: return "sub"
+	if f % 5 == 0: return "named"
+	return ""
+static func theme(f: int) -> int: return clampi((f - 1) / 20, 0, 3)
+const THEMES := [
+	{name = "돌의 회랑", amb = Color(.46, .41, .56), tint = Color(1, 1, 1), torch = Color(1, .6, .3), floor = "floor2"},
+	{name = "이끼 낀 지하묘지", amb = Color(.36, .46, .4), tint = Color(.82, .95, .84), torch = Color(.95, .75, .4), floor = "floor"},
+	{name = "잿불의 층", amb = Color(.52, .34, .3), tint = Color(1.05, .82, .74), torch = Color(1, .42, .18), floor = "floor2"},
+	{name = "별빛 서고", amb = Color(.36, .38, .62), tint = Color(.8, .84, 1.1), torch = Color(.55, .7, 1), floor = "floor"},
+]
 
 static func mod_text(m: Dictionary) -> String:
 	var parts: PackedStringArray = String(m.k).split(":")

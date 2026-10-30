@@ -65,6 +65,7 @@ func _ready() -> void:
 	if samples_dir != "": _run_samples()
 
 func _setup_env(town: bool) -> void:
+	var mg := game.mg
 	var e: Environment = env.environment
 	e.background_mode = Environment.BG_COLOR; e.background_color = Color(.02, .016, .03)
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
@@ -73,8 +74,13 @@ func _setup_env(town: bool) -> void:
 	if town:
 		e.ambient_light_color = Color(.42, .44, .58); e.ambient_light_energy = 1.0
 		moon.visible = true; moon.light_color = Color(.62, .68, .95); moon.light_energy = .55; plight.visible = false
+	elif mg.terrace:
+		e.background_color = Color(.012, .014, .035)
+		e.ambient_light_color = Color(.4, .44, .62); e.ambient_light_energy = 1.0
+		moon.visible = true; moon.light_color = Color(.66, .72, 1); moon.light_energy = .7; plight.visible = true
 	else:
-		e.ambient_light_color = Color(.46, .41, .56); e.ambient_light_energy = 1.0
+		var th: Dictionary = D.THEMES[D.theme(game.G.floor)]
+		e.ambient_light_color = th.amb; e.ambient_light_energy = 1.0
 		moon.visible = false; plight.visible = true
 
 func _on_ui(what: String) -> void:
@@ -83,6 +89,7 @@ func _on_ui(what: String) -> void:
 		"belt": hud.build_belt()
 		"levelup": ui.open_level()
 		"end": ui.open_end()
+		"gate": ui.open_gate()
 		"state":
 			if game.G.state == "first": ui.open_first()
 			if game.G.state != "play": hud.clear_input()
@@ -90,6 +97,10 @@ func _on_ui(what: String) -> void:
 func _rebuild_level() -> void:
 	game.level_changed = false
 	World.set_fog(game.mg.fog_bytes())
+	var th: Dictionary = D.THEMES[D.theme(max(1, game.G.floor))]
+	World.TINT = th.tint if game.G.floor > 0 and not game.mg.terrace else Color.WHITE
+	World.TORCH = th.torch if game.G.floor > 0 else Color(1, .6, .3)
+	World.FLOOR_TEX = th.floor
 	world.build(game.mg); view.rebuild()
 	_setup_env(game.mg.town != null)
 	game.mg.dirty = true
@@ -384,7 +395,8 @@ func _run_samples() -> void:
 	P.prim.fire = 3; P.prim.arcane = 2; P.active = "fire"
 	P.sec.ward = 1; P.secOrder.append("ward"); P.sec.nova = 1; P.secOrder.append("nova")
 	P.lv = 6; P.next = Game.xp_need(6); game.recalc()
-	for r in ["rare", "epic", "magic"]: P.bag.append(game.make_item(r, 3))
+	for r in ["rare", "epic", "magic", "rare", "magic"]: P.bag.append(game.make_item(r, 3))
+	game.G.gold = 2600; P.eq.amulet = game.make_item("rare", 4, "amulet"); P.eq.boots = game.make_item("magic", 4, "boots"); P.eq.weapon = game.make_item("epic", 4, "staff")
 	hud.build_buttons()
 	await _frames(10)
 	P.x = game.G.npcs[0].x + 40; P.y = game.G.npcs[0].y + 30
@@ -401,12 +413,24 @@ func _run_samples() -> void:
 	game.cast_sec("nova"); await _frames(6); await _snap("5_nova")
 	game.G.pendingLv = 1; game.set_state("levelup"); ui.open_level(); await _frames(4); await _snap("6_levelup"); ui.hide_all(); game.G.pendingLv = 0; game.set_state("play")
 	ui.open_bag(); ui.bag_sel = {from = "bag", i = 0}; ui._render_bag(); await _frames(4); await _snap("7_bag"); ui.close_bag()
+	# 계단(벽을 판 자리)
+	var st = game.mg.stairs
+	if st != null:
+		P.x = st.x + 20; P.y = st.y + 110; game.G.enemies = []
+		for k in 3: game.mg.reveal(P.x, P.y - k * 60)
+		game.mg.dirty = true; await _frames(8); await _snap("8_stairs")
+	# 테라스
+	for f in range(2, 12):
+		game.sand_goto(f); await _frames(2)
+		if game.mg.door != null: break
+	if game.mg.door != null:
+		game.enter_terrace(); await _frames(10); await _snap("9_terrace")
 	game.sand_goto(5); await _frames(3)
-	P.y -= 120; await _fight(20); await _snap("8_boss")
-	open_pause(); await _frames(4); await _snap("9_pause")
-	resume(); game.G.enemies = []; game.G.eshots = []
-	for k in 4:
-		test_inp = {mx = 0.0, my = 0.0, firing = true, ang = k * PI / 2 + .3}
-		await _frames(10); await _snap("tip_%d" % k)
-	test_inp = null
+	P.y -= 120; await _fight(20); await _snap("10_boss")
+	open_pause(); await _frames(4); await _snap("11_pause"); resume()
+	for f in [25, 45, 65]:
+		game.sand_goto(f); game.G.enemies = []; await _frames(3)
+		hud.move_id = 0; hud.mo = hud.pad_pos(0) + Vector2(30, -20); hud.mc = hud.mo + Vector2(40, -10)
+		await _frames(6); await _snap("12_theme_%d" % f)
+	hud.move_id = -1
 	get_tree().quit()

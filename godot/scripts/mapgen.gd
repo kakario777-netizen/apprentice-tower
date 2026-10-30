@@ -22,6 +22,9 @@ var torches: Array = []           # {pos:Vector2(px), wall:bool, lamp:bool}
 var decor: Array = []             # {kind, p, pos(px), s}
 var obst: Array = []              # {x,y,r} px
 var boss_room = false
+var terrace := false            # 야외 테라스 맵
+var door = null                 # 테라스로 나가는 문 / 테라스에서 돌아오는 문 {x,y,found}
+var alcoves: Array = []         # 벽을 판 자리 {tx, ty0, depth, kind}
 var dirty := true                 # 안개·미니맵 다시 그리기
 
 static func hash2(i: int, j: int) -> int:
@@ -69,6 +72,7 @@ func _reset() -> void:
 	seen = PackedByteArray(); seen.resize(MW * MH); seen.fill(0)
 	flow = PackedInt32Array(); flow.resize(MW * MH); flow.fill(-1)
 	rooms = []; torches = []; decor = []; obst = []; town = null; gate = null; stairs = null; boss_room = false
+	terrace = false; door = null; alcoves = []
 	dirty = true
 
 func carve(x: int, y: int, w: int, h: int) -> void:
@@ -202,7 +206,7 @@ func gen_town() -> void:
 	build_flow(start.x, start.y)
 
 # ---------------- 탑의 층(몬스터·상자는 game.gd 에서) ----------------
-func gen_floor(fl: int, boss: bool) -> void:
+func gen_floor(fl: int, boss: bool, want_door := false) -> void:
 	_reset(); floor_no = fl
 	if boss:
 		boss_room = true
@@ -280,8 +284,67 @@ func gen_floor(fl: int, boss: bool) -> void:
 			if d > fd:
 				fd = d
 				far = r
-		stairs = {x = far.cx, y = far.cy, found = false}
+		# 계단: 가장 먼 방의 북쪽 벽을 파서 만든다(안 되면 다음으로 먼 방)
+		var order: Array = rooms.duplicate()
+		order.sort_custom(func(a, b): return flow[int(a.cy / T) * MW + int(a.cx / T)] > flow[int(b.cy / T) * MW + int(b.cx / T)])
+		for r in order:
+			if r == rooms[0]: continue
+			stairs = carve_alcove(r, 2, "stairs")
+			if stairs != null: break
+		if stairs == null: stairs = {x = far.cx, y = far.cy, found = false, alcove = false}
+		if want_door:
+			for r in order.slice(1):
+				if stairs.get("alcove", false) and absf(r.cx - stairs.x) < 1 and absf(r.cy - stairs.y) < r.h * T: continue
+				door = carve_alcove(r, 1, "door")
+				if door != null: break
 	_decorate()
+
+# 방 북쪽 벽을 2칸 너비로 판다(계단은 2칸 깊이, 문은 1칸)
+func carve_alcove(r: Dictionary, depth: int, kind: String):
+	var xs: Array = range(r.x + 2, r.x + r.w - 3)
+	xs.shuffle()
+	for x in xs:
+		var ok := true
+		for j in range(r.y - depth - 1, r.y):
+			for i in range(x - 1, x + 3):
+				if at(i, j) != 1: ok = false
+		if not ok or at(x, r.y) != 0 or at(x + 1, r.y) != 0: continue
+		if r.y - depth - 1 < 1: continue
+		for j in range(r.y - depth, r.y):
+			for i in range(x, x + 2): map[j * MW + i] = 0
+		alcoves.append({tx = x, ty0 = r.y - depth, depth = depth, kind = kind})
+		return {x = (x + 1) * T, y = r.y * T, found = false, alcove = true, kind = kind}
+	return null
+
+# 보스를 쓰러뜨리면 보스 방 북쪽 벽에 계단이 열린다
+func open_boss_stairs() -> void:
+	var r: Dictionary = rooms[0]
+	stairs = carve_alcove(r, 2, "stairs")
+	if stairs == null: stairs = {x = r.cx + 70, y = r.cy, found = true, alcove = false}
+	stairs.found = true
+	dirty = true
+
+# ---------------- 야외 테라스 ----------------
+func gen_terrace(fl: int) -> void:
+	_reset(); floor_no = fl; terrace = true
+	var w := ri(30, 40); var h := ri(16, 22); var x := MW / 2 - w / 2; var y := MH / 2 - h / 2
+	carve(x, y, w, h); rooms.append(_room(x, y, w, h, true))
+	# 화단·기둥
+	for k in ri(3, 6):
+		var px := ri(x + 3, x + w - 5); var py := ri(y + 3, y + h - 5)
+		for j in 2:
+			for i in 2: map[(py + j) * MW + px + i] = 1
+	seen.fill(1)
+	door = carve_alcove(rooms[0], 1, "back")
+	if door == null: door = {x = rooms[0].cx, y = (y + 1) * T, found = true, alcove = false, kind = "back"}
+	start = Vector2(door.x, door.y + 44)
+	for c in [[x + 1, y + 1], [x + w - 2, y + 1], [x + 1, y + h - 2], [x + w - 2, y + h - 2]]:
+		torches.append({pos = Vector2((c[0] + .5) * T, (c[1] + .5) * T), wall = false, lamp = true})
+	const PL := ["flower1", "flower2", "fern1", "shrub1", "shrub2", "grass1", "grass3", "rock1", "rock2"]
+	for k in 30:
+		var p := Vector2((x + rnd(1, w - 1)) * T, (y + rnd(2, h - 1)) * T)
+		if not hits(p.x, p.y, 8): decor.append({kind = "prop", p = pick(PL), pos = p, s = .8})
+	build_flow(start.x, start.y)
 
 func _decorate() -> void:
 	const PROPS := ["barrel1", "barrel2", "dcrate1", "dcrate2", "barrel1", "lectern1", "statue1", "statue2", "chain1", "dcrate2"]

@@ -270,7 +270,7 @@ func sync(dt: float) -> void:
 	_sync_drops(G, P)
 	# 계단
 	var sk = ""
-	if mg.stairs != null and G.floor > 0: sk = "%d,%d" % [int(mg.stairs.x), int(mg.stairs.y)]
+	if mg.stairs != null and G.floor > 0 and not mg.stairs.get("alcove", false): sk = "%d,%d" % [int(mg.stairs.x), int(mg.stairs.y)]
 	if sk != stairs_key:
 		if stairs_node: stairs_node.queue_free()
 		stairs_node = null; stairs_key = sk
@@ -279,7 +279,7 @@ func sync(dt: float) -> void:
 			_prop(stairs_node, "stairs_down", .5, Vector2(0, 18))
 			_glow(stairs_node, Color(1, .8, .35, .5), 2.4, Vector3(0, .5, .5))
 			_light(stairs_node, Vector3(0, 1.2, .5), Color(1, .82, .45), 5.0, 1.0)
-	if stairs_node: stairs_node.visible = mg.is_seen(mg.stairs.x, mg.stairs.y)
+	if stairs_node and mg.stairs != null: stairs_node.visible = mg.is_seen(mg.stairs.x, mg.stairs.y)
 	# 귀환문
 	if G.portal != null and portal_node == null:
 		portal_node = Node3D.new(); add_child(portal_node)
@@ -551,7 +551,19 @@ func _sync_lines(G, P) -> void:
 		if s.kind == "arrow":
 			var a = atan2(s.vy, s.vx)
 			_line(lines_mix, [Vector2(s.x - cos(a) * 10, s.y - sin(a) * 10), Vector2(s.x, s.y)], 2, Color("#e8dcc0"), .9)
+	# 계단·문 앞의 회색 반원: 여기 들어서면 빨려 들어간다
+	for st in [game.mg.stairs, game.mg.door]:
+		if st == null or G.floor == 0 or not st.get("alcove", false) or not game.mg.is_seen(st.x, st.y + 8): continue
+		var pul: float = .5 + .5 * sin(G.time * 2.4)
+		var pts: Array = [Vector2(st.x, st.y)]
+		for k in 25: pts.append(Vector2(st.x + cos(PI * k / 24) * 44, st.y + sin(PI * k / 24) * 44))
+		lines_mix.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
+		for k in range(1, pts.size() - 1):
+			for q in [pts[0], pts[k], pts[k + 1]]:
+				lines_mix.surface_set_color(Color(.75, .75, .8, .16 + .06 * pul)); lines_mix.surface_add_vertex(w3(q.x, q.y, .04))
+		lines_mix.surface_end()
+		_line(lines_mix, pts.slice(1), 2.0, Color(.85, .85, .9, .35 + .15 * pul), .05)
 	# 계단 금빛 고리
-	if game.mg.stairs != null and G.floor > 0 and game.mg.is_seen(game.mg.stairs.x, game.mg.stairs.y):
+	if game.mg.stairs != null and G.floor > 0 and not game.mg.stairs.get("alcove", false) and game.mg.is_seen(game.mg.stairs.x, game.mg.stairs.y):
 		var st = game.mg.stairs; var t: float = G.time
 		_line(lines_add, _circle_pts(st.x, st.y + 4, 40, t * .8, t * .8 + TAU * .8), 2, Color(.89, .69, .29, .45 + .25 * sin(t * 3)))

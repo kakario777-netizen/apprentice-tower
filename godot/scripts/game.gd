@@ -39,7 +39,7 @@ static func xp_need(l: int) -> int: return int(round(25 * pow(l, 1.75) + 15))
 func fresh_p() -> Dictionary:
 	var p = {x = 0.0, y = 0.0, r = 11.0, hp = 50.0, maxhp = 50, mp = 60.0, maxmp = 60, lv = 1, xp = 0, next = xp_need(1),
 		prim = {arcane = 0, fire = 0, storm = 0, frost = 0}, subs = {}, sec = {}, secOrder = [], fusion = null, active = null,
-		pot = {pothp = 2, potmp = 1, scroll = 0}, potCd = 0.0, bag = [], eq = {weapon = null, ring1 = null, ring2 = null, cloak = null},
+		pot = {pothp = 2, potmp = 1, scroll = 0}, potCd = 0.0, bag = [], bagMax = D.BAG_START, eq = {amulet = null, weapon = null, cloak = null, ring1 = null, ring2 = null, belt = null, boots = null},
 		st = {}, ep = {}, es = {}, esec = {}, bonus = {prim = {}, sub = {}, sec = {}},
 		vx = 0.0, vy = 0.0, cdShot = 0.0, ward = 0.0, hardenT = 0.0, inv = 0.0, slowT = 0.0, poisonT = 0.0, poisonDps = 0.0, face = -PI / 2,
 		secCd = {}, speed = 150.0, firing = false, walk = 0.0, hitT = 0.0, at = 0.0, anim = "stance", tip = null}
@@ -50,7 +50,8 @@ func fresh_g(diff: String) -> Dictionary:
 	return {corpses = [], anims = [], debris = [], floor = 0, resume = 1, diff = diff, state = "play", enemies = [], shots = [], eshots = [], zones = [],
 		fx = [], rings = [], bolts = [], drops = [], texts = [], chests = [], npcs = [], portal = null,
 		gold = 0, kills = 0, banner = {text = "", t = 0.0}, pendingLv = 0, flowT = 0.0, bossMax = 0.0, time = 0.0, coneT = 0.0, talkSeen = {},
-		sb = null, shake = 0.0, lvDelay = 0.0, revT = 0.0, goldPulse = 0.0, bagNew = false, nearItem = null, portalT = 0.0}
+		sb = null, shake = 0.0, lvDelay = 0.0, revT = 0.0, goldPulse = 0.0, bagNew = false, nearItem = null, portalT = 0.0,
+		runSeed = randi() % 1000000, waypoints = [1], shop = [], stash = null, pull = null}
 
 func diff_d() -> Dictionary:
 	for d in D.DIFFICULTIES:
@@ -105,9 +106,9 @@ func new_game(diff: String) -> void:
 func save() -> void:
 	if G == null or G.sb != null or no_save: return
 	var pd = {}
-	for k in ["lv", "xp", "next", "prim", "subs", "sec", "secOrder", "pass", "fusion", "active", "pot", "bag", "eq"]: pd[k] = P[k]
+	for k in ["lv", "xp", "next", "prim", "subs", "sec", "secOrder", "pass", "fusion", "active", "pot", "bag", "bagMax", "eq"]: pd[k] = P[k]
 	var f = FileAccess.open(SAVE_PATH, FileAccess.WRITE)
-	if f: f.store_string(JSON.stringify({v = 1, diff = G.diff, gold = G.gold, kills = G.kills, resume = G.resume, talkSeen = G.talkSeen, P = pd, at = Time.get_unix_time_from_system()}))
+	if f: f.store_string(JSON.stringify({v = 1, diff = G.diff, gold = G.gold, kills = G.kills, resume = G.resume, talkSeen = G.talkSeen, P = pd, floor = G.floor, runSeed = G.runSeed, waypoints = G.waypoints, at = Time.get_unix_time_from_system()}))
 
 static func read_save():
 	if not FileAccess.file_exists(SAVE_PATH): return null
@@ -130,12 +131,21 @@ func load_game(sv: Dictionary) -> void:
 	for k in sv.P.keys(): P[k] = sv.P[k]
 	P.lv = int(P.lv); P.xp = int(P.xp); P.next = int(P.next)
 	for k in ["prim", "subs", "sec", "pass", "pot"]: _fix_ints(P[k])
-	var eq = {weapon = null, ring1 = null, ring2 = null, cloak = null}
+	var eq = {amulet = null, weapon = null, cloak = null, ring1 = null, ring2 = null, belt = null, boots = null}
 	for k in P.eq.keys(): eq[k] = P.eq[k]
 	P.eq = eq
+	P.bagMax = int(P.get("bagMax", D.BAG_START))
 	G.gold = int(sv.get("gold", 0)); G.kills = int(sv.get("kills", 0)); G.resume = int(sv.get("resume", 1)); G.talkSeen = sv.get("talkSeen", {})
+	G.runSeed = int(sv.get("runSeed", G.runSeed))
+	G.waypoints = []
+	for w in sv.get("waypoints", [1]): G.waypoints.append(int(w))
 	recalc(); P.hp = P.maxhp; P.mp = P.maxmp
-	go_town(false)
+	var fl := int(sv.get("floor", 0))
+	if fl > 0:
+		# 껐다 켜도 그 층에서 다시 시작(같은 시드라 같은 구조)
+		G.floor = fl; gen_floor(); ui.emit("buttons"); set_state("play")
+		G.banner = {text = "%d층에서 이어서" % fl, t = 2.2}
+	else: go_town(false)
 
 func clear_level() -> void:
 	G.corpses = []; G.anims = []; G.debris = []; G.chests = []; G.enemies = []; G.shots = []; G.eshots = []; G.zones = []; G.drops = []; G.fx = []
@@ -143,8 +153,9 @@ func clear_level() -> void:
 
 # ================= 맵 =================
 func go_town(first: bool) -> void:
-	G.floor = 0; G.portal = null
-	clear_level(); mg.gen_town()
+	G.floor = 0; G.portal = null; G.stash = null; G.pull = null
+	clear_level(); mg = MapGen.new(); mg.gen_town()
+	roll_shop()
 	P.vx = 0.0; P.vy = 0.0; P.ward = 0.0
 	var t = mg.town
 	G.npcs = [
@@ -168,21 +179,27 @@ func active_list() -> Array:
 	if P.fusion != null: l.append(P.fusion)
 	return l
 
-func enter_tower() -> void:
+func enter_tower(from := 0) -> void:
 	if active_list().is_empty():
 		set_state("first"); return
-	G.floor = G.resume if G.resume else 1
+	G.floor = from if from > 0 else (G.resume if G.resume else 1)
 	gen_floor(); ui.emit("buttons"); set_state("play"); save()
 
+func floor_name(f: int) -> String:
+	var th: Dictionary = D.THEMES[D.theme(f)]
+	return "%d층 · %s" % [f, th.name] if f % 20 == 1 else "%d층" % f
+
 func gen_floor() -> void:
-	clear_level(); P.vx = 0.0; P.vy = 0.0; G.npcs = []; G.portal = null
-	var bd = D.BOSSES.get(G.floor)
-	mg.gen_floor(G.floor, bd != null)
-	if bd != null:
+	clear_level(); P.vx = 0.0; P.vy = 0.0; G.npcs = []; G.portal = null; G.stash = null; G.pull = null
+	var kind := D.boss_kind(G.floor)
+	seed(G.runSeed * 131 + G.floor * 7919)
+	mg = MapGen.new()
+	mg.gen_floor(G.floor, kind != "", kind == "" and G.floor >= 2 and randf() < .4)
+	if kind != "":
 		var r: Dictionary = mg.rooms[0]
 		P.x = mg.start.x; P.y = mg.start.y
-		spawn_boss(bd, r.cx, (r.y + 5) * T)
-		G.banner = {text = "%d층 · %s" % [G.floor, bd.name], t = 3.0}
+		var b := spawn_floor_boss(kind, r.cx, (r.y + 5) * T)
+		G.banner = {text = "%d층 · %s" % [G.floor, b.name], t = 3.0}
 	else:
 		P.x = mg.start.x; P.y = mg.start.y
 		for i in range(1, mg.rooms.size()):
@@ -201,9 +218,44 @@ func gen_floor() -> void:
 			var cx: float = (r.x + pick([1.6, r.w - 1.6])) * T; var cy: float = (r.y + pick([1.6, r.h - 1.6])) * T
 			if hyp(cx - mg.stairs.x, cy - mg.stairs.y) < 60: continue
 			G.chests.append({x = cx, y = cy, open = false, t = 0.0, id = nid()})
-		G.banner = {text = "%d층" % G.floor, t = 2.2}
+		G.banner = {text = floor_name(G.floor), t = 2.2}
+	randomize()
+	# 10층마다 웨이포인트(11·21·31…층 시작 방): 열어 두면 마을 탑 문에서 바로 갈 수 있고, 마을로 돌아가는 문 역할도 한다
+	if G.floor % 10 == 1 and G.floor > 1:
+		if not G.floor in G.waypoints:
+			G.waypoints.append(G.floor); toast.emit("웨이포인트가 열렸어요 · 마을 탑 문에서 %d층으로 바로 올 수 있어요" % G.floor)
+		G.portal = {x = P.x - 70, y = P.y, resume = G.floor, way = true}
+		if mg.hits(G.portal.x, G.portal.y, 14): G.portal.x = P.x + 70
 	mg.reveal(P.x, P.y); mg.build_flow(P.x, P.y)
 	level_changed = true
+
+const NAMED_PRE := ["피에 굶주린", "썩은 왕관의", "검은 안개의", "울부짖는", "저주받은", "뼈를 씹는", "불타는 눈의", "굶주린 그림자"]
+
+# 층 보스: 네임드(강화된 일반 몬스터) · 준보스 · 계층 보스 · 최종
+func spawn_floor_boss(kind: String, x: float, y: float) -> Dictionary:
+	var f: int = G.floor
+	if kind == "named":
+		var t := pick_type()
+		var e := spawn_enemy(t, x, y, 9.0)
+		e.isBoss = true; e.named = true; e.split = false; e.name = "%s %s" % [pick(NAMED_PRE), D.MONSTERS[t].name]
+		e.r *= 1.35; e.dmg *= 1.6; e.xp *= 12; e.aggro = true; e.t1 = 3.0
+		G.bossMax += e.max
+		return e
+	var bd: Dictionary
+	var base_f := 5
+	if kind == "final": bd = D.BOSSES[15]; base_f = 15
+	elif kind == "tier":
+		bd = [D.BOSSES[5], D.BOSSES[10], D.BOSSES[15]][(f / 20 - 1) % 3]; base_f = [5, 10, 15][(f / 20 - 1) % 3]
+	else:
+		var k: int = pick([5, 10]); bd = D.BOSSES[k]; base_f = k
+	var hm: float = (1 + .25 * (f - 1)) / (1 + .25 * (base_f - 1)) * (1.5 if kind == "tier" else 1.0)
+	var dm: float = (1 + .1 * (f - 1)) / (1 + .1 * (base_f - 1))
+	var b := spawn_boss(bd, x, y, bd.hp * diff_d().hp * hm)
+	b.split = false; b.dmg *= dm; b.shield *= hm; b.shieldMax *= hm
+	b.xp = int(120 * (1 + .3 * (f - 5) / 5.0))
+	if kind == "tier": b.name = "%s · 계층 수호자" % bd.name
+	elif kind == "sub": b.name = "%s의 그림자" % bd.name if f > base_f else bd.name
+	return b
 
 func pick_type() -> String:
 	var pool: Array = []
@@ -239,10 +291,11 @@ func spawn_boss(bd: Dictionary, x: float, y: float, hp_override := 0.0, r := 0.0
 	G.enemies.append(e); G.bossMax += e.max; return e
 
 static func spr_name(e: Dictionary) -> String:
-	return D.BOSSMAP[e.boss] if e.isBoss else D.SPRMAP[e.type]
+	return D.BOSSMAP[e.boss] if (e.isBoss and e.boss != "") else D.SPRMAP[e.type]
 
 static func enemy_h(e: Dictionary) -> float:
 	if e.boss == "flesh": return e.r * 1.9
+	if e.get("named", false): return float(D.SPRH.get(e.type, 46)) * 1.5
 	return float(D.SPRH.get(e.boss if e.isBoss else e.type, 46))
 
 static func anim_dur(name: String, anim: String) -> float:
@@ -335,8 +388,8 @@ func _other_boss_alive(ex) -> bool:
 
 func boss_cleared() -> void:
 	var r: Dictionary = mg.rooms[0]
-	mg.stairs = {x = r.cx + 70, y = r.cy, found = true}
-	if G.floor < D.LAST_FLOOR: G.portal = {x = r.cx - 70, y = r.cy, resume = G.floor + 1}
+	mg.open_boss_stairs(); level_changed = true
+	if G.floor < D.LAST_FLOOR and G.floor % 10 == 0: G.portal = {x = r.cx - 70, y = r.cy, resume = G.floor + 1}
 	G.eshots = []
 	for e in G.enemies:
 		if not e.dead: kill_enemy(e)
@@ -407,6 +460,12 @@ func upd_enemy(e: Dictionary, dt: float) -> void:
 	if e.frozenT > 0:
 		e.frozenT -= dt; e.vx = 0.0; e.vy = 0.0; return
 	e.slowT -= dt; e.fearT -= dt
+	if e.get("named", false):
+		e.t1 -= dt
+		if e.t1 <= 0:
+			e.t1 = 7.0; ring(e.x, e.y, 10, 70, .5, e.d.color)
+			for i in 2:
+				var a = rnd(0, TAU); var s = spawn_enemy(e.type, e.x + cos(a) * 50, e.y + sin(a) * 50); s.aggro = true; s.xp = 1
 	var dx: float = P.x - e.x; var dy: float = P.y - e.y; var d: float = max(1.0, hyp(dx, dy))
 	if not e.aggro:
 		if (d < 360 and mg.los(e.x, e.y, P.x, P.y)) or d < 150: e.aggro = true
@@ -415,7 +474,7 @@ func upd_enemy(e: Dictionary, dt: float) -> void:
 	var goal: Vector2
 	var see: bool = d < 520 and mg.los(e.x, e.y, P.x, P.y)
 	if e.fearT > 0: goal = Vector2(e.x - dx, e.y - dy)
-	elif e.isBoss:
+	elif e.isBoss and not e.get("named", false):
 		boss_ai(e, dt, d)
 		if e.dead: return
 		if e.boss == "warlock":
@@ -759,20 +818,20 @@ func roll_mod(slot: String, used: Dictionary, lvl: int, mult: float, epic: bool)
 	for el in D.PRIM_ORDER:
 		var mine: bool = el in my_els
 		if slot == "weapon": add.call("prim:" + el, 5.0 if mine else .6, func(): return ri(1, 3 if epic else 2))
-		elif slot == "ring": add.call("prim:" + el, 1.5 if mine else .3, func(): return 1)
+		elif slot == "ring" or slot == "amulet": add.call("prim:" + el, (1.5 if slot == "ring" else 1.1) if mine else .3, func(): return 1)
 	for sd in D.SUBS:
 		var mine: bool = sd.of in my_els
 		add.call("sub:" + sd.id, ((1.1 if slot == "weapon" else .5) if mine else .08), func(): return ri(1, 2 if epic else 1))
 	for sd in D.SECONDARIES:
-		if slot == "ring" or slot == "cloak": add.call("sec:" + sd.id, 1.4 if P.sec.get(sd.id, 0) else .15, func(): return 1)
-	add.call("hp", 3.0 if slot == "cloak" else 1.6, func(): return int(round(rnd(8, 16) * sc * mult)))
-	add.call("mp", 2.5 if slot == "ring" else 1.4, func(): return int(round(rnd(8, 16) * sc * mult)))
+		if slot in ["ring", "cloak", "amulet", "belt"]: add.call("sec:" + sd.id, 1.4 if P.sec.get(sd.id, 0) else .15, func(): return 1)
+	add.call("hp", 3.0 if slot in ["cloak", "belt"] else 1.6, func(): return int(round(rnd(8, 16) * sc * mult)))
+	add.call("mp", 2.5 if slot in ["ring", "amulet"] else 1.4, func(): return int(round(rnd(8, 16) * sc * mult)))
 	add.call("regen", 1.4, func(): return snappedf(rnd(.08, .18) * mult, .01))
 	add.call("dmg", 2.4 if slot == "weapon" else 1.0, func(): return snappedf(rnd(.05, .12) * mult, .01))
 	add.call("cast", 1.8 if slot == "weapon" else .8, func(): return snappedf(rnd(.04, .1) * mult, .01))
 	add.call("cdr", .9, func(): return snappedf(rnd(.05, .1) * mult, .01))
-	add.call("res", 2.4 if slot == "cloak" else .6, func(): return snappedf(rnd(.03, .07) * mult, .01))
-	add.call("spd", 1.4 if slot == "cloak" else .5, func(): return snappedf(rnd(.03, .07) * mult, .01))
+	add.call("res", 2.4 if slot == "cloak" else (1.6 if slot in ["belt", "boots"] else .6), func(): return snappedf(rnd(.03, .07) * mult, .01))
+	add.call("spd", 3.0 if slot == "boots" else (1.4 if slot == "cloak" else .5), func(): return snappedf(rnd(.03, .07) * mult, .01))
 	add.call("gold", .8, func(): return snappedf(rnd(.1, .3) * mult, .01))
 	var tot = 0.0
 	for o in pool: tot += o.w
@@ -783,7 +842,7 @@ func roll_mod(slot: String, used: Dictionary, lvl: int, mult: float, epic: bool)
 	return {k = pool[0].k, v = pool[0].v.call()}
 
 func make_item(rar: String, lvl: int, base_id := "") -> Dictionary:
-	var base: Dictionary = D.base(base_id) if base_id != "" else pick([D.BASES[0], D.BASES[1], D.BASES[2], D.BASES[2], D.BASES[3]])
+	var base: Dictionary = D.base(base_id) if base_id != "" else pick([D.BASES[0], D.BASES[1], D.BASES[2], D.BASES[2], D.BASES[3], D.BASES[4], D.BASES[5], D.BASES[6]])
 	var R: Dictionary = D.RAR[rar]; var tier: int = min(4, int(lvl / 3.5))
 	var it = {uid = "%d%d" % [Time.get_ticks_msec(), randi() % 10000], base = base.id, slot = base.slot, rar = rar, lvl = lvl, mods = []}
 	var used = {}
@@ -832,7 +891,7 @@ func equip(i: int, slot: String) -> void:
 	recalc(); ui.emit("buttons"); toast.emit("%s 착용" % it.name)
 
 func unequip(slot: String) -> bool:
-	if P.bag.size() >= D.BAGMAX:
+	if P.bag.size() >= P.bagMax:
 		toast.emit("가방이 가득 찼어요"); return false
 	P.bag.append(P.eq[slot]); P.eq[slot] = null; recalc(); ui.emit("buttons"); return true
 
@@ -857,6 +916,31 @@ func open_chest(c: Dictionary) -> void:
 	var r = randf()
 	if r < .45: G.drops.append({id = nid(), x = c.x, y = c.y, kind = pick(["pothp", "pothp", "potmp"]), t = 0.0, vx = rnd(-60, 60), vy = rnd(40, 90), h = 0.0, vh = 110.0})
 	elif r < .55: G.drops.append({id = nid(), x = c.x, y = c.y, kind = "scroll", t = 0.0, vx = rnd(-60, 60), vy = rnd(40, 90), h = 0.0, vh = 110.0})
+
+func enter_terrace() -> void:
+	G.stash = {mg = mg, enemies = G.enemies, chests = G.chests, drops = G.drops, corpses = G.corpses, px = mg.door.x, py = mg.door.y + 48, portal = G.portal}
+	G.enemies = []; G.chests = []; G.drops = []; G.corpses = []; G.shots = []; G.eshots = []; G.zones = []; G.portal = null
+	seed(G.runSeed * 131 + G.floor * 7919 + 77)
+	mg = MapGen.new(); mg.gen_terrace(G.floor)
+	var r: Dictionary = mg.rooms[0]
+	for k in min(10, 3 + G.floor / 4):
+		var t := pick_type(); var ex: float = (r.x + rnd(2, r.w - 2)) * T; var ey: float = (r.y + rnd(4, r.h - 2)) * T
+		if not mg.hits(ex, ey, D.MONSTERS[t].r) and hyp(ex - mg.start.x, ey - mg.start.y) > 150: spawn_enemy(t, ex, ey)
+	for k in ri(1, 2):
+		var cx: float = (r.x + rnd(2, r.w - 2)) * T; var cy: float = (r.y + r.h - 2) * T
+		if not mg.hits(cx, cy, 14): G.chests.append({x = cx, y = cy, open = false, t = 0.0, id = nid()})
+	randomize()
+	P.x = mg.start.x; P.y = mg.start.y; P.vx = 0.0; P.vy = 0.0
+	G.banner = {text = "%d층 · 바깥 테라스" % G.floor, t = 2.0}
+	mg.build_flow(P.x, P.y); level_changed = true
+
+func leave_terrace() -> void:
+	var st = G.stash
+	if st == null: return
+	mg = st.mg; G.enemies = st.enemies; G.chests = st.chests; G.drops = st.drops; G.corpses = st.corpses; G.portal = st.portal
+	G.shots = []; G.eshots = []; G.zones = []; G.stash = null
+	P.x = st.px; P.y = st.py; P.vx = 0.0; P.vy = 0.0
+	mg.dirty = true; mg.build_flow(P.x, P.y); level_changed = true
 
 func next_floor() -> void:
 	if G.floor >= D.LAST_FLOOR:
@@ -945,13 +1029,17 @@ func update(dt: float) -> void:
 		G.fx.append({x = P.x + rnd(-4, 4), y = P.y + P.r, vx = rnd(-12, 12), vy = rnd(-14, -4), life = .4, max = .4, color = "#5a4a6a" if G.floor else "#6a7a5a", size = rnd(1.5, 2.6), dust = 1})
 	if G.floor == 0 and mg.gate != null:
 		if hyp(P.x - mg.gate.x, P.y - mg.gate.y) < 26:
-			P.y += 30; P.vy = 0.0; enter_tower(); return
+			P.y += 30; P.vy = 0.0
+			if G.waypoints.size() > 1 and not active_list().is_empty():
+				set_state("gate"); ui.emit("gate")
+			else: enter_tower()
+			return
 	for c in G.chests:
 		if c.open:
 			c.t += dt; continue
 		if hyp(P.x - c.x, P.y - c.y) < 26: open_chest(c)
 	if G.portal != null and hyp(P.x - G.portal.x, P.y - G.portal.y) < 22:
-		G.resume = G.portal.resume; go_town(false); return
+		G.resume = max(G.resume, G.portal.resume); go_town(false); return
 	for k in P.secCd.keys(): P.secCd[k] = max(0.0, P.secCd[k] - dt)
 	var stas = in_stasis(P)
 	P.mp = min(P.maxmp, P.mp + (8 * (1 + .25 * P["pass"].get("calm", 0) + P.st.regen) + .3 * P.lv + (10 if stas else 0)) * dt)
@@ -969,9 +1057,26 @@ func update(dt: float) -> void:
 		mg.reveal(P.x, P.y); G.revT = .12
 	for r in mg.rooms:
 		if not r.seen and P.x > r.x * T and P.x < (r.x + r.w) * T and P.y > r.y * T and P.y < (r.y + r.h) * T: r.seen = true
-	if mg.stairs != null and G.floor > 0:
-		if hyp(P.x - mg.stairs.x, P.y - mg.stairs.y) < 20:
-			next_floor(); return
+	# 계단·테라스 문: 회색 반원 안에 들어서면 빨려 들어가듯 걸어 들어가며 화면이 어두워진다
+	if G.pull != null:
+		G.pull.t += dt
+		var k: float = min(1.0, G.pull.t / .9)
+		P.x = lerp(G.pull.fx, G.pull.tx, k); P.y = lerp(G.pull.fy, G.pull.ty, k); P.vx = 0.0; P.vy = -60.0; P.face = -PI / 2
+		if G.pull.t >= 1.0:
+			var what: String = G.pull.what; G.pull = null
+			match what:
+				"stairs": next_floor()
+				"door": enter_terrace()
+				"back": leave_terrace()
+		return
+	if G.floor > 0:
+		for o in [[mg.stairs, "stairs"], [mg.door, "back" if mg.terrace else "door"]]:
+			var st = o[0]
+			if st == null: continue
+			var near: bool = hyp(P.x - st.x, P.y - st.y) < (44 if st.get("alcove", false) else 20) and P.y >= st.y - 4
+			if near and (st.get("alcove", false) or o[1] == "stairs"):
+				G.pull = {t = 0.0, fx = P.x, fy = P.y, tx = st.x, ty = st.y - (56 if o[1] == "stairs" else 24), what = o[1]}
+				return
 	G.flowT -= dt
 	if G.flowT <= 0:
 		mg.build_flow(P.x, P.y); G.flowT = .25
@@ -1075,7 +1180,7 @@ func update(dt: float) -> void:
 	# 아이템
 	for d in G.drops:
 		d.t += dt
-		if d.kind == "item" and P.bag.size() >= D.BAGMAX and hyp(P.x - d.x, P.y - d.y) < 16:
+		if d.kind == "item" and P.bag.size() >= P.bagMax and hyp(P.x - d.x, P.y - d.y) < 16:
 			if not d.get("warned", false):
 				toast.emit("가방이 가득 찼어요"); d.warned = true
 			continue
@@ -1109,7 +1214,7 @@ func update(dt: float) -> void:
 					G.gold += 8; float_text(P.x, P.y - 20, "가득 참 · 금화 +8", "#ffd76a")
 				ring(d.x, d.y, 2, 16, .25, "#fff2c2")
 			elif d.kind == "item":
-				if P.bag.size() >= D.BAGMAX:
+				if P.bag.size() >= P.bagMax:
 					d.got = false
 					if not d.get("warned", false):
 						toast.emit("가방이 가득 찼어요"); d.warned = true
@@ -1185,3 +1290,30 @@ func sand_boss(f: int) -> void:
 	if mg.hits(x, y, bd.r):
 		x = P.x; y = P.y - 60
 	spawn_boss(bd, x, y)
+
+# ================= 상점 =================
+func roll_shop() -> void:
+	# 마을에 올 때마다 바뀌는 싼 장비 몇 개(옵션 적은 마법 등급)
+	G.shop = []
+	var lv: int = max(1, G.resume - 3)
+	for i in 4:
+		var it := make_item("magic", lv)
+		while it.mods.size() > 2: it.mods.pop_back()
+		it.price = it.value * 5
+		G.shop.append(it)
+
+func buy_item(i: int) -> bool:
+	var it = G.shop[i]
+	if G.gold < it.price:
+		toast.emit("금화가 모자라요"); return false
+	if P.bag.size() >= P.bagMax:
+		toast.emit("가방이 가득 찼어요"); return false
+	G.gold -= it.price; it.erase("price"); P.bag.append(it); G.shop.remove_at(i); G.bagNew = true; save()
+	toast.emit("%s 구입" % it.name); return true
+
+func buy_bag() -> bool:
+	if P.bagMax >= D.BAG_LIMIT: return false
+	var price := D.bag_price(P.bagMax)
+	if G.gold < price:
+		toast.emit("금화가 모자라요"); return false
+	G.gold -= price; P.bagMax += 4; save(); toast.emit("가방이 %d칸이 됐어요" % P.bagMax); return true

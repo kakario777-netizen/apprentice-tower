@@ -23,6 +23,9 @@ static func props_meta() -> Dictionary:
 
 static var FOG_SHADER: Shader
 static var fog_tex: ImageTexture
+static var TINT := Color.WHITE        # 20층마다 바뀌는 분위기 색
+static var TORCH := Color(1, .6, .3)
+static var FLOOR_TEX := "floor2"
 static func mat(t: Texture2D, _vcol := true) -> ShaderMaterial:
 	if FOG_SHADER == null:
 		FOG_SHADER = Shader.new()
@@ -31,12 +34,13 @@ shader_type spatial;
 render_mode cull_disabled, specular_disabled;
 uniform sampler2D tex : source_color, filter_linear_mipmap_anisotropic;
 uniform sampler2D fog : filter_linear;
+uniform vec3 tint = vec3(1.0);
 varying vec3 wp;
 void vertex() { wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
 void fragment() {
 	vec4 c = texture(tex, UV);
 	float f = texture(fog, wp.xz / vec2(82.0, 62.0)).r;
-	ALBEDO = c.rgb * COLOR.rgb * f;
+	ALBEDO = c.rgb * COLOR.rgb * tint * f;
 	ROUGHNESS = 1.0;
 }
 """
@@ -44,6 +48,7 @@ void fragment() {
 	m.shader = FOG_SHADER
 	m.set_shader_parameter("tex", t)
 	m.set_shader_parameter("fog", fog_tex)
+	m.set_shader_parameter("tint", Vector3(TINT.r, TINT.g, TINT.b))
 	return m
 
 static func set_fog(bytes: PackedByteArray) -> void:
@@ -65,6 +70,7 @@ func build(m: MapGen) -> void:
 	else: _build_forest()
 	_build_props()
 	_build_torches()
+	_build_alcoves()
 
 func update_fog() -> void:
 	for f in fog_nodes:
@@ -103,8 +109,10 @@ func _build_ground() -> void:
 	var tf: Texture2D; var tp: Texture2D = null
 	if town != null:
 		tf = tex("res://assets/tiles/grass3.png"); tp = tex("res://assets/tiles/path3.png")
+	elif mg.terrace:
+		tf = tex("res://assets/tiles/plaza3.png")
 	else:
-		tf = tex("res://assets/tiles/floor2.png")
+		tf = tex("res://assets/tiles/%s.png" % FLOOR_TEX)
 	var mf = mat(tf)
 	var mp: ShaderMaterial = null
 	if tp != null: mp = mat(tp)
@@ -123,6 +131,14 @@ func _build_ground() -> void:
 								_quad_floor(sp, i, j, _uv(h % 10, 16), _ao(i, j)); np += 1
 							else:
 								_quad_floor(sf, i, j, _uv(h % 16, 16), _ao(i, j)); nf += 1
+						elif _stair_tile(i, j): continue
+						elif mg.terrace:
+							_quad_floor(sf, i, j, _uv(h % 10, 10), _ao(i, j)); nf += 1
+						elif FLOOR_TEX == "floor":
+							var n2: int = MapGen.hash2(i >> 1, j >> 1) % 14
+							var W2 := 14 * 128.0
+							var uvq := Rect2((n2 * 128 + (i & 1) * 64 + 1) / W2, ((j & 1) * 64 + 1) / 128.0, 62 / W2, 62 / 128.0)
+							_quad_floor(sf, i, j, uvq, _ao(i, j)); nf += 1
 						else:
 							_quad_floor(sf, i, j, _uv(((i + j) & 1) * 8 + h % 8, 16), _ao(i, j)); nf += 1
 					elif town != null:
@@ -165,7 +181,7 @@ func _build_walls() -> void:
 					var w = mg.wall_bits(i, j)
 					if w < 0: continue
 					n += 1
-					var h: float = LOWZ if (w & 1) else WALLZ
+					var h: float = LOWZ * 1.35 if mg.terrace else (LOWZ if (w & 1) else WALLZ)
 					var v = MapGen.hash2(i, j) % 6
 					var uvw = Rect2((v * 128 + 2) / 768.0, 0, 124 / 768.0, 1)
 					if w & 4: _face(sw, Vector3(i, 0, j + 1), Vector3(i + 1, 0, j + 1), h, uvw, Vector3.BACK, 1.0)
@@ -252,6 +268,44 @@ func add_light(pos: Vector3, col: Color, rng: float, energy: float) -> OmniLight
 	lights.append({light = L, base = energy, ph = randf() * TAU})
 	return L
 
+func _stair_tile(i: int, j: int) -> bool:
+	for a in mg.alcoves:
+		if a.kind == "stairs" and i >= a.tx and i < a.tx + 2 and j >= a.ty0 and j < a.ty0 + a.depth: return true
+	return false
+
+# 벽을 판 자리: 계단(위로 올라가는 돌계단) / 테라스 문(바깥 빛)
+func _build_alcoves() -> void:
+	for a in mg.alcoves:
+		var x0: float = a.tx; var zf: float = a.ty0 + a.depth; var zb: float = a.ty0
+		if a.kind == "stairs":
+			var st = SurfaceTool.new(); st.begin(Mesh.PRIMITIVE_TRIANGLES)
+			var sr = SurfaceTool.new(); sr.begin(Mesh.PRIMITIVE_TRIANGLES)
+			var n := 7; var d: float = (zf - zb) / n; var hs: float = WALLZ * .95 / n
+			for k in n:
+				var z1: float = zf - k * d; var z0: float = z1 - d; var y: float = (k + 1) * hs
+				var sh: float = 1.0 - .11 * k
+				var uv := _uv((k * 3 + a.tx) % 16, 16)
+				var p := [Vector3(x0, y, z0), Vector3(x0 + 2, y, z0), Vector3(x0 + 2, y, z1), Vector3(x0, y, z1)]
+				var t := [uv.position, Vector2(uv.end.x, uv.position.y), uv.end, Vector2(uv.position.x, uv.end.y)]
+				for q in [0, 1, 2, 0, 2, 3]:
+					st.set_color(Color(sh, sh, sh)); st.set_uv(t[q]); st.set_normal(Vector3.UP); st.add_vertex(p[q])
+				var uvw := Rect2(((k % 6) * 128 + 2) / 768.0, .55, 124 / 768.0, .12)
+				var rp := [Vector3(x0, y, z1), Vector3(x0 + 2, y, z1), Vector3(x0 + 2, y - hs, z1), Vector3(x0, y - hs, z1)]
+				var rt := [uvw.position, Vector2(uvw.end.x, uvw.position.y), uvw.end, Vector2(uvw.position.x, uvw.end.y)]
+				for q in [0, 1, 2, 0, 2, 3]:
+					sr.set_color(Color(sh * .7, sh * .7, sh * .7)); sr.set_uv(rt[q]); sr.set_normal(Vector3.BACK); sr.add_vertex(rp[q])
+			_add_mesh(st, mat(tex("res://assets/tiles/floor2.png")))
+			_add_mesh(sr, mat(tex("res://assets/tiles/wall2.png")))
+			var g = glow_quad(Color(1, .85, .55, .45), 2.2); g.position = Vector3(x0 + 1, WALLZ * .95, zb + .3); add_child(g)
+			var L = add_light(Vector3(x0 + 1, WALLZ * 1.1, zb + .8), Color(1, .85, .6), 4.5, 1.2)
+			fog_nodes.append([g, (x0 + 1) * 32, zf * 32]); fog_nodes.append([L, (x0 + 1) * 32, zf * 32])
+		else:
+			var col := Color(.55, .72, 1, .6) if a.kind == "door" else Color(1, .8, .5, .55)
+			var g = glow_quad(col, 2.0); g.position = Vector3(x0 + 1, .9, zb + .2); add_child(g)
+			var L = add_light(Vector3(x0 + 1, 1.2, zb + .7), Color(col.r, col.g, col.b), 4.0, 1.3)
+			if mg.town == null and not mg.terrace:
+				fog_nodes.append([g, (x0 + 1) * 32, zf * 32]); fog_nodes.append([L, (x0 + 1) * 32, zf * 32])
+
 func _build_torches() -> void:
 	for t in mg.torches:
 		var p: Vector2 = t.pos / 32.0
@@ -264,9 +318,9 @@ func _build_torches() -> void:
 			var stick = MeshInstance3D.new(); var bm = BoxMesh.new(); bm.size = Vector3(.08, .3, .08)
 			stick.mesh = bm; var sm = StandardMaterial3D.new(); sm.albedo_color = Color(.25, .18, .14); stick.material_override = sm
 			stick.position = Vector3(p.x, WALLZ * .55, p.y + .06); add_child(stick)
-			var g = glow_quad(Color(1, .55, .2, 1), .7); g.position = Vector3(p.x, WALLZ * .7, p.y + .12); add_child(g)
+			var g = glow_quad(Color(TORCH.r, TORCH.g * .92, TORCH.b * .7, 1), .7); g.position = Vector3(p.x, WALLZ * .7, p.y + .12); add_child(g)
 			var g2 = glow_quad(Color(1, .9, .6, 1), .22); g2.position = Vector3(p.x, WALLZ * .68, p.y + .14); add_child(g2)
-			var L = add_light(Vector3(p.x, WALLZ * .7, p.y + .6), Color(1, .6, .3), 5.5, 1.5)
+			var L = add_light(Vector3(p.x, WALLZ * .7, p.y + .6), TORCH, 5.5, 1.5)
 			if mg.town == null:
 				for n in [stick, g, g2, L]: fog_nodes.append([n, t.pos.x, t.pos.y + 14])
 

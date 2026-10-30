@@ -57,8 +57,8 @@ func _ready() -> void:
 	bag_b.add_child(bag_dot)
 	belt.add_theme_constant_override("separation", 2); belt.mouse_filter = Control.MOUSE_FILTER_IGNORE; root.add_child(belt)
 	skills.add_theme_constant_override("separation", 6); skills.alignment = BoxContainer.ALIGNMENT_BEGIN; skills.mouse_filter = Control.MOUSE_FILTER_IGNORE; root.add_child(skills)
-	talk_b.add_theme_stylebox_override("normal", Ui.sb(Color("#e3b04b"), 22)); talk_b.add_theme_color_override("font_color", Color("#1b1206"))
-	talk_b.add_theme_font_size_override("font_size", 14); talk_b.mouse_filter = Control.MOUSE_FILTER_IGNORE; talk_b.visible = false
+	talk_b.add_theme_stylebox_override("normal", Ui.sb(Color("#e8b552"), 28, Color("#4a2e0c"), 2, Vector4(18, 8, 18, 8))); talk_b.add_theme_color_override("font_color", Color("#1b1206"))
+	talk_b.add_theme_font_size_override("font_size", 17); talk_b.add_theme_font_override("font", Ui.bold); talk_b.mouse_filter = Control.MOUSE_FILTER_IGNORE; talk_b.visible = false
 	root.add_child(talk_b)
 	toast_l.add_theme_stylebox_override("normal", Ui.sb(Color(.086, .07, .125, .9), 14, Color("#33293f"), 1, Vector4(14, 6, 14, 6)))
 	toast_l.add_theme_font_size_override("font_size", 13); toast_l.modulate.a = 0; toast_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -82,6 +82,8 @@ func playing() -> bool: return game.G != null and game.G.state == "play"
 func _process(dt: float) -> void:
 	var vs = get_viewport().get_visible_rect().size; var ins = inset()
 	toast_t -= dt
+	if game.G != null and game.G.get("pull") != null: fader.modulate.a = clamp(game.G.pull.t / .9, 0, 1)
+	else: fader.modulate.a = move_toward(fader.modulate.a, 0.0, dt * 2.4)
 	toast_l.modulate.a = clamp(toast_t * 4, 0, 1) if toast_t < .25 else min(1.0, toast_l.modulate.a + dt * 4)
 	toast_l.reset_size(); toast_l.position = Vector2((vs.x - toast_l.size.x) / 2, vs.y - ins.b - 28 - toast_l.size.y)
 	var on = playing()
@@ -96,8 +98,10 @@ func _process(dt: float) -> void:
 		var n = game.near_npc() if game.G.floor == 0 else null
 		talk_b.visible = n != null
 		if n != null:
-			talk_b.text = "%s말 걸기 · %s" % ["A " if pad_on else "", n.name]; talk_b.reset_size()
-			talk_b.position = Vector2((vs.x - talk_b.size.x) / 2, vs.y - ins.b - 22 - 44); talk_b.size.y = 44
+			talk_b.text = "%s%s · %s" % ["A  " if pad_on else "", "거래하기" if n.id == "shop" else "말 걸기", n.name]
+			talk_b.custom_minimum_size = Vector2(150, 56); talk_b.reset_size()
+			var rc := pad_pos(1)
+			talk_b.position = Vector2(min(vs.x - ins.r - 12 - talk_b.size.x, rc.x - talk_b.size.x / 2), rc.y - STICKR - 22 - talk_b.size.y)
 		_upd_cooldowns()
 	var mw: float = min(120.0, vs.x * .15)
 	mini.visible = on or (game.G != null and game.G.state in ["pause", "levelup"])
@@ -172,12 +176,12 @@ func build_belt() -> void:
 	for id in ["pothp", "potmp", "scroll"]:
 		var n: int = game.P.pot.get(id, 0)
 		if id == "scroll" and (n == 0 or game.G.floor == 0): continue
-		var b = Control.new(); b.custom_minimum_size = Vector2(44, 44); b.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var b = Control.new(); b.custom_minimum_size = Vector2(60, 60); b.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		var t = TextureRect.new(); t.texture = load("res://ui/item_%s.png" % id); t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		t.position = Vector2(3, 3); t.size = Vector2(38, 38); t.mouse_filter = Control.MOUSE_FILTER_IGNORE; b.add_child(t)
-		var l = Label.new(); l.text = str(n); l.add_theme_font_size_override("font_size", 12)
+		t.position = Vector2(2, 2); t.size = Vector2(56, 56); t.mouse_filter = Control.MOUSE_FILTER_IGNORE; b.add_child(t)
+		var l = Label.new(); l.text = str(n); l.add_theme_font_size_override("font_size", 15)
 		l.add_theme_color_override("font_outline_color", Color(0, 0, 0)); l.add_theme_constant_override("outline_size", 4)
-		l.position = Vector2(30, 26); l.mouse_filter = Control.MOUSE_FILTER_IGNORE; b.add_child(l)
+		l.position = Vector2(42, 38); l.mouse_filter = Control.MOUSE_FILTER_IGNORE; b.add_child(l)
 		if n == 0: b.modulate.a = .4
 		belt.add_child(b); hot.append([b, func(): game.use_pot(id)])
 		_hint(b, {pothp = "LB", potmp = "RB", scroll = "R3"}[id])
@@ -207,9 +211,9 @@ func handle_input(ev: InputEvent) -> void:
 			if not playing(): return
 			if _hit_button(p): return
 			if p.x < vs.x / 2 and move_id < 0:
-				move_id = ev.index; var c = pad_pos(0); mo = c if p.distance_to(c) < STICKR * 1.9 else p; mc = p
+				move_id = ev.index; mo = p; mc = p
 			elif aim_id < 0:
-				aim_id = ev.index; var c = pad_pos(1); ao = c if p.distance_to(c) < STICKR * 1.9 else p; ac = p
+				aim_id = ev.index; ao = p; ac = p
 		else:
 			if ev.index == move_id: move_id = -1
 			if ev.index == aim_id: aim_id = -1
@@ -304,6 +308,10 @@ class HudDraw extends Control:
 			var st = game.mg.stairs
 			if st != null and st.found: draw_rect(Rect2(mm.position + Vector2(st.x * k - 2.5, st.y * k - 2.5), Vector2(5, 5)), Color("#ffd76a"))
 			if G.portal != null: draw_rect(Rect2(mm.position + Vector2(G.portal.x * k - 2, G.portal.y * k - 2), Vector2(4, 4)), Color("#7fb2ff"))
+			var dp: Vector2 = mm.position + Vector2(P.x * k, P.y * k)
+			var dl := Vector2(cos(P.face), sin(P.face))
+			draw_colored_polygon(PackedVector2Array([dp + dl * 6, dp + dl.rotated(2.4) * 4, dp + dl.rotated(-2.4) * 4]), Color(1, 1, 1, .9))
+			draw_circle(dp, 2.8, Color("#7fe0ff")); draw_arc(dp, 3.2, 0, TAU, 16, Color.WHITE, 1.0, true)
 		# 보스 체력
 		var bosses: Array = G.enemies.filter(func(e): return e.isBoss)
 		if bosses.size():
@@ -340,20 +348,23 @@ class HudDraw extends Control:
 		# 스틱
 		if not hud.pad_on and hud.touch_ui and G.state == "play":
 			var L0: Vector2 = hud.pad_pos(0); var R0: Vector2 = hud.pad_pos(1)
-			rune_ring(L0, Hud.STICKR, 0, hud.move_id >= 0, G.time)
-			rune_ring(R0, Hud.STICKR, 1, hud.aim_id >= 0, G.time)
-			if hud.move_id >= 0: knob(hud.mo, hud.mc, Color("#8fc0ff"))
-			if hud.aim_id >= 0: knob(hud.ao, hud.ac, Color(game.act_color()))
+			# 손가락을 대면 마법진이 손가락 자리로 와서 반투명 조이스틱이 되고, 떼면 제자리로
+			if hud.move_id >= 0:
+				rune_ring(hud.mo, Hud.STICKR, 0, true, G.time, .5); knob(hud.mo, hud.mc, Color("#8fc0ff"))
+			else: rune_ring(L0, Hud.STICKR, 0, false, G.time)
+			if hud.aim_id >= 0:
+				rune_ring(hud.ao, Hud.STICKR, 1, true, G.time, .5); knob(hud.ao, hud.ac, Color(game.act_color()))
+			else: rune_ring(R0, Hud.STICKR, 1, false, G.time)
 
 	func knob(o: Vector2, c: Vector2, col: Color) -> void:
 		var d = c - o; var l = d.length(); var k: float = Hud.STICKR * .7 / l if l > Hud.STICKR * .7 else 1.0
 		var p = o + d * k
 		draw_circle(p, 30, Color(col, .12)); draw_circle(p, 22, Color(col, .15)); draw_circle(p, 15, Color(.78, .88, 1, .35))
 
-	func rune_ring(c: Vector2, r: float, kind: int, active: bool, t: float) -> void:
-		var a = .95 if active else .6; var col = Color(.59, .78, 1, a)
-		draw_circle(c, r * 1.3, Color(.29, .48, .8, .1 if active else .05))
-		draw_circle(c, r, Color(.03, .05, .1, .35))
+	func rune_ring(c: Vector2, r: float, kind: int, active: bool, t: float, mul := 1.0) -> void:
+		var a = (.95 if active else .6) * mul; var col = Color(.59, .78, 1, a)
+		draw_circle(c, r * 1.3, Color(.29, .48, .8, (.1 if active else .05) * mul))
+		draw_circle(c, r, Color(.03, .05, .1, .35 * mul))
 		draw_arc(c, r, 0, TAU, 64, col, 1.6, true); draw_arc(c, r * .74, 0, TAU, 64, col, 1.0, true)
 		var n = runes.size()
 		for i in n:
@@ -362,6 +373,7 @@ class HudDraw extends Control:
 			for seg in runes[i]:
 				draw_line(tf * Vector2(seg[0] * s, seg[1] * s * 1.4), tf * Vector2(seg[2] * s, seg[3] * s * 1.4), col, 1.3, true)
 		var lc = Color(.75, .84, 1, a * .8)
+		if active: return
 		if kind == 0:
 			var q = r * .42
 			draw_polyline(PackedVector2Array([c + Vector2(0, -q), c + Vector2(q * .87, q * .5), c + Vector2(-q * .87, q * .5), c + Vector2(0, -q)]), lc, 2, true)
@@ -380,7 +392,9 @@ class HudDraw extends Control:
 				draw_circle(p + Vector2(0, -4), 7.5, Color("#ffd76a")); text(p, "!", 11, Color("#1b1206"), HORIZONTAL_ALIGNMENT_CENTER, null, 0)
 		if mg.gate != null:
 			text(wp(mg.gate.x, mg.gate.y, 132), "탑 입구 · %d층부터" % G.resume, 13, Color("#e3b04b"), HORIZONTAL_ALIGNMENT_CENTER, dfont())
-		if G.portal != null: text(wp(G.portal.x, G.portal.y + 22, 52), "마을로", 11, Color("#cfe6ff"))
+		if G.portal != null: text(wp(G.portal.x, G.portal.y + 22, 52), "웨이포인트 · 마을로" if G.portal.get("way", false) else "마을로", 11, Color("#cfe6ff"))
+		if mg.door != null and G.floor > 0 and mg.is_seen(mg.door.x, mg.door.y + 8):
+			text(wp(mg.door.x, mg.door.y, 70), "탑 안으로" if mg.terrace else "바깥 테라스", 12, Color("#cfe6ff") if not mg.terrace else Color("#ffe0b0"))
 		if G.nearItem != null:
 			var d = G.nearItem
 			var p = wp(d.x, d.y, 30)
