@@ -37,12 +37,14 @@ func nid() -> int:
 static func xp_need(l: int) -> int: return int(round(25 * pow(l, 1.75) + 15))
 
 func fresh_p() -> Dictionary:
-	return {x = 0.0, y = 0.0, r = 11.0, hp = 50.0, maxhp = 50, mp = 60.0, maxmp = 60, lv = 1, xp = 0, next = xp_need(1),
-		prim = {arcane = 0, fire = 0, storm = 0, frost = 0}, subs = {}, sec = {}, secOrder = [], pass = {}, fusion = null, active = null,
+	var p := {x = 0.0, y = 0.0, r = 11.0, hp = 50.0, maxhp = 50, mp = 60.0, maxmp = 60, lv = 1, xp = 0, next = xp_need(1),
+		prim = {arcane = 0, fire = 0, storm = 0, frost = 0}, subs = {}, sec = {}, secOrder = [], fusion = null, active = null,
 		pot = {pothp = 2, potmp = 1, scroll = 0}, potCd = 0.0, bag = [], eq = {weapon = null, ring1 = null, ring2 = null, cloak = null},
 		st = {}, ep = {}, es = {}, esec = {}, bonus = {prim = {}, sub = {}, sec = {}},
 		vx = 0.0, vy = 0.0, cdShot = 0.0, ward = 0.0, hardenT = 0.0, inv = 0.0, slowT = 0.0, poisonT = 0.0, poisonDps = 0.0, face = -PI / 2,
 		secCd = {}, speed = 150.0, firing = false, walk = 0.0, hitT = 0.0, at = 0.0, anim = "stance", tip = null}
+	p["pass"] = {}
+	return p
 
 func fresh_g(diff: String) -> Dictionary:
 	return {corpses = [], anims = [], debris = [], floor = 0, resume = 1, diff = diff, state = "play", enemies = [], shots = [], eshots = [], zones = [],
@@ -60,7 +62,7 @@ func has_el(el: String) -> bool:
 	return P.fusion != null and el in String(P.fusion).split("+")
 
 func recalc() -> void:
-	var pv: Dictionary = P.pass
+	var pv: Dictionary = P["pass"]
 	var st := {hp = 0.0, mp = 0.0, regen = 0.0, dmg = 0.0, cast = 0.0, cdr = 0.0, res = 0.0, spd = 0.0, gold = 0.0}
 	var bp := {}; var bs := {}; var bc := {}
 	for k in D.SLOTS:
@@ -450,7 +452,7 @@ func in_stasis(o: Dictionary) -> bool:
 
 # ================= 플레이어 공격 =================
 func attack_of(id: String) -> Dictionary:
-	var L: Dictionary = P.ep; var might: float = (1 + .12 * P.pass.get("might", 0)) * (1 + P.st.dmg); var thrift: float = 1 - .1 * P.pass.get("thrift", 0)
+	var L: Dictionary = P.ep; var might: float = (1 + .12 * P["pass"].get("might", 0)) * (1 + P.st.dmg); var thrift: float = 1 - .1 * P["pass"].get("thrift", 0)
 	if D.PRIMARIES.has(id):
 		var d: Dictionary = D.PRIMARIES[id]; var l: float = L.get(id, 0)
 		var a := {id = id, kind = d.kind, color = d.color, els = {id: true}, name = d.name}
@@ -487,7 +489,7 @@ func nearest_enemy(x: float, y: float, range: float, need_los: bool, exclude):
 	return best
 
 func fire(dt: float, ang: float) -> void:
-	var a := attack_of(P.active); var quick: float = (1 + .12 * P.pass.get("quick", 0)) * (1 + P.st.cast)
+	var a := attack_of(P.active); var quick: float = (1 + .12 * P["pass"].get("quick", 0)) * (1 + P.st.cast)
 	if a.kind == "shot":
 		if P.cdShot > 0: return
 		if P.mp < a.mana:
@@ -600,7 +602,7 @@ func shot_hit(s: Dictionary, e: Dictionary) -> bool:
 
 # ================= 보조 마법 =================
 func sec_cd_max(id: String) -> float:
-	return D.sec(id).cd * (1 - .12 * P.pass.get("focus", 0)) * (1 - P.st.cdr)
+	return D.sec(id).cd * (1 - .12 * P["pass"].get("focus", 0)) * (1 - P.st.cdr)
 
 func cast_sec(id: String) -> void:
 	if G == null or G.state != "play": return
@@ -711,7 +713,7 @@ func build_options() -> Array:
 			var tag := "보조 마법 · %s 계열 (%d/%d칸)" % [D.PRIMARIES[af].name, P.secOrder.size() + 1, slots] if rel else "보조 마법 (%d/%d칸)" % [P.secOrder.size() + 1, slots]
 			o.append({icon = {t = "sec", id = s.id}, w = 3.5 if rel else (.45 if af != null else 1.2), tag = tag, title = "%s 배우기" % s.name, desc = s.desc, color = "#e3b04b", kind = "secnew", id = s.id})
 	for s in D.PASSIVES:
-		var l: int = P.pass.get(s.id, 0)
+		var l: int = P["pass"].get(s.id, 0)
 		if l >= s.max: continue
 		o.append({icon = {t = "pass", id = s.id}, w = 1.2, tag = "수련", title = "%s %d단계" % [s.name, l + 1], desc = s.desc, color = "#a395b3", kind = "pass", id = s.id})
 	var out: Array = []
@@ -736,7 +738,7 @@ func apply_option(o: Dictionary) -> void:
 		"secnew":
 			P.sec[o.id] = 1; P.secOrder.append(o.id)
 		"pass":
-			P.pass[o.id] = P.pass.get(o.id, 0) + 1; recalc()
+			P["pass"][o.id] = P["pass"].get(o.id, 0) + 1; recalc()
 	G.pendingLv -= 1
 	ui.emit("buttons")
 	if G.pendingLv > 0: ui.emit("levelup")
@@ -952,7 +954,7 @@ func update(dt: float) -> void:
 		G.resume = G.portal.resume; go_town(false); return
 	for k in P.secCd.keys(): P.secCd[k] = max(0.0, P.secCd[k] - dt)
 	var stas := in_stasis(P)
-	P.mp = min(P.maxmp, P.mp + (8 * (1 + .25 * P.pass.get("calm", 0) + P.st.regen) + .3 * P.lv + (10 if stas else 0)) * dt)
+	P.mp = min(P.maxmp, P.mp + (8 * (1 + .25 * P["pass"].get("calm", 0) + P.st.regen) + .3 * P.lv + (10 if stas else 0)) * dt)
 	P.hp = min(P.maxhp, P.hp + (.4 + (4 if stas else 0)) * dt)
 	if P.poisonT > 0:
 		P.poisonT -= dt; P.hp = max(1.0, P.hp - P.poisonDps * dt)

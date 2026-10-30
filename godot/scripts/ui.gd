@@ -318,7 +318,7 @@ func open_pause() -> void:
 		if P.es.get(s.id, 0): add.call(s.name, "%d단계%s" % [P.subs.get(s.id, 0), bx.call(P.bonus.sub.get(s.id, 0))])
 	for id in P.secOrder: add.call(D.sec(id).name, "%d단계%s" % [P.sec[id], bx.call(P.bonus.sec.get(id, 0))])
 	for s in D.PASSIVES:
-		if P.pass.get(s.id, 0): add.call(s.name, "%d단계" % P.pass[s.id])
+		if P["pass"].get(s.id, 0): add.call(s.name, "%d단계" % P["pass"][s.id])
 	r.add_child(li)
 	box.add_child(r)
 	box.add_child(row([btn("계속하기", func(): main.resume()), btn("가방", func(): open_bag(), true), btn("샌드박스", func(): open_sand(), true),
@@ -634,8 +634,8 @@ func _render_sand() -> void:
 				P.sec.erase(s.id); P.secOrder.erase(s.id))
 	g = _grp(body_, "수련")
 	for s in D.PASSIVES:
-		_lvrow(g, s.name, P.pass.get(s.id, 0), s.max, func(v):
-			P.pass[s.id] = v; game.recalc())
+		_lvrow(g, s.name, P["pass"].get(s.id, 0), s.max, func(v):
+			P["pass"][s.id] = v; game.recalc())
 	c = _chips(_grp(body_, "장비 받기 (가방으로)"))
 	for r in ["magic", "rare", "epic"]:
 		_chip(c, "%s 장비" % D.RAR[r].name, func():
