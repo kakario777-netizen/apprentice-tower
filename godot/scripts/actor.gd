@@ -48,7 +48,9 @@ func setup(name: String, h_px: float) -> void:
 	_apply()
 
 func set_anim(a: String) -> void:
-	if a != anim: anim = a; at = 0.0
+	if a != anim:
+		anim = a
+		at = 0.0
 
 func anim_done() -> bool:
 	var A: Dictionary = m.anims.get(anim, m.anims.get("stance", m.anims.values()[0]))
