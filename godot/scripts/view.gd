@@ -33,10 +33,10 @@ var shot_lights: Array = []
 static var _dot_tex: Texture2D
 static func dot_tex() -> Texture2D:
 	if _dot_tex == null:
-		var g := Gradient.new()
+		var g = Gradient.new()
 		g.set_color(0, Color(1, 1, 1, 1)); g.set_color(1, Color(1, 1, 1, 0))
 		g.add_point(.8, Color(1, 1, 1, 1))
-		var t := GradientTexture2D.new(); t.gradient = g; t.fill = GradientTexture2D.FILL_RADIAL
+		var t = GradientTexture2D.new(); t.gradient = g; t.fill = GradientTexture2D.FILL_RADIAL
 		t.fill_from = Vector2(.5, .5); t.fill_to = Vector2(1, .5); t.width = 64; t.height = 64
 		_dot_tex = t
 	return _dot_tex
@@ -49,8 +49,8 @@ func _ready() -> void:
 	mm_add_dot = _mm(dot_tex(), true)
 	mm_mix_dot = _mm(dot_tex(), false)
 	for im in [[lines_add, true], [lines_mix, false]]:
-		var mi := MeshInstance3D.new(); mi.mesh = im[0]
-		var m := StandardMaterial3D.new()
+		var mi = MeshInstance3D.new(); mi.mesh = im[0]
+		var m = StandardMaterial3D.new()
 		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		m.vertex_color_use_as_albedo = true
 		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -62,17 +62,17 @@ func _ready() -> void:
 		add_child(mi)
 	ward_q = _anim_quad("fx_shield"); harden_q = _anim_quad("")
 	for i in 4:
-		var L := OmniLight3D.new(); L.omni_range = 4.0; L.light_energy = 0.0; L.visible = false
+		var L = OmniLight3D.new(); L.omni_range = 4.0; L.light_energy = 0.0; L.visible = false
 		add_child(L); shot_lights.append(L)
 
 func _mm(tex: Texture2D, add: bool) -> MultiMeshInstance3D:
-	var mm := MultiMesh.new()
+	var mm = MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.use_colors = true
-	var q := QuadMesh.new(); q.size = Vector2(1, 1); q.orientation = PlaneMesh.FACE_Y
+	var q = QuadMesh.new(); q.size = Vector2(1, 1); q.orientation = PlaneMesh.FACE_Y
 	mm.mesh = q
-	var mi := MultiMeshInstance3D.new(); mi.multimesh = mm
-	var m := StandardMaterial3D.new()
+	var mi = MultiMeshInstance3D.new(); mi.multimesh = mm
+	var m = StandardMaterial3D.new()
 	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	m.vertex_color_use_as_albedo = true
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -98,12 +98,12 @@ varying float alpha;
 void vertex() { UV.x = (UV.x + INSTANCE_CUSTOM.x) / INSTANCE_CUSTOM.y; alpha = INSTANCE_CUSTOM.z; }
 void fragment() { vec4 c = texture(tex, UV); ALBEDO = c.rgb; ALPHA = c.a * alpha; }
 """
-	var mm := MultiMesh.new()
+	var mm = MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D; mm.use_custom_data = true
-	var q := QuadMesh.new(); q.size = Vector2(1, 1); q.orientation = PlaneMesh.FACE_Y
+	var q = QuadMesh.new(); q.size = Vector2(1, 1); q.orientation = PlaneMesh.FACE_Y
 	mm.mesh = q
-	var mi := MultiMeshInstance3D.new(); mi.multimesh = mm
-	var m := ShaderMaterial.new(); m.shader = FX_SHADER
+	var mi = MultiMeshInstance3D.new(); mi.multimesh = mm
+	var m = ShaderMaterial.new(); m.shader = FX_SHADER
 	m.set_shader_parameter("tex", load("res://assets/sprites/%s.png" % name))
 	m.render_priority = 2
 	mi.material_override = m; mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -113,13 +113,13 @@ void fragment() { vec4 c = texture(tex, UV); ALBEDO = c.rgb; ALPHA = c.a * alpha
 
 # 세워 두는 반투명 덧셈 그림(보호막 등): 재질 하나를 프레임마다 고친다
 func _anim_quad(name: String) -> MeshInstance3D:
-	var q := QuadMesh.new(); q.size = Vector2(1, 1)
-	var m := StandardMaterial3D.new()
+	var q = QuadMesh.new(); q.size = Vector2(1, 1)
+	var m = StandardMaterial3D.new()
 	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
 	m.albedo_texture = load("res://assets/sprites/%s.png" % name) if name != "" else World.glow_tex()
-	var mi := MeshInstance3D.new(); mi.mesh = q; mi.material_override = m; mi.visible = false
+	var mi = MeshInstance3D.new(); mi.mesh = q; mi.material_override = m; mi.visible = false
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(mi); return mi
 
@@ -137,53 +137,53 @@ func rebuild() -> void:
 	if game.mg.gate != null: _build_gate(game.mg.gate)
 
 func _sprite(tex: Texture2D) -> Sprite3D:
-	var s := Sprite3D.new(); s.texture = tex; s.centered = true
+	var s = Sprite3D.new(); s.texture = tex; s.centered = true
 	s.alpha_cut = SpriteBase3D.ALPHA_CUT_OPAQUE_PREPASS; s.shaded = true
 	s.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
 	return s
 
 # 웹 drawProp 과 같은 크기·기준점으로 소품을 세운다(부모 노드 기준 위치)
 func _prop(parent: Node3D, n: String, sc: float, off := Vector2()) -> Sprite3D:
-	var M := World.props_meta()
+	var M = World.props_meta()
 	if not M.has(n): return null
 	var m: Dictionary = M[n]
-	var s := _sprite(World.tex("res://assets/props/%s.png" % n))
+	var s = _sprite(World.tex("res://assets/props/%s.png" % n))
 	s.pixel_size = World.PF * sc * UP
 	s.position = Vector3(off.x * S + (m.w / 2.0 - m.ax) * s.pixel_size, (m.ay - m.h / 2.0) * s.pixel_size, off.y * S)
 	parent.add_child(s); return s
 
 func _glow(parent: Node3D, col: Color, size: float, pos: Vector3) -> MeshInstance3D:
-	var g := world.glow_quad(col, size); g.position = pos; parent.add_child(g); return g
+	var g = world.glow_quad(col, size); g.position = pos; parent.add_child(g); return g
 
 func _light(parent: Node3D, pos: Vector3, col: Color, rng: float, en: float) -> OmniLight3D:
-	var L := OmniLight3D.new(); L.position = pos; L.light_color = col; L.omni_range = rng; L.light_energy = en; L.omni_attenuation = 1.2
+	var L = OmniLight3D.new(); L.position = pos; L.light_color = col; L.omni_range = rng; L.light_energy = en; L.omni_attenuation = 1.2
 	parent.add_child(L); return L
 
 func _build_gate(g: Vector2) -> void:
 	# 마을 북쪽의 탑 문: 돌벽 + 아치 문 + 창문 불빛 + 보랏빛 문
 	gate_node = Node3D.new(); gate_node.position = w3(g.x, g.y); add_child(gate_node)
-	var wm := StandardMaterial3D.new(); wm.albedo_texture = World.tex("res://assets/tiles/wall2.png")
+	var wm = StandardMaterial3D.new(); wm.albedo_texture = World.tex("res://assets/tiles/wall2.png")
 	wm.uv1_scale = Vector3(2.2, 1, 1); wm.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC; wm.roughness = 1
-	var wall := MeshInstance3D.new(); var bm := BoxMesh.new(); bm.size = Vector3(9.4, 3.6, .7); wall.mesh = bm; wall.material_override = wm
+	var wall = MeshInstance3D.new(); var bm = BoxMesh.new(); bm.size = Vector3(9.4, 3.6, .7); wall.mesh = bm; wall.material_override = wm
 	wall.position = Vector3(0, 1.8, -.6); gate_node.add_child(wall)
 	for k in 11:
-		var c := MeshInstance3D.new(); var cb := BoxMesh.new(); cb.size = Vector3(.5, .45, .7); c.mesh = cb; c.material_override = wm
+		var c = MeshInstance3D.new(); var cb = BoxMesh.new(); cb.size = Vector3(.5, .45, .7); c.mesh = cb; c.material_override = wm
 		c.position = Vector3(-4.69 + .25 + k * .875, 3.82, -.6); gate_node.add_child(c)
-	var dm := StandardMaterial3D.new(); dm.albedo_color = Color(.07, .05, .09); dm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	var door := MeshInstance3D.new(); var dq := QuadMesh.new(); dq.size = Vector2(2.25, 2.9); door.mesh = dq; door.material_override = dm
+	var dm = StandardMaterial3D.new(); dm.albedo_color = Color(.07, .05, .09); dm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	var door = MeshInstance3D.new(); var dq = QuadMesh.new(); dq.size = Vector2(2.25, 2.9); door.mesh = dq; door.material_override = dm
 	door.position = Vector3(0, 1.45, -.24); gate_node.add_child(door)
-	var dg := world.glow_quad(Color(.76, .6, 1, .55), 2.6); dg.position = Vector3(0, 1.3, -.2); gate_node.add_child(dg)
+	var dg = world.glow_quad(Color(.76, .6, 1, .55), 2.6); dg.position = Vector3(0, 1.3, -.2); gate_node.add_child(dg)
 	(dg.material_override as StandardMaterial3D).billboard_mode = BaseMaterial3D.BILLBOARD_DISABLED
 	for wx in [-110, -70, 70, 110]:
-		var wq := MeshInstance3D.new(); var q := QuadMesh.new(); q.size = Vector2(.42, .7); wq.mesh = q
-		var m := StandardMaterial3D.new(); m.albedo_color = Color(1, .77, .43); m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		var wq = MeshInstance3D.new(); var q = QuadMesh.new(); q.size = Vector2(.42, .7); wq.mesh = q
+		var m = StandardMaterial3D.new(); m.albedo_color = Color(1, .77, .43); m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		wq.material_override = m; wq.position = Vector3(wx * S, 2.75, -.24); gate_node.add_child(wq)
-		var gw := world.glow_quad(Color(1, .69, .31, .5), 1.2); gw.position = Vector3(wx * S, 2.7, -.15); gate_node.add_child(gw)
+		var gw = world.glow_quad(Color(1, .69, .31, .5), 1.2); gw.position = Vector3(wx * S, 2.7, -.15); gate_node.add_child(gw)
 	_light(gate_node, Vector3(0, 1.8, .8), Color(.76, .6, 1), 6.0, 1.4)
 
 # ---------------- 매 프레임 ----------------
 func sync(dt: float) -> void:
-	var G = game.G; var P = game.P; var mg := game.mg
+	var G = game.G; var P = game.P; var mg = game.mg
 	# 플레이어
 	player.position = w3(P.x, P.y + 2)
 	player.face = P.face
@@ -195,27 +195,27 @@ func sync(dt: float) -> void:
 	# 마을 사람
 	for n in G.npcs:
 		if not npcs.has(n.id):
-			var a := Actor.new(); add_child(a); a.setup(n.id, 46); npcs[n.id] = a
+			var a = Actor.new(); add_child(a); a.setup(n.id, 46); npcs[n.id] = a
 		var a: Actor = npcs[n.id]
 		a.position = w3(n.x, n.y + 13); a.face = atan2(P.y - n.y, P.x - n.x); a.at = G.time + n.x; a.tick(0)
 	# 적
-	var live := {}
+	var live = {}
 	for e in G.enemies:
 		live[e.id] = true
 		if not enemies.has(e.id):
-			var a := Actor.new(); add_child(a); a.setup(Game.spr_name(e), Game.enemy_h(e)); enemies[e.id] = a
+			var a = Actor.new(); add_child(a); a.setup(Game.spr_name(e), Game.enemy_h(e)); enemies[e.id] = a
 		var a: Actor = enemies[e.id]
-		var vis := mg.is_seen(e.x, e.y)
+		var vis = mg.is_seen(e.x, e.y)
 		a.visible = vis
 		if not vis: continue
 		a.position = w3(e.x, e.y)
 		a.face = atan2(e.y - P.y, e.x - P.x) if e.fearT > 0 else atan2(P.y - e.y, P.x - e.x)
 		a.set_anim(e.anim); a.at = e.at; a.tick(0)
-		var alpha := 1.0
+		var alpha = 1.0
 		if e.d.has("hidden"):
-			var dp := Game.hyp(P.x - e.x, P.y - e.y)
+			var dp = Game.hyp(P.x - e.x, P.y - e.y)
 			alpha = 1.0 if dp < 110 else (.35 if dp < 170 else .06)
-		var c := Color.WHITE
+		var c = Color.WHITE
 		if e.flash > 0: c = Color(2.4, 2.4, 2.4)
 		elif e.frozenT > 0: c = Color(.62, .86, 1.35)
 		elif e.shield > 0: c = Color(.85, .9, 1.2)
@@ -231,7 +231,7 @@ func sync(dt: float) -> void:
 	for c in G.corpses:
 		live[c.id] = true
 		if not corpses.has(c.id):
-			var a := Actor.new(); add_child(a); a.setup(c.name, c.H); a.face = c.ang; a.set_anim("die"); corpses[c.id] = a
+			var a = Actor.new(); add_child(a); a.setup(c.name, c.H); a.face = c.ang; a.set_anim("die"); corpses[c.id] = a
 			a.position = w3(c.x, c.y)
 		var a: Actor = corpses[c.id]
 		a.visible = mg.is_seen(c.x, c.y)
@@ -244,11 +244,11 @@ func sync(dt: float) -> void:
 	# 상자
 	for c in G.chests:
 		if not chests.has(c.id):
-			var n := Node3D.new(); n.position = w3(c.x, c.y + 8); add_child(n); chests[c.id] = n
+			var n = Node3D.new(); n.position = w3(c.x, c.y + 8); add_child(n); chests[c.id] = n
 			n.set_meta("open", -1)
 		var n: Node3D = chests[c.id]
 		n.visible = mg.is_seen(c.x, c.y)
-		var o := 1 if c.open else 0
+		var o = 1 if c.open else 0
 		if n.get_meta("open") != o:
 			for ch in n.get_children(): ch.queue_free()
 			_prop(n, "chest_o" if c.open else "chest_c", .62)
@@ -256,7 +256,7 @@ func sync(dt: float) -> void:
 	# 떨어진 물건
 	_sync_drops(G, P)
 	# 계단
-	var sk := ""
+	var sk = ""
 	if mg.stairs != null and G.floor > 0: sk = "%d,%d" % [int(mg.stairs.x), int(mg.stairs.y)]
 	if sk != stairs_key:
 		if stairs_node: stairs_node.queue_free()
@@ -281,10 +281,10 @@ func sync(dt: float) -> void:
 	_sync_fx(G, P)
 
 func _ward(P, G) -> void:
-	var M := Actor.meta()
+	var M = Actor.meta()
 	if P.ward > 0 and M.has("fx_shield"):
 		var m: Dictionary = M.fx_shield; var A: Dictionary = m.anims.idle
-		var fr := int(G.time * 1000 / A.dur * A.frames) % int(A.frames)
+		var fr = int(G.time * 1000 / A.dur * A.frames) % int(A.frames)
 		var k: float = 40.0 / m.get("hgt", m.ch) * UP
 		var mat: StandardMaterial3D = ward_q.material_override
 		mat.uv1_scale = Vector3(1.0 / A.frames, 1, 1); mat.uv1_offset = Vector3(float(fr) / A.frames, 0, 0)
@@ -303,46 +303,46 @@ const LOOT := {gold = "loot_coins", pothp = "loot_hp", potmp = "loot_mp", scroll
 const GEAR := {staff = "loot_staff", wand = "loot_wand", ring = "loot_ring", cloak = "loot_cloak"}
 
 func _sync_drops(G, P) -> void:
-	var live := {}
-	var M := Actor.meta()
-	var bd := 140.0; G.nearItem = null
+	var live = {}
+	var M = Actor.meta()
+	var bd = 140.0; G.nearItem = null
 	for d in G.drops:
 		if d.kind == "item":
-			var q := Game.hyp(P.x - d.x, P.y - d.y)
+			var q = Game.hyp(P.x - d.x, P.y - d.y)
 			if q < bd:
 				bd = q; G.nearItem = d
 	for d in G.drops:
 		live[d.id] = true
 		if not drops.has(d.id):
-			var n := Node3D.new(); add_child(n); drops[d.id] = n
+			var n = Node3D.new(); add_child(n); drops[d.id] = n
 			var ln: String = GEAR[d.it.base] if d.kind == "item" else LOOT.get(d.kind, "")
 			if ln != "" and M.has(ln):
 				var m: Dictionary = M[ln]
 				var tw: float = 14.0 if d.kind == "gold" else (((12.0 if d.it.base == "ring" else 22.0)) if d.kind == "item" else 14.0)
 				var k: float = tw / max(m.cw, m.ch)
-				var s := _sprite(load("res://assets/sprites/%s.png" % ln)); s.pixel_size = k * UP
+				var s = _sprite(load("res://assets/sprites/%s.png" % ln)); s.pixel_size = k * UP
 				s.position = Vector3(0, m.ch * .8 * k * UP - m.ch / 2.0 * k * UP + 2 * UP, 0)
 				s.name = "spr"; n.add_child(s)
-				var sh := MeshInstance3D.new(); var sq := QuadMesh.new(); sq.size = Vector2(tw * .9 * S, tw * .3 * S); sq.orientation = PlaneMesh.FACE_Y; sh.mesh = sq
-				var sm := StandardMaterial3D.new(); sm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; sm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+				var sh = MeshInstance3D.new(); var sq = QuadMesh.new(); sq.size = Vector2(tw * .9 * S, tw * .3 * S); sq.orientation = PlaneMesh.FACE_Y; sh.mesh = sq
+				var sm = StandardMaterial3D.new(); sm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; sm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 				sm.albedo_texture = World.glow_tex(); sm.albedo_color = Color(0, 0, 0, .45); sh.material_override = sm; sh.position = Vector3(0, .02, 3 * S); n.add_child(sh)
 			if d.kind == "item":
-				var col := Color(D.RAR[d.it.rar].color)
-				var beam := MeshInstance3D.new(); var bq := QuadMesh.new(); bq.size = Vector2((14.0 if d.it.rar == "epic" else 10.0) * S, 90 * UP); beam.mesh = bq
-				var g := Gradient.new(); g.set_color(0, Color(col, .5 if d.it.rar != "magic" else .3)); g.set_color(1, Color(col, 0))
-				var gt := GradientTexture2D.new(); gt.gradient = g; gt.fill_from = Vector2(0, 1); gt.fill_to = Vector2(0, 0); gt.width = 8; gt.height = 64
-				var bm := StandardMaterial3D.new(); bm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; bm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+				var col = Color(D.RAR[d.it.rar].color)
+				var beam = MeshInstance3D.new(); var bq = QuadMesh.new(); bq.size = Vector2((14.0 if d.it.rar == "epic" else 10.0) * S, 90 * UP); beam.mesh = bq
+				var g = Gradient.new(); g.set_color(0, Color(col, .5 if d.it.rar != "magic" else .3)); g.set_color(1, Color(col, 0))
+				var gt = GradientTexture2D.new(); gt.gradient = g; gt.fill_from = Vector2(0, 1); gt.fill_to = Vector2(0, 0); gt.width = 8; gt.height = 64
+				var bm = StandardMaterial3D.new(); bm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; bm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 				bm.blend_mode = BaseMaterial3D.BLEND_MODE_ADD; bm.albedo_texture = gt; beam.material_override = bm; beam.position = Vector3(0, 45 * UP, 0); n.add_child(beam)
 				_glow(n, Color(col, .5), 44 * S * 1.4, Vector3(0, .15, 0))
 			elif d.kind == "hp" or d.kind == "mp":
-				var col := Color("#ff4a5a") if d.kind == "hp" else Color("#5a8cff")
+				var col = Color("#ff4a5a") if d.kind == "hp" else Color("#5a8cff")
 				_glow(n, Color(col, .7), 32 * S * 1.4, Vector3(0, .3, 0))
-				var orb := MeshInstance3D.new(); var sp := SphereMesh.new(); sp.radius = 5 * S; sp.height = 10 * S; orb.mesh = sp
-				var om := StandardMaterial3D.new(); om.albedo_color = col; om.emission_enabled = true; om.emission = col; om.emission_energy_multiplier = .8; orb.material_override = om
+				var orb = MeshInstance3D.new(); var sp = SphereMesh.new(); sp.radius = 5 * S; sp.height = 10 * S; orb.mesh = sp
+				var om = StandardMaterial3D.new(); om.albedo_color = col; om.emission_enabled = true; om.emission = col; om.emission_energy_multiplier = .8; orb.material_override = om
 				orb.position = Vector3(0, .3, 0); orb.name = "spr"; n.add_child(orb)
 		var n: Node3D = drops[d.id]
 		n.visible = game.mg.is_seen(d.x, d.y)
-		var b := sin(G.time * 5 + d.x) * 2
+		var b = sin(G.time * 5 + d.x) * 2
 		n.position = w3(d.x, d.y)
 		var sp = n.get_node_or_null("spr")
 		if sp: sp.position.y = sp.position.y * 0 + _drop_base(d, M) + (d.get("h", 0.0)) * UP + (0.0 if d.kind == "gold" else b * .4 * UP)
@@ -361,7 +361,7 @@ func _drop_base(d, M) -> float:
 
 # ---------------- 효과 ----------------
 func _put(mm: MultiMesh, i: int, x: float, y: float, r: float, c: Color, h := .06) -> void:
-	var t := Transform3D(Basis().scaled(Vector3(r * 2 * S, 1, r * 2 * S)), w3(x, y, h))
+	var t = Transform3D(Basis().scaled(Vector3(r * 2 * S, 1, r * 2 * S)), w3(x, y, h))
 	mm.set_instance_transform(i, t); mm.set_instance_color(i, c)
 
 func _sync_fx(G, P) -> void:
@@ -370,24 +370,24 @@ func _sync_fx(G, P) -> void:
 	for f in G.fx:
 		var a: float = f.life / f.max
 		if f.has("dust") or f.has("smoke"):
-			var c := Color(f.color); c.a = a * (.38 if f.has("smoke") else .6)
+			var c = Color(f.color); c.a = a * (.38 if f.has("smoke") else .6)
 			mix.append([f.x, f.y, f.size * ((2.2 - a * 1.2) if f.has("smoke") else 1.0), c])
 		elif f.has("cone"):
-			var c := Color(f.color); c.a = a * .42; glow.append([f.x, f.y, f.size * (4.5 - a * 2.5), c])
+			var c = Color(f.color); c.a = a * .42; glow.append([f.x, f.y, f.size * (4.5 - a * 2.5), c])
 		elif f.size > 2.6:
-			var c := Color(f.color); c.a = a * .8; glow.append([f.x, f.y, f.size * 2.6, c])
+			var c = Color(f.color); c.a = a * .8; glow.append([f.x, f.y, f.size * 2.6, c])
 		else:
-			var c := Color(f.color); c.a = a * .9; dot.append([f.x, f.y, f.size, c])
+			var c = Color(f.color); c.a = a * .9; dot.append([f.x, f.y, f.size, c])
 	for d in G.debris:
 		if not game.mg.is_seen(d.x, d.y): continue
-		var c := Color(d.color); c.a = min(1.0, d.life)
+		var c = Color(d.color); c.a = min(1.0, d.life)
 		var r: float = 2.5 if d.shape == "bone" else (4.0 if d.shape == "skull" else d.s)
 		mix.append([d.x, d.y - d.h, r, c])
 	# 구역의 빛
 	for z in G.zones:
 		var a: float = min(1.0, z.life / max(z.max, .001) * 3)
 		if z.kind == "ember":
-			var fl := .8 + .2 * sin(G.time * 14 + z.x)
+			var fl = .8 + .2 * sin(G.time * 14 + z.x)
 			glow.append([z.x, z.y - 3, 20 * fl, Color(Color("#ff7a2a"), .7 * a)]); dot.append([z.x, z.y - 2, 2.4 * fl, Color(1, .86, .55, .8 * a)])
 		elif z.kind == "acid": glow.append([z.x, z.y - 34, z.r * .9, Color(Color("#5a7a4a"), .35 * a)])
 		elif z.kind == "stasis": glow.append([z.x, z.y, z.r * .9, Color(Color("#9a70ff"), .18 * a)])
@@ -395,7 +395,7 @@ func _sync_fx(G, P) -> void:
 	for s in G.shots: glow.append([s.x, s.y, s.r * 4, Color(Color(s.color), .5)])
 	for s in G.eshots:
 		if s.kind == "arrow": continue
-		var col := Color({ice = "#9fd0ff", poison = "#8fd14f", fire = "#ff6a2a", skull = "#b77bff", spit = "#d98a9a"}.get(s.kind, "#ffffff"))
+		var col = Color({ice = "#9fd0ff", poison = "#8fd14f", fire = "#ff6a2a", skull = "#b77bff", spit = "#d98a9a"}.get(s.kind, "#ffffff"))
 		glow.append([s.x, s.y, s.r * 1.8, Color(col, .3)])
 	if P.firing and P.tip != null and G.floor > 0 and P.active != null: glow.append([P.tip.x, P.tip.y, 16, Color(Color(game.act_color()), .6)])
 	for pair in [[mm_add_glow, glow], [mm_add_dot, dot], [mm_mix_dot, mix]]:
@@ -406,7 +406,7 @@ func _sync_fx(G, P) -> void:
 	_sync_sprite_fx(G)
 	_sync_lines(G, P)
 	# 탄에 빛 몇 개
-	var li := 0
+	var li = 0
 	for s in G.shots:
 		if li >= shot_lights.size(): break
 		var L: OmniLight3D = shot_lights[li]; L.visible = true; L.light_color = Color(s.color); L.light_energy = 1.2; L.position = w3(s.x, s.y, .8); li += 1
@@ -414,9 +414,9 @@ func _sync_fx(G, P) -> void:
 		shot_lights[li].visible = false; li += 1
 
 func _sync_sprite_fx(G) -> void:
-	var M := Actor.meta()
-	var lists := {}
-	var addf := func(name: String, x: float, y: float, w: float, h: float, rot: float, fr: float, frames: float, alpha: float, ox: float, oy: float):
+	var M = Actor.meta()
+	var lists = {}
+	var addf = func(name: String, x: float, y: float, w: float, h: float, rot: float, fr: float, frames: float, alpha: float, ox: float, oy: float):
 		if not lists.has(name): lists[name] = []
 		lists[name].append([x, y, w, h, rot, fr, frames, alpha, ox, oy])
 	for a in G.anims:
@@ -428,22 +428,22 @@ func _sync_sprite_fx(G) -> void:
 	for z in G.zones:
 		if z.kind == "stasis" and M.has("fx_runes"):
 			var m: Dictionary = M.fx_runes; var A: Dictionary = m.anims.idle
-			var fr := int(G.time * 1000 / A.dur * A.frames) % int(A.frames); var k: float = z.r * 2.1 / m.ch
+			var fr = int(G.time * 1000 / A.dur * A.frames) % int(A.frames); var k: float = z.r * 2.1 / m.ch
 			addf.call("fx_runes", z.x, z.y + z.r * .4, m.cw * k, m.ch * k, 0, fr, A.frames, min(1.0, z.life) * .8, (m.cw / 2.0 - m.anchor[0]) * k, (m.ch / 2.0 - m.anchor[1]) * k)
 	for s in G.shots:
-		var sn := "fx_fireball" if s.els.has("fire") else ("fx_icicle" if s.els.has("frost") else ("fx_spark_blue" if s.els.has("storm") else "fx_plasma"))
+		var sn = "fx_fireball" if s.els.has("fire") else ("fx_icicle" if s.els.has("frost") else ("fx_spark_blue" if s.els.has("storm") else "fx_plasma"))
 		if not M.has(sn): continue
 		var m: Dictionary = M[sn]; var A: Dictionary = m.anims.idle
-		var fr := int(G.time * 12 + s.x) % int(A.frames)
+		var fr = int(G.time * 12 + s.x) % int(A.frames)
 		var k: float = (s.r * 5 if (sn == "fx_plasma" or sn == "fx_spark_blue") else s.r * 9) / max(m.cw, m.ch)
-		var rot_ := (sn == "fx_fireball" or sn == "fx_icicle")
+		var rot_ = (sn == "fx_fireball" or sn == "fx_icicle")
 		var ang: float = atan2(s.vy, s.vx) + PI if rot_ else 0.0
 		addf.call(sn, s.x, s.y, m.cw * k, m.ch * k, ang, fr, A.frames, 1.0, m.cw * k * (.25 if rot_ else 0.0), 0.0)
 	for s in G.eshots:
 		var sn: String = {ice = "fx_spark_blue", poison = "fx_spark_green", skull = "fx_spark_red", fire = "fx_fireball", spit = "fx_spark_green"}.get(s.kind, "")
 		if sn == "" or not M.has(sn): continue
 		var m: Dictionary = M[sn]; var A: Dictionary = m.anims.idle
-		var fr := int(G.time * 12 + s.x) % int(A.frames)
+		var fr = int(G.time * 12 + s.x) % int(A.frames)
 		var k: float = (s.r * 8 if sn == "fx_fireball" else s.r * 4.5) / max(m.cw, m.ch)
 		var ang: float = atan2(s.vy, s.vx) + PI if sn == "fx_fireball" else 0.0
 		addf.call(sn, s.x, s.y, m.cw * k, m.ch * k, ang, fr, A.frames, 1.0, m.cw * k * (.25 if sn == "fx_fireball" else 0.0), 0.0)
@@ -455,8 +455,8 @@ func _sync_sprite_fx(G) -> void:
 		mm.visible_instance_count = L.size()
 		for i in L.size():
 			var e: Array = L[i]
-			var b := Basis(Vector3.UP, -e[4]) * Basis.from_scale(Vector3(e[2] * S, 1, e[3] * S))
-			var off := Vector2(e[8], e[9]).rotated(e[4])
+			var b = Basis(Vector3.UP, -e[4]) * Basis.from_scale(Vector3(e[2] * S, 1, e[3] * S))
+			var off = Vector2(e[8], e[9]).rotated(e[4])
 			mm.set_instance_transform(i, Transform3D(b, w3(e[0] + off.x, e[1] + off.y, .08)))
 			mm.set_instance_custom_data(i, Color(e[5], e[6], e[7], 0))
 
@@ -467,7 +467,7 @@ func _line(im: ImmediateMesh, pts: Array, w: float, c: Color, h := .07) -> void:
 	for i in pts.size():
 		var p: Vector2 = pts[i]
 		var dv: Vector2 = (pts[min(i + 1, pts.size() - 1)] - pts[max(i - 1, 0)])
-		var nrm := Vector2(-dv.y, dv.x).normalized() * w * .5
+		var nrm = Vector2(-dv.y, dv.x).normalized() * w * .5
 		im.surface_set_color(c); im.surface_add_vertex(w3(p.x + nrm.x, p.y + nrm.y, h))
 		im.surface_set_color(c); im.surface_add_vertex(w3(p.x - nrm.x, p.y - nrm.y, h))
 	im.surface_end()
@@ -481,9 +481,9 @@ func _circle_pts(x: float, y: float, r: float, a0 := 0.0, a1 := TAU, n := 40) ->
 
 func _disc(im: ImmediateMesh, x: float, y: float, r: float, c: Color, h := .05) -> void:
 	im.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
-	var n := 40
+	var n = 40
 	for i in n:
-		var a0 := TAU * i / n; var a1 := TAU * (i + 1) / n
+		var a0 = TAU * i / n; var a1 = TAU * (i + 1) / n
 		for p in [Vector2(x, y), Vector2(x + cos(a0) * r, y + sin(a0) * r), Vector2(x + cos(a1) * r, y + sin(a1) * r)]:
 			im.surface_set_color(c); im.surface_add_vertex(w3(p.x, p.y, h))
 	im.surface_end()
@@ -491,14 +491,14 @@ func _disc(im: ImmediateMesh, x: float, y: float, r: float, c: Color, h := .05) 
 func _sync_lines(G, P) -> void:
 	lines_add.clear_surfaces(); lines_mix.clear_surfaces()
 	for b in G.bolts:
-		var c := Color(b.color)
+		var c = Color(b.color)
 		if b.has("beam"):
 			_line(lines_add, b.pts, 24, Color(c, .25)); _line(lines_add, b.pts, 11, Color(c, .6)); _line(lines_add, b.pts, 4, Color(1, 1, 1, .9))
 		else:
 			_line(lines_add, b.pts, 9, Color(c, .3)); _line(lines_add, b.pts, 3, Color(c, .85)); _line(lines_add, b.pts, 1.4, Color(1, 1, 1, 1))
 	for r in G.rings:
-		var t: float = 1 - r.life / r.max; var rr: float = r.r0 + (r.r1 - r.r0) * t; var c := Color(r.color)
-		var pts := _circle_pts(r.x, r.y, rr)
+		var t: float = 1 - r.life / r.max; var rr: float = r.r0 + (r.r1 - r.r0) * t; var c = Color(r.color)
+		var pts = _circle_pts(r.x, r.y, rr)
 		_line(lines_add, pts, 4 * (1 - t) + 1, Color(c, (1 - t) * .9)); _line(lines_add, pts, 10 * (1 - t) + 2, Color(c, (1 - t) * .25))
 	for z in G.zones:
 		var a: float = min(1.0, z.life / max(z.max, .001) * 3)
@@ -514,7 +514,7 @@ func _sync_lines(G, P) -> void:
 			_line(lines_mix, _circle_pts(z.x, z.y, z.r), 2.5, Color(.9, .35, .27, .85)); _disc(lines_mix, z.x, z.y, z.r * t, Color(.9, .35, .27, .22))
 	for s in G.eshots:
 		if s.kind == "arrow":
-			var a := atan2(s.vy, s.vx)
+			var a = atan2(s.vy, s.vx)
 			_line(lines_mix, [Vector2(s.x - cos(a) * 10, s.y - sin(a) * 10), Vector2(s.x, s.y)], 2, Color("#e8dcc0"), .9)
 	# 계단 금빛 고리
 	if game.mg.stairs != null and G.floor > 0 and game.mg.is_seen(game.mg.stairs.x, game.mg.stairs.y):

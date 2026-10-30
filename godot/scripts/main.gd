@@ -34,7 +34,7 @@ func _ready() -> void:
 	Ui.init_fonts()
 	get_tree().set_auto_accept_quit(false)
 	get_tree().set_quit_on_go_back(false)
-	var cfg := ConfigFile.new()
+	var cfg = ConfigFile.new()
 	if cfg.load(SETTINGS) == OK: pad_swap = cfg.get_value("pad", "swap", false)
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--shot="): shot_path = a.substr(7)
@@ -119,7 +119,7 @@ func try_talk() -> void:
 	var n = game.near_npc()
 	if n != null and game.G.state == "play": ui.open_talk(n)
 func save_settings() -> void:
-	var cfg := ConfigFile.new(); cfg.set_value("pad", "swap", pad_swap); cfg.save(SETTINGS)
+	var cfg = ConfigFile.new(); cfg.set_value("pad", "swap", pad_swap); cfg.save(SETTINGS)
 func pad_mode(on: bool) -> void: hud.set_pad(on)
 
 # ---------------- 시스템 ----------------
@@ -161,7 +161,7 @@ func _input(ev: InputEvent) -> void:
 
 func pad_connected() -> bool: return Input.get_connected_joypads().size() > 0
 func pad_name() -> String:
-	var j := Input.get_connected_joypads()
+	var j = Input.get_connected_joypads()
 	return Input.get_joy_name(j[0]) if j.size() else ""
 
 func _rumble(ms: int, s: float) -> void:
@@ -169,18 +169,18 @@ func _rumble(ms: int, s: float) -> void:
 	for d in Input.get_connected_joypads(): Input.start_joy_vibration(d, s * .6, s, ms / 1000.0)
 
 func _dz(v: Vector2, d: float) -> Vector2:
-	var m := v.length()
+	var m = v.length()
 	if m < d: return Vector2()
 	return v / m * min(1.0, (m - d) / (1 - d))
 
 func _pad_state() -> Dictionary:
-	var st := {on = false, l = Vector2(), r = Vector2(), b = {}}
-	var js := Input.get_connected_joypads()
+	var st = {on = false, l = Vector2(), r = Vector2(), b = {}}
+	var js = Input.get_connected_joypads()
 	if js.is_empty(): return st
 	var d: int = js[0]; st.on = true
 	st.l = _dz(Vector2(Input.get_joy_axis(d, JOY_AXIS_LEFT_X), Input.get_joy_axis(d, JOY_AXIS_LEFT_Y)), .2)
 	st.r = _dz(Vector2(Input.get_joy_axis(d, JOY_AXIS_RIGHT_X), Input.get_joy_axis(d, JOY_AXIS_RIGHT_Y)), .25)
-	var B := {a = JOY_BUTTON_A, b = JOY_BUTTON_B, x = JOY_BUTTON_X, y = JOY_BUTTON_Y, lb = JOY_BUTTON_LEFT_SHOULDER, rb = JOY_BUTTON_RIGHT_SHOULDER,
+	var B = {a = JOY_BUTTON_A, b = JOY_BUTTON_B, x = JOY_BUTTON_X, y = JOY_BUTTON_Y, lb = JOY_BUTTON_LEFT_SHOULDER, rb = JOY_BUTTON_RIGHT_SHOULDER,
 		select = JOY_BUTTON_BACK, start = JOY_BUTTON_START, l3 = JOY_BUTTON_LEFT_STICK, r3 = JOY_BUTTON_RIGHT_STICK,
 		up = JOY_BUTTON_DPAD_UP, down = JOY_BUTTON_DPAD_DOWN, left = JOY_BUTTON_DPAD_LEFT, right = JOY_BUTTON_DPAD_RIGHT}
 	for k in B.keys(): st.b[k] = Input.is_joy_button_pressed(d, B[k])
@@ -192,12 +192,12 @@ func _pad_state() -> Dictionary:
 	return st
 
 func _pad_frame() -> Dictionary:
-	var st := _pad_state()
+	var st = _pad_state()
 	if st.on != pad_was:
 		pad_was = st.on
 		hud.show_toast("컨트롤러가 연결됐어요" if st.on else "컨트롤러 연결이 끊겼어요")
 		if not st.on and game.G != null and game.G.state == "play": open_pause()
-	var hit := func(k: String) -> bool: return st.b.get(k, false) and not pad_prev.get(k, false)
+	var hit = func(k: String) -> bool: return st.b.get(k, false) and not pad_prev.get(k, false)
 	if st.on:
 		var any: bool = st.l.length() > 0 or st.r.length() > 0
 		for k in st.b.keys(): any = any or st.b[k]
@@ -225,17 +225,17 @@ func _pad_frame() -> Dictionary:
 
 func _read_input(st: Dictionary) -> void:
 	var G = game.G; var P = game.P
-	var mx := 0.0; var my := 0.0
-	var t := hud.read_touch(P, Vector2())
+	var mx = 0.0; var my = 0.0
+	var t = hud.read_touch(P, Vector2())
 	mx = t.mx; my = t.my
 	if Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT): mx += 1
 	if Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT): mx -= 1
 	if Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN): my += 1
 	if Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP): my -= 1
-	var ml := Game.hyp(mx, my)
+	var ml = Game.hyp(mx, my)
 	if ml > 1:
 		mx /= ml; my /= ml
-	var firing := false; var ang: float = P.face
+	var firing = false; var ang: float = P.face
 	if t.aim:
 		firing = true
 		if not t.auto: ang = t.ang
@@ -253,12 +253,12 @@ func _read_input(st: Dictionary) -> void:
 			mx = p.x; my = p.y
 		if st.r.length() > .35:
 			firing = true; ang = atan2(st.r.y, st.r.x)
-			var best = null; var bd := .35
+			var best = null; var bd = .35
 			for e in G.enemies:
 				if e.dead: continue
-				var d := Game.hyp(e.x - P.x, e.y - P.y)
+				var d = Game.hyp(e.x - P.x, e.y - P.y)
 				if d > 460: continue
-				var ad := absf(Game.ang_diff(atan2(e.y - P.y, e.x - P.x), ang))
+				var ad = absf(Game.ang_diff(atan2(e.y - P.y, e.x - P.x), ang))
 				if ad < bd and game.mg.los(P.x, P.y, e.x, e.y):
 					bd = ad; best = e
 			if best != null: ang = atan2(best.y - P.y, best.x - P.x)
@@ -270,7 +270,7 @@ func _read_input(st: Dictionary) -> void:
 # ---------------- 매 프레임 ----------------
 func _process(dt: float) -> void:
 	dt = min(dt, .05)
-	var st := _pad_frame()
+	var st = _pad_frame()
 	var G = game.G
 	if G != null and G.state == "play":
 		_read_input(st)
@@ -285,17 +285,17 @@ func _process(dt: float) -> void:
 
 func _place_cam(dt: float) -> void:
 	var P = game.P; var G = game.G
-	var e := deg_to_rad(CAM_ELEV)
+	var e = deg_to_rad(CAM_ELEV)
 	var px: float = P.x / 32.0; var py: float = P.y / 32.0
 	if G.state == "title":
 		# 타이틀: 마을 위를 천천히 오가며 보여줌
 		px += sin(title_t * .12) * 5 + 3; py -= 3 + sin(title_t * .07) * 1.5
-	var sx := 0.0; var sy := 0.0
+	var sx = 0.0; var sy = 0.0
 	if G.shake > 0:
 		sx = Game.rnd(-3, 3) * G.shake * 6 / 32.0; sy = Game.rnd(-3, 3) * G.shake * 6 / 32.0
-	var target := Vector3(px + sx, .4, py + sy)
-	var want := target + Vector3(0, sin(e), cos(e)) * CAM_DIST
-	var far := cam.position.distance_to(want) > 6
+	var target = Vector3(px + sx, .4, py + sy)
+	var want = target + Vector3(0, sin(e), cos(e)) * CAM_DIST
+	var far = cam.position.distance_to(want) > 6
 	cam.position = want if (far or dt == 0) else cam.position.lerp(want, 1.0 - exp(-12.0 * dt))
 	cam.rotation = Vector3(-e, 0, 0)
 	cam.v_offset = .65
@@ -316,7 +316,7 @@ func _test_setup() -> void:
 		game.G.resume = test_floor; game.enter_tower()
 		var r: Dictionary = game.mg.rooms[min(1, game.mg.rooms.size() - 1)]
 		P.x = r.cx; P.y = r.cy
-		var n := 0
+		var n = 0
 		for e in game.G.enemies:
 			if n < 5 and not e.isBoss:
 				e.x = P.x - 120 + n * 60; e.y = P.y - 70 + (n % 2) * 40; n += 1
@@ -351,5 +351,5 @@ func _test_hooks(dt: float) -> void:
 		if shot_frames == 46 and shot_mode == "talk":
 			game.P.x = game.G.npcs[1].x; game.P.y = game.G.npcs[1].y + 30; ui.open_talk(game.G.npcs[1])
 		if shot_frames == 70:
-			var img := get_viewport().get_texture().get_image()
+			var img = get_viewport().get_texture().get_image()
 			img.save_png(shot_path); print("SHOT ", shot_path); get_tree().quit()

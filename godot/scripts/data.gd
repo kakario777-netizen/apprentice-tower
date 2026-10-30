@@ -164,13 +164,13 @@ const EPICNAMES := {weapon = ["대현자의 지팡이", "벼락 삼킨 가지", 
 
 static func mod_text(m: Dictionary) -> String:
 	var parts: PackedStringArray = String(m.k).split(":")
-	var t := parts[0]; var v = m.v
+	var t = parts[0]; var v = m.v
 	if t == "prim": return "%s +%s" % [PRIMARIES[parts[1]].name, str(v)]
 	if t == "sub":
 		for s in SUBS:
 			if s.id == parts[1]: return "%s +%s" % [s.name, str(v)]
 	if t == "sec": return "%s +%s" % [sec(parts[1]).name, str(v)]
-	var pct := int(round(float(v) * 100))
+	var pct = int(round(float(v) * 100))
 	match t:
 		"hp": return "최대 생명 +%d" % int(round(v))
 		"mp": return "최대 마나 +%d" % int(round(v))
@@ -198,4 +198,4 @@ const TALK := {
 }
 
 static func col(hex: String, a := 1.0) -> Color:
-	var c := Color(hex); c.a = a; return c
+	var c = Color(hex); c.a = a; return c

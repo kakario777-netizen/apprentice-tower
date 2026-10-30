@@ -6,7 +6,7 @@ static var META := {}
 
 static func meta() -> Dictionary:
 	if META.is_empty():
-		var f := FileAccess.open("res://assets/sprites/meta.json", FileAccess.READ)
+		var f = FileAccess.open("res://assets/sprites/meta.json", FileAccess.READ)
 		if f: META = JSON.parse_string(f.get_as_text())
 	return META
 
@@ -36,8 +36,8 @@ func setup(name: String, h_px: float) -> void:
 	spr.pixel_size = k / 32.0 * World.STAND
 	add_child(spr)
 	# 발밑 그림자
-	var q := QuadMesh.new(); q.size = Vector2(1.1, .55) * (height_px / 46.0)
-	var sm := StandardMaterial3D.new()
+	var q = QuadMesh.new(); q.size = Vector2(1.1, .55) * (height_px / 46.0)
+	var sm = StandardMaterial3D.new()
 	sm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	sm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	sm.albedo_texture = World.glow_tex(); sm.albedo_color = Color(0, 0, 0, .55)
@@ -57,7 +57,7 @@ func anim_done() -> bool:
 	return A.type == "play_once" and at * 1000.0 >= A.dur
 
 static func fdir(a: float) -> int:
-	var d := fposmod(rad_to_deg(a), 360.0)
+	var d = fposmod(rad_to_deg(a), 360.0)
 	return posmod(int(round((d - 180.0) / 45.0)), 8)
 
 func _frame(A: Dictionary) -> int:
@@ -66,7 +66,7 @@ func _frame(A: Dictionary) -> int:
 	var p: float = at * 1000.0 / max(1.0, float(A.dur))
 	if A.type == "play_once": return min(n - 1, int(p * n))
 	if A.type == "back_forth":
-		var mm := 2 * n - 2; var q := int(p * mm) % mm
+		var mm = 2 * n - 2; var q = int(p * mm) % mm
 		return q if q < n else mm - q
 	return int(p * n) % n
 
@@ -77,9 +77,9 @@ func tick(dt: float) -> void:
 func _apply() -> void:
 	if m.is_empty(): return
 	var A: Dictionary = m.anims.get(anim, m.anims.get("stance", m.anims.values()[0]))
-	var dir := fdir(face) if int(m.dirs) == 8 else 0
-	var fr := _frame(A)
-	var ps := spr.pixel_size
+	var dir = fdir(face) if int(m.dirs) == 8 else 0
+	var fr = _frame(A)
+	var ps = spr.pixel_size
 	if m.has("fr"):
 		var f = m.fr[(int(A.row) + dir) * int(m.nf) + fr]
 		if f == null: return

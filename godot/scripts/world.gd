@@ -17,7 +17,7 @@ static func tex(path: String) -> Texture2D:
 
 static func props_meta() -> Dictionary:
 	if PROPM.is_empty():
-		var f := FileAccess.open("res://assets/props/props.json", FileAccess.READ)
+		var f = FileAccess.open("res://assets/props/props.json", FileAccess.READ)
 		if f: PROPM = JSON.parse_string(f.get_as_text())
 	return PROPM
 
@@ -40,14 +40,14 @@ void fragment() {
 	ROUGHNESS = 1.0;
 }
 """
-	var m := ShaderMaterial.new()
+	var m = ShaderMaterial.new()
 	m.shader = FOG_SHADER
 	m.set_shader_parameter("tex", t)
 	m.set_shader_parameter("fog", fog_tex)
 	return m
 
 static func set_fog(bytes: PackedByteArray) -> void:
-	var img := Image.create_from_data(MapGen.MW, MapGen.MH, false, Image.FORMAT_L8, bytes)
+	var img = Image.create_from_data(MapGen.MW, MapGen.MH, false, Image.FORMAT_L8, bytes)
 	if fog_tex == null: fog_tex = ImageTexture.create_from_image(img)
 	else: fog_tex.update(img)
 
@@ -78,21 +78,21 @@ func _process(dt: float) -> void:
 
 # ---------------- 바닥 ----------------
 func _uv(n: int, total: int, inset := 2.0, tw := 128.0) -> Rect2:
-	var W := total * tw
+	var W = total * tw
 	return Rect2((n * tw + inset) / W, inset / tw, (tw - inset * 2) / W, (tw - inset * 2) / tw)
 
 func _quad_floor(st: SurfaceTool, x: float, y: float, uv: Rect2, ao: Array) -> void:
 	# ao: 네 모서리 밝기 [북서, 북동, 남동, 남서]
-	var p := [Vector3(x, 0, y), Vector3(x + 1, 0, y), Vector3(x + 1, 0, y + 1), Vector3(x, 0, y + 1)]
-	var t := [uv.position, Vector2(uv.end.x, uv.position.y), uv.end, Vector2(uv.position.x, uv.end.y)]
+	var p = [Vector3(x, 0, y), Vector3(x + 1, 0, y), Vector3(x + 1, 0, y + 1), Vector3(x, 0, y + 1)]
+	var t = [uv.position, Vector2(uv.end.x, uv.position.y), uv.end, Vector2(uv.position.x, uv.end.y)]
 	for k in [0, 1, 2, 0, 2, 3]:
 		var a: float = ao[k]
 		st.set_color(Color(a, a, a)); st.set_uv(t[k]); st.set_normal(Vector3.UP); st.add_vertex(p[k])
 
 func _ao(i: int, j: int) -> Array:
 	# 벽과 닿은 모서리를 어둡게(벽 밑 그늘)
-	var c := func(dx: int, dy: int) -> float:
-		var n := 0
+	var c = func(dx: int, dy: int) -> float:
+		var n = 0
 		for v in [Vector2i(dx, 0), Vector2i(0, dy), Vector2i(dx, dy)]:
 			if mg.at(i + v.x, j + v.y) == 1: n += 1
 		return 1.0 - .22 * n
@@ -105,17 +105,17 @@ func _build_ground() -> void:
 		tf = tex("res://assets/tiles/grass3.png"); tp = tex("res://assets/tiles/path3.png")
 	else:
 		tf = tex("res://assets/tiles/floor2.png")
-	var mf := mat(tf)
+	var mf = mat(tf)
 	var mp: ShaderMaterial = null
 	if tp != null: mp = mat(tp)
 	for cy in range(0, MapGen.MH, CHUNK):
 		for cx in range(0, MapGen.MW, CHUNK):
-			var sf := SurfaceTool.new(); sf.begin(Mesh.PRIMITIVE_TRIANGLES)
-			var sp := SurfaceTool.new(); sp.begin(Mesh.PRIMITIVE_TRIANGLES)
-			var nf := 0; var np := 0
+			var sf = SurfaceTool.new(); sf.begin(Mesh.PRIMITIVE_TRIANGLES)
+			var sp = SurfaceTool.new(); sp.begin(Mesh.PRIMITIVE_TRIANGLES)
+			var nf = 0; var np = 0
 			for j in range(cy, min(cy + CHUNK, MapGen.MH)):
 				for i in range(cx, min(cx + CHUNK, MapGen.MW)):
-					var h := MapGen.hash2(i, j)
+					var h = MapGen.hash2(i, j)
 					if mg.at(i, j) == 0:
 						if town != null:
 							var on_path: bool = (i >= town.pathX and i < town.pathX + town.pathW) or (j >= town.crossY and j < town.crossY + 3) or j < town.y0
@@ -132,7 +132,7 @@ func _build_ground() -> void:
 			if np: _add_mesh(sp, mp)
 
 func _add_mesh(st: SurfaceTool, m: Material) -> MeshInstance3D:
-	var mi := MeshInstance3D.new()
+	var mi = MeshInstance3D.new()
 	mi.mesh = st.commit(); mi.material_override = m
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(mi); return mi
@@ -141,33 +141,33 @@ func _add_mesh(st: SurfaceTool, m: Material) -> MeshInstance3D:
 func _face(st: SurfaceTool, a: Vector3, b: Vector3, h: float, uv: Rect2, n: Vector3, shade: float) -> void:
 	# a→b 가 바닥 선, 위로 h 만큼. 낮은 벽은 그림 아래쪽만 사용
 	var v0: float = uv.end.y - (uv.size.y * h / WALLZ)
-	var p := [a + Vector3(0, h, 0), b + Vector3(0, h, 0), b, a]
-	var t := [Vector2(uv.position.x, v0), Vector2(uv.end.x, v0), uv.end, Vector2(uv.position.x, uv.end.y)]
-	var cl := [Color(shade, shade, shade), Color(shade, shade, shade), Color(shade * .62, shade * .62, shade * .62), Color(shade * .62, shade * .62, shade * .62)]
+	var p = [a + Vector3(0, h, 0), b + Vector3(0, h, 0), b, a]
+	var t = [Vector2(uv.position.x, v0), Vector2(uv.end.x, v0), uv.end, Vector2(uv.position.x, uv.end.y)]
+	var cl = [Color(shade, shade, shade), Color(shade, shade, shade), Color(shade * .62, shade * .62, shade * .62), Color(shade * .62, shade * .62, shade * .62)]
 	for k in [0, 1, 2, 0, 2, 3]:
 		st.set_color(cl[k]); st.set_uv(t[k]); st.set_normal(n); st.add_vertex(p[k])
 
 func _top(st: SurfaceTool, i: int, j: int, h: float, uv: Rect2) -> void:
-	var p := [Vector3(i, h, j), Vector3(i + 1, h, j), Vector3(i + 1, h, j + 1), Vector3(i, h, j + 1)]
-	var t := [uv.position, Vector2(uv.end.x, uv.position.y), uv.end, Vector2(uv.position.x, uv.end.y)]
+	var p = [Vector3(i, h, j), Vector3(i + 1, h, j), Vector3(i + 1, h, j + 1), Vector3(i, h, j + 1)]
+	var t = [uv.position, Vector2(uv.end.x, uv.position.y), uv.end, Vector2(uv.position.x, uv.end.y)]
 	for k in [0, 1, 2, 0, 2, 3]:
 		st.set_color(Color.WHITE); st.set_uv(t[k]); st.set_normal(Vector3.UP); st.add_vertex(p[k])
 
 func _build_walls() -> void:
-	var mw := mat(tex("res://assets/tiles/wall2.png")); var mt := mat(tex("res://assets/tiles/top2.png"))
+	var mw = mat(tex("res://assets/tiles/wall2.png")); var mt = mat(tex("res://assets/tiles/top2.png"))
 	for cy in range(0, MapGen.MH, CHUNK):
 		for cx in range(0, MapGen.MW, CHUNK):
-			var sw := SurfaceTool.new(); sw.begin(Mesh.PRIMITIVE_TRIANGLES)
-			var stt := SurfaceTool.new(); stt.begin(Mesh.PRIMITIVE_TRIANGLES)
-			var n := 0
+			var sw = SurfaceTool.new(); sw.begin(Mesh.PRIMITIVE_TRIANGLES)
+			var stt = SurfaceTool.new(); stt.begin(Mesh.PRIMITIVE_TRIANGLES)
+			var n = 0
 			for j in range(cy, min(cy + CHUNK, MapGen.MH)):
 				for i in range(cx, min(cx + CHUNK, MapGen.MW)):
-					var w := mg.wall_bits(i, j)
+					var w = mg.wall_bits(i, j)
 					if w < 0: continue
 					n += 1
 					var h: float = LOWZ if (w & 1) else WALLZ
-					var v := MapGen.hash2(i, j) % 6
-					var uvw := Rect2((v * 128 + 2) / 768.0, 0, 124 / 768.0, 1)
+					var v = MapGen.hash2(i, j) % 6
+					var uvw = Rect2((v * 128 + 2) / 768.0, 0, 124 / 768.0, 1)
 					if w & 4: _face(sw, Vector3(i, 0, j + 1), Vector3(i + 1, 0, j + 1), h, uvw, Vector3.BACK, 1.0)
 					if w & 8: _face(sw, Vector3(i, 0, j), Vector3(i, 0, j + 1), h, uvw, Vector3.LEFT, .78)
 					if w & 2: _face(sw, Vector3(i + 1, 0, j + 1), Vector3(i + 1, 0, j), h, uvw, Vector3.RIGHT, .78)
@@ -184,9 +184,9 @@ func _build_forest() -> void:
 	for j in range(t.y0 - 7, t.y0 + t.h + 4):
 		for i in range(t.x0 - 7, t.x0 + t.w + 7):
 			if mg.at(i, j) != 1: continue
-			var h := MapGen.hash2(i, j); var edge := mg.wall_bits(i, j) >= 0
+			var h = MapGen.hash2(i, j); var edge = mg.wall_bits(i, j) >= 0
 			if not edge and h % 2 == 0: continue
-			var p := Vector2((i + .5) * 32 + ((h >> 3) % 9 - 4) * 2, (j + .85) * 32)
+			var p = Vector2((i + .5) * 32 + ((h >> 3) % 9 - 4) * 2, (j + .85) * 32)
 			if j >= t.y0 + t.h or (edge and (mg.wall_bits(i, j) & 1)):
 				# 앞쪽(카메라 쪽)은 낮은 덤불만, 그것도 가장자리 한 줄과 드문드문
 				if j == t.y0 + t.h and h % 3 != 0: add_prop(PL[h % PL.size()], p, 1.0)
@@ -196,10 +196,10 @@ func _build_forest() -> void:
 
 # ---------------- 소품 ----------------
 func add_prop(n: String, p: Vector2, sc := 1.0) -> Sprite3D:
-	var M := props_meta()
+	var M = props_meta()
 	if not M.has(n): return null
 	var m: Dictionary = M[n]
-	var s := Sprite3D.new()
+	var s = Sprite3D.new()
 	s.texture = tex("res://assets/props/%s.png" % n)
 	s.pixel_size = PF * sc / 32.0 * STAND
 	s.centered = true
@@ -222,30 +222,30 @@ func _build_props() -> void:
 static var _glow_tex: Texture2D
 static func glow_tex() -> Texture2D:
 	if _glow_tex == null:
-		var g := Gradient.new()
+		var g = Gradient.new()
 		g.set_color(0, Color(1, 1, 1, 1)); g.set_color(1, Color(1, 1, 1, 0))
 		g.add_point(.35, Color(1, 1, 1, .6))
-		var t := GradientTexture2D.new()
+		var t = GradientTexture2D.new()
 		t.gradient = g; t.fill = GradientTexture2D.FILL_RADIAL
 		t.fill_from = Vector2(.5, .5); t.fill_to = Vector2(1, .5); t.width = 128; t.height = 128
 		_glow_tex = t
 	return _glow_tex
 
 func glow_quad(col: Color, size: float) -> MeshInstance3D:
-	var q := QuadMesh.new(); q.size = Vector2(size, size)
-	var m := StandardMaterial3D.new()
+	var q = QuadMesh.new(); q.size = Vector2(size, size)
+	var m = StandardMaterial3D.new()
 	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
 	m.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
 	m.albedo_texture = glow_tex(); m.albedo_color = col
 	m.no_depth_test = false
-	var mi := MeshInstance3D.new(); mi.mesh = q; mi.material_override = m
+	var mi = MeshInstance3D.new(); mi.mesh = q; mi.material_override = m
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	return mi
 
 func add_light(pos: Vector3, col: Color, rng: float, energy: float) -> OmniLight3D:
-	var L := OmniLight3D.new()
+	var L = OmniLight3D.new()
 	L.position = pos; L.light_color = col; L.omni_range = rng; L.light_energy = energy
 	L.omni_attenuation = 1.2
 	add_child(L)
@@ -257,16 +257,16 @@ func _build_torches() -> void:
 		var p: Vector2 = t.pos / 32.0
 		if t.lamp:
 			add_prop("brazier", t.pos + Vector2(0, 2), .55)
-			var g := glow_quad(Color(1, .6, .25, .9), .9); g.position = Vector3(p.x, .75, p.y + .1); add_child(g)
+			var g = glow_quad(Color(1, .6, .25, .9), .9); g.position = Vector3(p.x, .75, p.y + .1); add_child(g)
 			add_light(Vector3(p.x, 1.1, p.y + .3), Color(1, .66, .38), 6.0, 1.4)
 		else:
 			# 벽 횃불: 벽 남쪽 면에 붙임
-			var stick := MeshInstance3D.new(); var bm := BoxMesh.new(); bm.size = Vector3(.08, .3, .08)
-			stick.mesh = bm; var sm := StandardMaterial3D.new(); sm.albedo_color = Color(.25, .18, .14); stick.material_override = sm
+			var stick = MeshInstance3D.new(); var bm = BoxMesh.new(); bm.size = Vector3(.08, .3, .08)
+			stick.mesh = bm; var sm = StandardMaterial3D.new(); sm.albedo_color = Color(.25, .18, .14); stick.material_override = sm
 			stick.position = Vector3(p.x, WALLZ * .55, p.y + .06); add_child(stick)
-			var g := glow_quad(Color(1, .55, .2, 1), .7); g.position = Vector3(p.x, WALLZ * .7, p.y + .12); add_child(g)
-			var g2 := glow_quad(Color(1, .9, .6, 1), .22); g2.position = Vector3(p.x, WALLZ * .68, p.y + .14); add_child(g2)
-			var L := add_light(Vector3(p.x, WALLZ * .7, p.y + .6), Color(1, .6, .3), 5.5, 1.5)
+			var g = glow_quad(Color(1, .55, .2, 1), .7); g.position = Vector3(p.x, WALLZ * .7, p.y + .12); add_child(g)
+			var g2 = glow_quad(Color(1, .9, .6, 1), .22); g2.position = Vector3(p.x, WALLZ * .68, p.y + .14); add_child(g2)
+			var L = add_light(Vector3(p.x, WALLZ * .7, p.y + .6), Color(1, .6, .3), 5.5, 1.5)
 			if mg.town == null:
 				for n in [stick, g, g2, L]: fog_nodes.append([n, t.pos.x, t.pos.y + 14])
 

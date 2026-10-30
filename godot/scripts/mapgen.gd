@@ -54,13 +54,13 @@ func move(o: Dictionary, dx: float, dy: float) -> void:
 	if not hits(o.x, o.y + dy, o.r): o.y += dy
 
 func los(ax: float, ay: float, bx: float, by: float) -> bool:
-	var d := Vector2(bx - ax, by - ay).length(); var n := int(ceil(d / 12.0))
+	var d = Vector2(bx - ax, by - ay).length(); var n = int(ceil(d / 12.0))
 	for i in range(1, n):
 		if solid_at(ax + (bx - ax) * i / n, ay + (by - ay) * i / n): return false
 	return true
 
 func is_seen(x: float, y: float) -> bool:
-	var i := int(floor(x / T)); var j := int(floor(y / T))
+	var i = int(floor(x / T)); var j = int(floor(y / T))
 	if i < 0 or j < 0 or i >= MW or j >= MH: return false
 	return seen[j * MW + i] == 1
 
@@ -80,7 +80,7 @@ func _room(x: int, y: int, w: int, h: int, s := false) -> Dictionary:
 	return {x = x, y = y, w = w, h = h, cx = (x + w / 2.0) * T, cy = (y + h / 2.0) * T, seen = s}
 
 func corridor(a: Dictionary, b: Dictionary, wd := 2) -> void:
-	var x := int(floor(a.cx / T)); var y := int(floor(a.cy / T)); var tx := int(floor(b.cx / T)); var ty := int(floor(b.cy / T))
+	var x = int(floor(a.cx / T)); var y = int(floor(a.cy / T)); var tx = int(floor(b.cx / T)); var ty = int(floor(b.cy / T))
 	if randf() < .5:
 		while x != tx:
 			carve(x, y, wd, wd); x += signi(tx - x)
@@ -98,56 +98,56 @@ func corridor_adj(a: Dictionary, b: Dictionary, horiz: bool) -> void:
 	if horiz:
 		var lo: int = max(a.y, b.y) + 1; var hi: int = min(a.y + a.h, b.y + b.h) - wd - 1
 		if hi >= lo:
-			var y := ri(lo, hi); var l: Dictionary = a if a.x < b.x else b; var r: Dictionary = b if a.x < b.x else a
+			var y = ri(lo, hi); var l: Dictionary = a if a.x < b.x else b; var r: Dictionary = b if a.x < b.x else a
 			carve(l.x + l.w - 1, y, r.x - (l.x + l.w) + 2, wd); return
 	else:
 		var lo: int = max(a.x, b.x) + 1; var hi: int = min(a.x + a.w, b.x + b.w) - wd - 1
 		if hi >= lo:
-			var x := ri(lo, hi); var t: Dictionary = a if a.y < b.y else b; var u: Dictionary = b if a.y < b.y else a
+			var x = ri(lo, hi); var t: Dictionary = a if a.y < b.y else b; var u: Dictionary = b if a.y < b.y else a
 			carve(x, t.y + t.h - 1, wd, u.y - (t.y + t.h) + 2); return
 	corridor(a, b, min(wd, 3))
 
 func build_flow(px: float, py: float) -> void:
 	flow.fill(-1)
-	var sx := int(floor(px / T)); var sy := int(floor(py / T))
+	var sx = int(floor(px / T)); var sy = int(floor(py / T))
 	if sx < 0 or sy < 0 or sx >= MW or sy >= MH: return
-	var q := PackedInt32Array(); q.resize(MW * MH)
-	var h := 0; var t := 0; var s := sy * MW + sx
+	var q = PackedInt32Array(); q.resize(MW * MH)
+	var h = 0; var t = 0; var s = sy * MW + sx
 	flow[s] = 0; q[t] = s; t += 1
 	while h < t:
-		var c := q[h]; h += 1
-		var cx := c % MW; var cy := c / MW; var d := flow[c]
+		var c = q[h]; h += 1
+		var cx = c % MW; var cy = c / MW; var d = flow[c]
 		for dv in DIR4:
 			var nx: int = cx + dv.x; var ny: int = cy + dv.y
 			if nx < 0 or ny < 0 or nx >= MW or ny >= MH: continue
-			var n := ny * MW + nx
+			var n = ny * MW + nx
 			if map[n] != 0 or flow[n] >= 0: continue
 			flow[n] = d + 1; q[t] = n; t += 1
 
 func step_toward(ex: float, ey: float, px: float, py: float) -> Vector2:
-	var tx := int(floor(ex / T)); var ty := int(floor(ey / T))
+	var tx = int(floor(ex / T)); var ty = int(floor(ey / T))
 	if tx < 0 or ty < 0 or tx >= MW or ty >= MH: return Vector2(px, py)
-	var here := flow[ty * MW + tx]
+	var here = flow[ty * MW + tx]
 	if here <= 1: return Vector2(px, py)
-	var best := here; var bx := tx; var by := ty
+	var best = here; var bx = tx; var by = ty
 	for dv in DIR8:
 		var nx: int = tx + dv.x; var ny: int = ty + dv.y
 		if nx < 0 or ny < 0 or nx >= MW or ny >= MH: continue
-		var v := flow[ny * MW + nx]
+		var v = flow[ny * MW + nx]
 		if v < 0 or v >= best: continue
 		if dv.x != 0 and dv.y != 0 and (map[ty * MW + nx] != 0 or map[ny * MW + tx] != 0): continue
 		best = v; bx = nx; by = ny
 	return Vector2((bx + .5) * T, (by + .5) * T)
 
 func reveal(px: float, py: float) -> void:
-	var cx := int(floor(px / T)); var cy := int(floor(py / T)); var R := 9; var ch := false
+	var cx = int(floor(px / T)); var cy = int(floor(py / T)); var R = 9; var ch = false
 	for j in range(cy - R, cy + R + 1):
 		for i in range(cx - R, cx + R + 1):
 			if i < 0 or j < 0 or i >= MW or j >= MH: continue
-			var k := j * MW + i
+			var k = j * MW + i
 			if seen[k] == 1: continue
 			if (i - cx) * (i - cx) + (j - cy) * (j - cy) > R * R: continue
-			var x := (i + .5) * T; var y := (j + .5) * T
+			var x = (i + .5) * T; var y = (j + .5) * T
 			var d: float = max(1.0, Vector2(x - px, y - py).length())
 			if los(px, py, x - (x - px) / d * 14, y - (y - py) / d * 14):
 				seen[k] = 1; ch = true
@@ -156,15 +156,15 @@ func reveal(px: float, py: float) -> void:
 
 # 안개 값(0~255): 밝혀진 바닥, 그리고 밝혀진 칸 근처 2칸 안의 벽
 func fog_bytes() -> PackedByteArray:
-	var ws := PackedByteArray(); ws.resize(MW * MH); ws.fill(0)
+	var ws = PackedByteArray(); ws.resize(MW * MH); ws.fill(0)
 	for k in MW * MH:
 		if seen[k] == 0 or map[k] != 1: continue
-		var ci := k % MW; var cj := k / MW
+		var ci = k % MW; var cj = k / MW
 		for b in range(-2, 3):
 			for a in range(-2, 3):
-				var ii := ci + a; var jj := cj + b
+				var ii = ci + a; var jj = cj + b
 				if ii >= 0 and jj >= 0 and ii < MW and jj < MH: ws[jj * MW + ii] = 1
-	var out := PackedByteArray(); out.resize(MW * MH)
+	var out = PackedByteArray(); out.resize(MW * MH)
 	for k in MW * MH:
 		out[k] = 255 if (seen[k] == 1 or (map[k] == 1 and ws[k] == 1)) else 0
 	return out
@@ -172,7 +172,7 @@ func fog_bytes() -> PackedByteArray:
 # ---------------- 마을 ----------------
 func gen_town() -> void:
 	_reset(); floor_no = 0
-	var x0 := 24; var y0 := 20; var w := 34; var h := 20
+	var x0 = 24; var y0 = 20; var w = 34; var h = 20
 	carve(x0, y0, w, h); carve(x0 + 16, y0 - 2, 2, 2)
 	rooms.append(_room(x0, y0, w, h, true))
 	for j in range(y0 - 6, y0 + h + 2):
@@ -181,14 +181,14 @@ func gen_town() -> void:
 	seen.fill(1)
 	town = {x0 = x0, y0 = y0, w = w, h = h, pathX = x0 + 15, pathW = 4, crossY = y0 + 9}
 	gate = Vector2((x0 + 17) * T, (y0 - 1) * T)
-	var cx := (x0 + 17) * T
+	var cx = (x0 + 17) * T
 	obst.append({x = cx, y = (y0 + 10) * T, r = 44.0})
 	obst.append({x = (x0 + 26) * T, y = (y0 + 7.3) * T, r = 26.0})
 	decor.append({kind = "fountain", pos = Vector2(cx, (y0 + 10) * T)})
 	decor.append({kind = "stall", pos = Vector2((x0 + 26) * T, (y0 + 7.3) * T)})
 	const TREES := ["oak1", "oak2", "oak3", "oak4", "birch1", "birch3", "pine1", "pine2"]
 	for t in [[x0+3,y0+3],[x0+6,y0+15],[x0+30,y0+16],[x0+31,y0+3],[x0+3,y0+10],[x0+21,y0+17],[x0+9,y0+2]]:
-		var p := Vector2(t[0] * T, t[1] * T)
+		var p = Vector2(t[0] * T, t[1] * T)
 		decor.append({kind = "prop", p = TREES[hash2(t[0], t[1]) % TREES.size()], pos = p + Vector2(0, 8), s = rnd(.85, 1.2) * .95})
 		obst.append({x = p.x, y = p.y + 6, r = 12.0})
 	const PL := ["flower1", "flower2", "fern1", "leaf1", "grass1", "grass3"]
@@ -206,7 +206,7 @@ func gen_floor(fl: int, boss: bool) -> void:
 	_reset(); floor_no = fl
 	if boss:
 		boss_room = true
-		var w := 26; var h := 20; var x := MW / 2 - w / 2; var y := MH / 2 - h / 2
+		var w = 26; var h = 20; var x = MW / 2 - w / 2; var y = MH / 2 - h / 2
 		carve(x, y, w, h); rooms.append(_room(x, y, w, h, true))
 		for p in [[x+5,y+5],[x+w-7,y+5],[x+5,y+h-7],[x+w-7,y+h-7]]:
 			for j in 2:
@@ -215,26 +215,26 @@ func gen_floor(fl: int, boss: bool) -> void:
 			for i in range(x - 1, x + w + 1): seen[j * MW + i] = 1
 		start = Vector2((x + w / 2.0) * T, (y + h - 3) * T)
 	else:
-		var cols := 4; var rows := 3; var cw := (MW - 2) / cols; var ch := (MH - 2) / rows
+		var cols = 4; var rows = 3; var cw = (MW - 2) / cols; var ch = (MH - 2) / rows
 		var cells: Array = []
 		for gy in rows:
 			for gx in cols:
-				var w := ri(11, min(17, cw - 3)); var h := ri(8, min(14, ch - 3))
-				var x := 1 + gx * cw + ri(1, cw - w - 1); var y := 1 + gy * ch + ri(1, ch - h - 1)
+				var w = ri(11, min(17, cw - 3)); var h = ri(8, min(14, ch - 3))
+				var x = 1 + gx * cw + ri(1, cw - w - 1); var y = 1 + gy * ch + ri(1, ch - h - 1)
 				cells.append({id = cells.size(), gx = gx, gy = gy, on = true, room = _room(x, y, w, h)})
-		var at_c := func(gx, gy):
+		var at_c = func(gx, gy):
 			for c in cells:
 				if c.gx == gx and c.gy == gy and c.on: return c
 			return null
-		var nb := func(c) -> Array:
+		var nb = func(c) -> Array:
 			var out: Array = []
 			for dv in DIR4:
 				var n = at_c.call(c.gx + dv.x, c.gy + dv.y)
 				if n != null: out.append(n)
 			return out
-		var connected := func() -> bool:
+		var connected = func() -> bool:
 			var onl: Array = cells.filter(func(cc): return cc.on)
-			var sn := {onl[0].id: true}; var q: Array = [onl[0]]
+			var sn = {onl[0].id: true}; var q: Array = [onl[0]]
 			while q.size():
 				for n in nb.call(q.pop_back()):
 					if not sn.has(n.id):
@@ -247,7 +247,7 @@ func gen_floor(fl: int, boss: bool) -> void:
 			if not connected.call(): c.on = true
 		var on: Array = cells.filter(func(cc): return cc.on)
 		var start_c = pick(on)
-		var vis := {start_c.id: true}; var stack: Array = [start_c]; var edges: Array = []
+		var vis = {start_c.id: true}; var stack: Array = [start_c]; var edges: Array = []
 		while stack.size():
 			var c = stack[-1]
 			var opts: Array = nb.call(c).filter(func(n): return not vis.has(n.id))
@@ -258,7 +258,7 @@ func gen_floor(fl: int, boss: bool) -> void:
 		for c in on:
 			for n in nb.call(c):
 				if n.gx < c.gx or n.gy < c.gy: continue
-				var dup := false
+				var dup = false
 				for e in edges:
 					if (e[0].id == c.id and e[1].id == n.id) or (e[0].id == n.id and e[1].id == c.id):
 						dup = true
@@ -274,9 +274,9 @@ func gen_floor(fl: int, boss: bool) -> void:
 		var s: Dictionary = rooms[0]
 		start = Vector2(s.cx, s.cy); s.seen = true
 		build_flow(start.x, start.y)
-		var far: Dictionary = rooms[1]; var fd := -1
+		var far: Dictionary = rooms[1]; var fd = -1
 		for r in rooms:
-			var d := flow[int(floor(r.cy / T)) * MW + int(floor(r.cx / T))]
+			var d = flow[int(floor(r.cy / T)) * MW + int(floor(r.cx / T))]
 			if d > fd:
 				fd = d
 				far = r
@@ -294,9 +294,9 @@ func _decorate() -> void:
 				torches.append({pos = Vector2((tx + .5) * T, r.y * T), wall = true, lamp = false})
 		if not boss_room:
 			for k in ri(0, 3):
-				var p := Vector2((r.x + rnd(1.2, r.w - 1.2)) * T, (r.y + .75) * T)
+				var p = Vector2((r.x + rnd(1.2, r.w - 1.2)) * T, (r.y + .75) * T)
 				var pn: String = pick(PROPS)
-				var close := false
+				var close = false
 				for d in decor:
 					if d.kind == "prop" and absf(d.pos.x - p.x) < 40 and absf(d.pos.y - p.y) < 40: close = true
 				if close: continue
@@ -304,13 +304,13 @@ func _decorate() -> void:
 				if not pn.begins_with("chain"): obst.append({x = p.x, y = p.y, r = 10.0})
 		for k in ri(2, 6):
 			if randf() < .55:
-				var p := Vector2((r.x + rnd(1, r.w - 1)) * T, (r.y + rnd(1, r.h - 1)) * T)
+				var p = Vector2((r.x + rnd(1, r.w - 1)) * T, (r.y + rnd(1, r.h - 1)) * T)
 				decor.append({kind = "prop", p = BONES[hash2(int(p.x), int(p.y)) % BONES.size()], pos = p, s = .75})
 
 # 벽 칸의 테두리 비트: 1=북쪽이 바닥, 2=동, 4=남, 8=서. 바닥과 닿지 않은 벽은 -1
 func wall_bits(i: int, j: int) -> int:
 	if at(i, j) != 1: return -1
-	var near := false
+	var near = false
 	for dv in DIR8:
 		if at(i + dv.x, j + dv.y) == 0:
 			near = true
