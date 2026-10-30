@@ -67,23 +67,20 @@ jobs:
           ls -la godot/fonts
 
       - name: 가져오기(임포트)
-        run: godot --headless --path godot --import 2>&1 | tail -40
+        run: |
+          mkdir -p shots
+          godot --headless --path godot --import 2>&1 | tee shots/import.log | tail -40
 
       - name: 화면 확인용 스크린샷 · 성능
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libgl1-mesa-dri mesa-utils > /dev/null
-          mkdir -p shots
-          run() { timeout 120 xvfb-run -a -s "-screen 0 2340x1080x24" godot --path godot --rendering-driver opengl3 --resolution 2340x1080 -- "$@" 2>&1 | grep -v "^$" | tail -25; }
+          run() { timeout 120 xvfb-run -a -s "-screen 0 2340x1080x24" godot --path godot --rendering-driver opengl3 --resolution 2340x1080 -- "$@" 2>&1 | grep -v "^$" | tee -a shots/run.log | tail -25; }
           run --shot=$PWD/shots/town.png --seed=7
           run --shot=$PWD/shots/floor1.png --floor=1 --seed=7
           run --shot=$PWD/shots/floor5.png --floor=5 --seed=7
           run --bench --floor=2 --seed=3 || true
           ls -la shots
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: shots
-          path: shots
 
       - name: APK 만들기
         env:
@@ -92,9 +89,18 @@ jobs:
           GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD: towerpass
         run: |
           mkdir -p build
-          godot --headless --path godot --export-release "Android" ../build/apprentice-tower-godot.apk 2>&1 | tail -40
+          godot --headless --path godot --export-release "Android" ../build/apprentice-tower-godot.apk 2>&1 | tee shots/export.log | tail -40
           ls -la build
           cp build/apprentice-tower-godot.apk "apprentice-tower-godot-g0.${{ github.run_number }}.apk"
+
+      - name: 결과(스크린샷·로그)를 ci-out 가지에 올리기
+        if: always()
+        run: |
+          cd shots
+          git init -q && git checkout -q -b ci-out
+          git config user.name ci && git config user.email ci@example.com
+          git add -A && git commit -qm "run ${{ github.run_number }}"
+          git push -qf https://x-access-token:${{ github.token }}@github.com/${{ github.repository }} ci-out
 
       - uses: actions/upload-artifact@v4
         with:
