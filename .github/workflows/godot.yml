@@ -66,6 +66,12 @@ jobs:
           curl -sSLo godot/fonts/GowunBatang-Bold.ttf https://github.com/google/fonts/raw/main/ofl/gowunbatang/GowunBatang-Bold.ttf
           ls -la godot/fonts
 
+      - name: 버전 적기
+        run: |
+          echo "g0.${{ github.run_number }}" > godot/version.txt
+          sed -i "s/^version\/code=.*/version\/code=${{ github.run_number }}/; s/^version\/name=.*/version\/name=\"0.${{ github.run_number }}\"/" godot/export_presets.cfg
+          grep "version/" godot/export_presets.cfg
+
       - name: 가져오기(임포트)
         run: |
           mkdir -p shots
@@ -108,7 +114,7 @@ jobs:
           mkdir -p build
           godot --headless --path godot --export-release "Android" ../build/apprentice-tower-godot.apk 2>&1 | tee shots/export.log | tail -40
           ls -la build
-          cp build/apprentice-tower-godot.apk "apprentice-tower-godot-g0.${{ github.run_number }}.apk"
+          cp build/apprentice-tower-godot.apk apprentice-tower-godot.apk
 
       - name: 결과(스크린샷·로그)를 ci-out 가지에 올리기
         if: always()
@@ -123,14 +129,17 @@ jobs:
         if: steps.check.outputs.ok == 'true'
         with:
           name: godot-apk
-          path: apprentice-tower-godot-g0.*.apk
+          path: apprentice-tower-godot.apk
 
-      - name: 릴리스에 올리기(시험판)
+      - name: 릴리스에 올리기(항상 같은 파일 이름·같은 주소)
         if: steps.check.outputs.ok == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           MSG=$(git log -1 --pretty=%B)
-          gh release create "g0.${{ github.run_number }}" "apprentice-tower-godot-g0.${{ github.run_number }}.apk" \
-            --title "견습마법사의 탑 고도판 g0.${{ github.run_number }}" \
-            --notes "$MSG" --prerelease --latest=false
+          if ! gh release view godot-latest >/dev/null 2>&1; then
+            gh release create godot-latest --title "견습마법사의 탑 (고도판)" --notes "항상 최신 고도판" --prerelease --latest=false
+          fi
+          gh release upload godot-latest apprentice-tower-godot.apk --clobber
+          gh release edit godot-latest --title "견습마법사의 탑 (고도판) g0.${{ github.run_number }}" --notes "g0.${{ github.run_number }}
+          $MSG"

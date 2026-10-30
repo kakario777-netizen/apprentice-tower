@@ -240,6 +240,13 @@ func open_title() -> void:
 func _title_block() -> Control:
 	var v = VBoxContainer.new(); v.add_theme_constant_override("separation", 12); v.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	var e = label("마법학교 졸업 시험", 13, Color("#c9a3ff"), display); v.add_child(e)
+	var ver := "개발판"
+	if FileAccess.file_exists("res://version.txt"): ver = FileAccess.get_file_as_string("res://version.txt").strip_edges()
+	var vl = label("버전 %s" % ver, 12, Color(1, 1, 1, .55)); vl.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	vl.position = get_viewport().get_visible_rect().size - Vector2(110, 26); vl.name = "ver"
+	var oldv = root.get_node_or_null("ver")
+	if oldv: oldv.queue_free()
+	root.add_child(vl)
 	var t = label("견습마법사의 탑", 52, Color("#f6cf72"), display)
 	t.add_theme_color_override("font_outline_color", Color("#2a1606")); t.add_theme_constant_override("outline_size", 6)
 	t.add_theme_color_override("font_shadow_color", Color(.94, .75, .35, .35)); t.add_theme_constant_override("shadow_outline_size", 18); t.add_theme_constant_override("shadow_offset_x", 0); t.add_theme_constant_override("shadow_offset_y", 0)
@@ -265,6 +272,8 @@ func _title_block() -> Control:
 func _no_title_grad() -> void:
 	var g = root.get_node_or_null("tgrad")
 	if g: g.visible = false
+	var vv = root.get_node_or_null("ver")
+	if vv: vv.queue_free()
 
 func open_new() -> void:
 	_no_title_grad(); _begin("new")
