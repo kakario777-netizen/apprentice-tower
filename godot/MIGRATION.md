@@ -1,0 +1,28 @@
+# 고도(Godot) 이전 진행 기록
+
+웹(Canvas 2D) 버전 `www/index.html` 을 고도 4.5(GL Compatibility 렌더러)로 옮기는 작업.
+중간에 멈춰도 이 파일을 보고 이어서 하면 된다.
+
+## 원칙
+- 지금 웹 버전(`www/`, 워크플로 `build-apk.yml`, 릴리스 `v0.N`)은 이전이 끝날 때까지 건드리지 않는다.
+- 고도 버전은 `godot/` 폴더, 워크플로 `godot.yml`, 시험판 릴리스 `g0.N`(prerelease), 패키지 `com.kakario.apprenticetower.godot`(기존 앱과 따로 설치됨).
+- 그림은 빌드할 때 `www/assets` 를 `godot/assets` 로 복사해서 쓴다(저장소에 두 번 넣지 않음). 글꼴은 google/fonts 에서 받는다.
+- 단위: 1 = 타일 한 칸(웹 32px). 웹 좌표 (x, y) → 3D (x, 0, y). y 가 남쪽(카메라 쪽).
+- 카메라: 고도 40°에서 내려다봄, 거리 16.25, 세로 화각 37°. 세운 그림은 1/cos40° 만큼 키움(World.STAND).
+- 확인 방법: CI 가 xvfb 로 스크린샷(shots 아티팩트)과 FPS 측정(BENCH 줄)을 남긴다. `--shot=경로 --floor=N --seed=N --bench`.
+
+## 단계
+- [ ] 1단계: 뼈대·CI·APK, 마을/1~15층 맵 생성, 3D 바닥·벽·숲·소품·횃불 빛, 플레이어 8방향 이동(키보드·패드·터치 스틱), 계단/입구로 층 이동, FPS 표시
+- [ ] 2단계: 몬스터(meta.json 전부), AI(flow 길찾기), 마법 4계열 발사·충돌·피해 숫자, 경험치·레벨업, 체력/마나 HUD, 보스 3종
+- [ ] 3단계: 아이템·가방·장비·상점·NPC 대화, 스킬 트리 화면, 물약 벨트, 안개(시야), 미니맵, 효과(fx_* 스프라이트·파티클), 저장/불러오기, 난이도, 샌드박스, 패드 전체 조작
+- [ ] 4단계: 웹판과 화면·밸런스 비교, 성능 측정, 패키지 이름을 기존 앱과 같게 바꿔 교체
+
+## 웹 코드 위치(옮길 때 참고, www/index.html 줄번호는 v0.12 기준)
+- 데이터(몬스터·보스·마법·아이템): ~350–435
+- 맵 생성 genFloor/goTown/decorate: 527–660 → godot/scripts/mapgen.gd (완료)
+- 입력 readInput: ~1110–1170
+- update(전투·AI): 1511–1620
+- 그리기 draw*: 1624–2460 → world.gd / actor.gd 로 대체
+
+## 기록
+- 1단계 작성: mapgen.gd, world.gd, actor.gd, main.gd, hud.gd, stick_pad.gd

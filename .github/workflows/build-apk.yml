@@ -3,6 +3,9 @@ name: APK 빌드
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'godot/**'
+      - '.github/workflows/godot.yml'
   workflow_dispatch:
 
 permissions:
