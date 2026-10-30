@@ -1911,22 +1911,43 @@ function prepTiles(){
 let WL=new Int16Array(MW*MH).fill(-1);
 const WALLH=40, WALLH_S=14;
 function wallH(k){ return (WL[k]&1)?WALLH_S:WALLH; }   // 바닥이 위쪽에 있는 벽(방의 아래 테두리)은 낮게
-function drawWalls(x0,y0,x1,y1,front){
-  const town=!!G.town, wi=IMG.t_wall2, ti=IMG.t_top2;
-  if(!wi||!ti) return false;
-  const hh=town?24:WALLH;
-  for(let j=y0;j<=y1+2;j++)for(let i=x0;i<=x1;i++){ if(j<0||j>=MH) continue; const k=j*MW+i, w=WL[k]; if(w<0) continue;
-    const low=(w&1)!==0; if(low!==front) continue;
-    const h=town?(low?12:hh):wallH(k), x=i*T, y=j*T;
-    const below=j+1<MH?WL[k+MW]:-1, faceVis=below<0;
-    if(faceVis){
-      if(town){ if(IMG.t_hedge) X.drawImage(IMG.t_hedge,0,0,128,128,x,y+T-h,T+.5,h+.5); }
-      else X.drawImage(wi,(hash(i,j)%6)*128,0,128,160,x,y+T-h,T+.5,h+.5);
-    }
-    const rim=(w&1)|(w&2)|(faceVis?4:0)|(w&8);
-    if(town){ if(IMG.t_hedge) X.drawImage(IMG.t_hedge,128,0,128,128,x,y-h,T+.5,T+.5); }
-    else X.drawImage(ti,rim*128,0,128,128,x,y-h,T+.5,T+.5);
+// ---- 원근 2.5D 벽: 카메라가 캐릭터 남쪽 위에서 비스듬히 내려다보는 투영 ----
+// 높이 z인 점은 (p-C)*z/CAMH 만큼 화면 바깥쪽으로 밀려 보인다.
+const CAMH=270, CAMOFF=170, WALLZ=40, HEDGEZ=22;
+const ROTC={};
+function rotTex(img,key,n,w,h){ if(ROTC[key]) return ROTC[key]; const c=mkC(h,w*n), g=c.getContext('2d');
+  for(let v=0;v<n;v++){ g.setTransform(0,1,1,0,0,v*w); g.drawImage(img,v*w,0,w,h,0,0,w,h); } return ROTC[key]=c; }
+function drawWalls(x0,y0,x1,y1,front,camX,camY){
+  const town=!!G.town, wi=town?IMG.t_hedge:IMG.t_wall2, ti=town?IMG.t_hedge:IMG.t_top2;
+  if(!wi||!ti||!IMG.t_wall2) return false;
+  const Cx=camX+W/2/SC, Cy=camY+H/2/SC+CAMOFF, kh=(town?HEDGEZ:WALLZ)/CAMH, sc=1+kh;
+  const fw=128, fh=town?128:160, nv=town?1:6, R=rotTex(wi,town?'h':'w',nv,fw,fh);
+  const NS=town?3:5, dX=x=>(x-Cx)*kh, dY=y=>(y-Cy)*kh;
+  const py=P.y;
+  const face=[]; const tops=[];
+  for(let j=Math.max(0,y0-1);j<=Math.min(MH-1,y1+3);j++)for(let i=Math.max(0,x0-1);i<=Math.min(MW-1,x1+1);i++){
+    const k=j*MW+i, w=WL[k]; if(w<0) continue;
+    if(((j+.5)*T>py)!==front) continue;
+    const x=i*T, y=j*T, v=town?0:hash(i,j)%6, sx=v*fw+1;
+    // 남쪽 면 (카메라가 남쪽)
+    if((w&4)&&dY(y+T)<0){ const Y=y+T, dy=dY(Y), l=dX(x), r=dX(x+T);
+      for(let n=0;n<NS;n++){ const t0=n/NS,t1=(n+1)/NS,tm=(t0+t1)/2; X.drawImage(wi,sx,(1-t1)*fh,fw-2,fh/NS,x+l*tm,Y+dy*t1,T+(r-l)*tm,-dy/NS+.6); } }
+    // 북쪽 면 (방 아래 벽의 안쪽, 카메라보다 남쪽일 때)
+    if((w&1)&&dY(y)>0){ const Y=y, dy=dY(Y), l=dX(x), r=dX(x+T);
+      for(let n=0;n<NS;n++){ const t0=n/NS,t1=(n+1)/NS,tm=(t0+t1)/2; X.drawImage(wi,sx,(1-t1)*fh,fw-2,fh/NS,x+l*tm,Y+dy*t0,T+(r-l)*tm,dy/NS+.6); }
+      X.fillStyle='rgba(0,0,0,.25)'; X.beginPath(); X.moveTo(x,Y); X.lineTo(x+T,Y); X.lineTo(x+T+r,Y+dy); X.lineTo(x+l,Y+dy); X.fill(); }
+    // 서쪽 면 (카메라가 서쪽) / 동쪽 면 (카메라가 동쪽)
+    for(const side of [8,2]){ if(!(w&side)) continue; const Xe=side===8?x:x+T, dx=dX(Xe); if(side===8?dx<=0:dx>=0) continue;
+      const tY=dY(y), bY=dY(y+T);
+      for(let n=0;n<NS;n++){ const t0=n/NS,t1=(n+1)/NS,tm=(t0+t1)/2, xa=Xe+dx*t0, xb=Xe+dx*t1;
+        X.drawImage(R,(1-t1)*fh,v*fw+1,fh/NS,fw-2,Math.min(xa,xb)-.3,y+tY*tm,Math.abs(xb-xa)+.6,T+(bY-tY)*tm); }
+      X.fillStyle='rgba(0,0,0,.32)'; X.beginPath(); X.moveTo(Xe,y); X.lineTo(Xe,y+T); X.lineTo(Xe+dx,y+T+bY); X.lineTo(Xe+dx,y+tY); X.fill(); }
+    tops.push(i,j,w);
   }
+  for(let q=0;q<tops.length;q+=3){ const i=tops[q], j=tops[q+1], w=tops[q+2], x=i*T, y=j*T;
+    const tx=x+dX(x), ty=y+dY(y);
+    if(town) X.drawImage(ti,130,2,124,124,tx,ty,T*sc+.6,T*sc+.6);
+    else X.drawImage(ti,(w&15)*128+2,2,124,124,tx,ty,T*sc+.6,T*sc+.6); }
   return true;
 }
 
@@ -1951,7 +1972,8 @@ function makeLayers(){
 }
 function updFog(){
   const img=FX.createImageData(MW,MH), d=img.data;
-  for(let k=0;k<MW*MH;k++){ const o=k*4; d[o]=4; d[o+1]=3; d[o+2]=8; const up=(k+MW<MW*MH&&seenT[k+MW]&&map[k+MW]===1)||(k+2*MW<MW*MH&&seenT[k+2*MW]&&map[k+2*MW]===1&&map[k+MW]===1); d[o+3]=(seenT[k]||up)?0:255; }
+  const WSEEN=new Uint8Array(MW*MH); for(let k=0;k<MW*MH;k++){ if(!seenT[k]||map[k]!==1) continue; const ci=k%MW, cj=(k/MW)|0; for(let b=-2;b<=2;b++)for(let a=-2;a<=2;a++){ const ii=ci+a, jj=cj+b; if(ii>=0&&jj>=0&&ii<MW&&jj<MH) WSEEN[jj*MW+ii]=1; } }
+  for(let k=0;k<MW*MH;k++){ const o=k*4; d[o]=4; d[o+1]=3; d[o+2]=8; d[o+3]=(seenT[k]||(map[k]===1&&WSEEN[k]))?0:255; }
   FX.putImageData(img,0,0);
 }
 
@@ -2008,7 +2030,7 @@ function draw(){
   worldTf(X,camX,camY);
   const x0=Math.max(0,Math.floor(camX/T)-1), y0=Math.max(0,Math.floor(camY/T)-1), x1=Math.min(MW-1,Math.ceil((camX+W/SC)/T)+1), y1=Math.min(MH-1,Math.ceil((camY+H/SC)/T)+1);
   drawTiles(x0,y0,x1,y1);
-  const W25=drawWalls(x0,y0,x1,y1,false);
+  const W25=drawWalls(x0,y0,x1,y1,false,camX,camY);
   if(!G.town){ X.globalCompositeOperation='lighter'; glow(X,P.x,P.y+4,120,'#fff',.07); glow(X,P.x,P.y+4,50,'#fff',.06); X.globalCompositeOperation='source-over'; }
   const vis=(x,y)=>seenT[Math.floor(y/T)*MW+Math.floor(x/T)];
   // ---- 바닥 장식 ----
@@ -2103,7 +2125,7 @@ function draw(){
   drawPlayer();
   for(const d of G.decor||[]){ if(d.kind!=='tree') continue; drawTree(d); }
   X=X0;
-  if(W25){ worldTf(X,camX,camY); drawWalls(x0,y0,x1,y1,true); }
+  if(W25){ worldTf(X,camX,camY); drawWalls(x0,y0,x1,y1,true,camX,camY); }
   // 외곽선 합성
   SX.setTransform(1,0,0,1,0,0); SX.globalCompositeOperation='source-over'; SX.clearRect(0,0,SIL.width,SIL.height); SX.drawImage(ENT,0,0); SX.globalCompositeOperation='source-in'; SX.fillStyle='rgba(6,4,10,.92)'; SX.fillRect(0,0,SIL.width,SIL.height); SX.globalCompositeOperation='source-over';
   X.setTransform(1,0,0,1,0,0); const o=Math.max(1,Math.round(1.1*DPR*SC));
