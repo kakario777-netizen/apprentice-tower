@@ -38,4 +38,4 @@ texture={
 }
 
 [gui]
-theme/custom_font="res://fonts/GowunDodum-Regular.ttf"
+theme/custom_font="res://font_d/DSerif-Medium.ttf"

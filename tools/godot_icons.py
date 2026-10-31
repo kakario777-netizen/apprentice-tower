@@ -21,8 +21,9 @@ FUS = ['arcane+fire', 'fire+storm', 'fire+frost', 'arcane+storm', 'arcane+frost'
 FUSC = {'arcane+fire': '#ffa24a', 'fire+storm': '#ffc35a', 'fire+frost': '#f4f1ea', 'arcane+storm': '#9fe8ff', 'arcane+frost': '#bfe9ff', 'frost+storm': '#d9f6ff'}
 DIFF = {'easy': ('#7fb2ff', 1), 'norm': ('#e3b04b', 2), 'hard': ('#ff6a5a', 3)}
 ITEMI = {'pothp': 64, 'potmp': 65, 'scroll': 72}
-GEARI = {'staff': [104, 106, 105], 'wand': [107, 107, 107], 'ring': [198, 204, 207], 'cloak': [136, 184, 192], 'amulet': [214, 212, 213], 'belt': [208, 208, 208], 'boots': [132, 148, 176]}
-RARC = {'magic': '#6f9cff', 'rare': '#ffd76a', 'epic': '#ff9a3a'}
+GEARI = {'staff': [104, 106, 105], 'wand': [107, 107, 107], 'sceptre': [111, 110, 103], 'ring': [198, 204, 207], 'cloak': [136, 184, 192], 'robe': [137, 185, 193], 'amulet': [214, 212, 213], 'gloves': [130, 146, 162], 'belt': [208, 208, 208], 'boots': [132, 148, 176]}
+RARC = {'normal': '#e8e2d4', 'magic': '#6f9cff', 'rare': '#ffe066', 'set': '#4fe06a', 'unique': '#d8a35a'}
+RARI = {'normal': 0, 'magic': 0, 'rare': 1, 'set': 1, 'unique': 2}
 
 def rgb(h): h = h.lstrip('#'); return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
 
@@ -115,11 +116,11 @@ def icon64(n): return ICO.crop(((n % 8) * 64, (n >> 3) * 64, (n % 8) * 64 + 64, 
 for iid, n in ITEMI.items():
     c = Image.new('RGBA', (128, 128), (0, 0, 0, 0)); place(c, icon64(n), 64, 64, 112, '#ffd696'); save(c, 'item_' + iid)
 for gid, ns in GEARI.items():
-    for ri, rar in enumerate(['magic', 'rare', 'epic']):
+    for rar, ri in RARI.items():
         c, k = base(RARC[rar], True, 128)
         place(c, icon64(ns[ri]), 64, 64, 100, None); save(c, 'gear_%s_%s' % (gid, rar))
 # 빈 칸 표시(흐린 윤곽)
-for slot, n in {'amulet': 214, 'weapon': 104, 'cloak': 136, 'ring': 198, 'belt': 208, 'boots': 148}.items():
+for slot, n in {'amulet': 214, 'weapon': 104, 'cloak': 136, 'ring': 198, 'belt': 208, 'boots': 148, 'gloves': 130}.items():
     ic = icon64(n); a = ic.split()[3].point(lambda v: int(v * .22)); g = Image.new('RGBA', ic.size, (220, 210, 240, 0)); g.putalpha(a)
     c = Image.new('RGBA', (128, 128), (0, 0, 0, 0)); c.alpha_composite(g.resize((100, 100), Image.LANCZOS), (14, 14)); save(c, 'slot_' + slot)
 c = Image.new('RGBA', (128, 128), (0, 0, 0, 0)); place(c, glyph_img(30, '#f0e0c0'), 64, 64, 118, '#ffdca0'); save(c, 'bag')

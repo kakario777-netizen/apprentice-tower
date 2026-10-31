@@ -61,10 +61,7 @@ jobs:
       - name: 그림·글꼴 넣기
         run: |
           cp -r www/assets godot/assets
-          mkdir -p godot/fonts
-          curl -sSLo godot/fonts/GowunDodum-Regular.ttf https://github.com/google/fonts/raw/main/ofl/gowundodum/GowunDodum-Regular.ttf
-          curl -sSLo godot/fonts/GowunBatang-Bold.ttf https://github.com/google/fonts/raw/main/ofl/gowunbatang/GowunBatang-Bold.ttf
-          ls -la godot/fonts
+          ls -la godot/font_d
 
       - name: 버전 적기
         run: |

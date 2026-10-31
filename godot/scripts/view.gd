@@ -35,6 +35,7 @@ var tip_core: MeshInstance3D
 var tip_light: OmniLight3D
 var tip_a := 0.0
 var tip3 := Vector3()
+var shot_h := 1.3          # 내 탄이 나는 높이 = 스태프 끝 높이
 
 static var _dot_tex: Texture2D
 static func dot_tex() -> Texture2D:
@@ -209,7 +210,8 @@ func sync(dt: float) -> void:
 	# 마을 사람
 	for n in G.npcs:
 		if not npcs.has(n.id):
-			var a = Actor.new(); add_child(a); a.setup(n.id, 46); npcs[n.id] = a
+			var a = Actor.new(); add_child(a); a.setup(n.get("spr", n.id), 46); npcs[n.id] = a
+			if n.has("tint"): a.spr.modulate = Color(n.tint).lerp(Color.WHITE, .45)
 		var a: Actor = npcs[n.id]
 		a.position = w3(n.x, n.y + 13); a.face = atan2(P.y - n.y, P.x - n.x); a.at = G.time + n.x; a.tick(0)
 	# 적
@@ -218,6 +220,10 @@ func sync(dt: float) -> void:
 		live[e.id] = true
 		if not enemies.has(e.id):
 			var a = Actor.new(); add_child(a); a.setup(Game.spr_name(e), Game.enemy_h(e)); enemies[e.id] = a
+			if e.get("elite", false):
+				# 유니크 몬스터: 몸 주위로 제 색 빛
+				var ec := Color(e.tint)
+				_glow(a, Color(ec, .5), 2.8, Vector3(0, .9, -.2)); _light(a, Vector3(0, 1.2, .6), ec, 4.0, 2.2)
 		var a: Actor = enemies[e.id]
 		var vis = mg.is_seen(e.x, e.y)
 		a.visible = vis
@@ -229,7 +235,7 @@ func sync(dt: float) -> void:
 		if e.d.has("hidden"):
 			var dp = Game.hyp(P.x - e.x, P.y - e.y)
 			alpha = 1.0 if dp < 110 else (.35 if dp < 170 else .06)
-		var c = Color(e.d.tint) if e.d.has("tint") else Color.WHITE
+		var c = Color(e.tint).lerp(Color.WHITE, .25) * 1.15 if e.get("elite", false) else (Color(e.d.tint) if e.d.has("tint") else Color.WHITE)
 		if e.flash > 0: c = Color(2.4, 2.4, 2.4)
 		elif e.frozenT > 0: c = Color(.62, .86, 1.35)
 		elif e.shield > 0: c = Color(.85, .9, 1.2)
@@ -321,6 +327,7 @@ func _staff_tip(P, G, dt: float) -> void:
 	var ps: float = player.spr.pixel_size
 	var pos := player.position + Vector3(t[0] * ps, -t[1] * ps, .08)
 	tip3 = pos
+	shot_h = clamp(pos.y + .1, 1.3, 1.9); game.shot_h = shot_h
 	if not vis: return
 	var col := Color(game.act_color())
 	var pulse := .8 + .2 * sin(G.time * 18.0) + .1 * sin(G.time * 31.0)
@@ -349,8 +356,9 @@ func _ward(P, G) -> void:
 		harden_q.position = w3(P.x, P.y + 2, .95) + Vector3(0, 0, .06); harden_q.visible = true
 	else: harden_q.visible = false
 
-const LOOT := {gold = "loot_coins", pothp = "loot_hp", potmp = "loot_mp", scroll = "loot_scroll", hp = "", mp = ""}
-const GEAR := {staff = "loot_staff", wand = "loot_wand", ring = "loot_ring", cloak = "loot_cloak"}
+const LOOT := {gold = "loot_coins", pothp = "loot_hp", potmp = "loot_mp", scroll = "loot_scroll", stone = "loot_gem", hp = "", mp = ""}
+const GEAR := {staff = "loot_staff", wand = "loot_wand", sceptre = "loot_staff", ring = "loot_ring", amulet = "loot_ring", cloak = "loot_cloak", robe = "loot_cloak", gloves = "loot_cloak", belt = "loot_ring", boots = "loot_cloak"}
+static func _lname(d) -> String: return GEAR.get(d.it.base, "loot_cloak") if d.kind == "item" else LOOT.get(d.kind, "")
 
 func _sync_drops(G, P) -> void:
 	var live = {}
@@ -365,7 +373,7 @@ func _sync_drops(G, P) -> void:
 		live[d.id] = true
 		if not drops.has(d.id):
 			var n = Node3D.new(); add_child(n); drops[d.id] = n
-			var ln: String = GEAR[d.it.base] if d.kind == "item" else LOOT.get(d.kind, "")
+			var ln: String = _lname(d)
 			if ln != "" and M.has(ln):
 				var m: Dictionary = M[ln]
 				var tw: float = 14.0 if d.kind == "gold" else (((12.0 if d.it.base == "ring" else 22.0)) if d.kind == "item" else 14.0)
@@ -378,12 +386,14 @@ func _sync_drops(G, P) -> void:
 				sm.albedo_texture = World.glow_tex(); sm.albedo_color = Color(0, 0, 0, .45); sh.material_override = sm; sh.position = Vector3(0, .02, 3 * S); n.add_child(sh)
 			if d.kind == "item":
 				var col = Color(D.RAR[d.it.rar].color)
-				var beam = MeshInstance3D.new(); var bq = QuadMesh.new(); bq.size = Vector2((14.0 if d.it.rar == "epic" else 10.0) * S, 90 * UP); beam.mesh = bq
-				var g = Gradient.new(); g.set_color(0, Color(col, .5 if d.it.rar != "magic" else .3)); g.set_color(1, Color(col, 0))
+				var beam = MeshInstance3D.new(); var bq = QuadMesh.new(); bq.size = Vector2((14.0 if d.it.rar in ["unique", "set"] else 10.0) * S, 90 * UP); beam.mesh = bq
+				var g = Gradient.new(); g.set_color(0, Color(col, .3 if d.it.rar in ["magic", "normal"] else .55)); g.set_color(1, Color(col, 0))
 				var gt = GradientTexture2D.new(); gt.gradient = g; gt.fill_from = Vector2(0, 1); gt.fill_to = Vector2(0, 0); gt.width = 8; gt.height = 64
 				var bm = StandardMaterial3D.new(); bm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; bm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 				bm.blend_mode = BaseMaterial3D.BLEND_MODE_ADD; bm.albedo_texture = gt; beam.material_override = bm; beam.position = Vector3(0, 45 * UP, 0); n.add_child(beam)
 				_glow(n, Color(col, .5), 44 * S * 1.4, Vector3(0, .15, 0))
+			elif d.kind == "stone":
+				_glow(n, Color(.6, .85, 1, .7), 30 * S * 1.4, Vector3(0, .2, 0))
 			elif d.kind == "hp" or d.kind == "mp":
 				var col = Color("#ff4a5a") if d.kind == "hp" else Color("#5a8cff")
 				_glow(n, Color(col, .7), 32 * S * 1.4, Vector3(0, .3, 0))
@@ -402,7 +412,7 @@ func _sync_drops(G, P) -> void:
 
 func _drop_base(d, M) -> float:
 	if d.kind == "hp" or d.kind == "mp": return .3
-	var ln: String = GEAR[d.it.base] if d.kind == "item" else LOOT.get(d.kind, "")
+	var ln: String = _lname(d)
 	if not M.has(ln): return .3
 	var m: Dictionary = M[ln]
 	var tw: float = 14.0 if d.kind == "gold" else (((12.0 if d.it.base == "ring" else 22.0)) if d.kind == "item" else 14.0)
@@ -442,7 +452,7 @@ func _sync_fx(G, P) -> void:
 		elif z.kind == "acid": glow.append([z.x, z.y - 34, z.r * .9, Color(Color("#5a7a4a"), .35 * a)])
 		elif z.kind == "stasis": glow.append([z.x, z.y, z.r * .9, Color(Color("#9a70ff"), .18 * a)])
 	# 탄 빛
-	for s in G.shots: glow.append([s.x, s.y, s.r * 4, Color(Color(s.color), .5), .9])
+	for s in G.shots: glow.append([s.x, s.y, s.r * 4, Color(Color(s.color), .5), shot_h])
 	for s in G.eshots:
 		if s.kind == "arrow": continue
 		var col = Color({ice = "#9fd0ff", poison = "#8fd14f", fire = "#ff6a2a", skull = "#b77bff", spit = "#d98a9a"}.get(s.kind, "#ffffff"))
@@ -458,7 +468,7 @@ func _sync_fx(G, P) -> void:
 	var li = 0
 	for s in G.shots:
 		if li >= shot_lights.size(): break
-		var L: OmniLight3D = shot_lights[li]; L.visible = true; L.light_color = Color(s.color); L.light_energy = 1.2; L.position = w3(s.x, s.y, .8); li += 1
+		var L: OmniLight3D = shot_lights[li]; L.visible = true; L.light_color = Color(s.color); L.light_energy = 1.2; L.position = w3(s.x, s.y, shot_h); li += 1
 	while li < shot_lights.size():
 		shot_lights[li].visible = false; li += 1
 
@@ -474,6 +484,7 @@ func _sync_sprite_fx(G) -> void:
 		var fr: int = min(A.frames - 1, int(a.t / a.life * A.frames)); var k: float = a.size / max(m.cw, m.ch)
 		var al: float = max(0.0, 1 - (a.t - a.life * .7) / (a.life * .3)) if a.t > a.life * .7 else 1.0
 		addf.call(a.name, a.x, a.y, m.cw * k, m.ch * k, a.rot, fr, A.frames, al, (m.cw / 2.0 - m.anchor[0]) * k, (m.ch / 2.0 - m.anchor[1]) * k)
+		if a.has("h"): lists[a.name][-1].append(a.h)
 	for z in G.zones:
 		if z.kind == "stasis" and M.has("fx_runes"):
 			var m: Dictionary = M.fx_runes; var A: Dictionary = m.anims.idle
@@ -488,7 +499,7 @@ func _sync_sprite_fx(G) -> void:
 		var rot_ = (sn == "fx_fireball" or sn == "fx_icicle")
 		var ang: float = atan2(s.vy, s.vx) + PI if rot_ else 0.0
 		addf.call(sn, s.x, s.y, m.cw * k, m.ch * k, ang, fr, A.frames, 1.0, m.cw * k * (.25 if rot_ else 0.0), 0.0)
-		lists[sn][-1].append(.9)
+		lists[sn][-1].append(shot_h)
 	for s in G.eshots:
 		var sn: String = {ice = "fx_spark_blue", poison = "fx_spark_green", skull = "fx_spark_red", fire = "fx_fireball", spit = "fx_spark_green"}.get(s.kind, "")
 		if sn == "" or not M.has(sn): continue
@@ -569,7 +580,7 @@ func _sync_lines(G, P) -> void:
 	for b in G.bolts:
 		var c = Color(b.color)
 		var p3: Array = []
-		for p in b.pts: p3.append(w3(p.x, p.y, .9))
+		for p in b.pts: p3.append(w3(p.x, p.y, shot_h))
 		if b.get("from_p", 0) or b.has("beam"): p3[0] = tip3
 		if b.has("beam"):
 			_line3(lines_add, p3, 24, Color(c, .25)); _line3(lines_add, p3, 11, Color(c, .6)); _line3(lines_add, p3, 4, Color(1, 1, 1, .9))

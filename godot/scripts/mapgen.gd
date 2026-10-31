@@ -195,6 +195,11 @@ func gen_town() -> void:
 	var fountain := Vector2(cx * T, (cy + 1) * T)
 	var shop := Vector2((cx + 11) * T, (cy - 4) * T)
 	var guide := Vector2((cx - 10) * T, (cy + 5) * T)
+	var smith := Vector2((cx - 11) * T, (cy - 4) * T)     # 서쪽 마법진 위 강화 교수
+	# 마법진 둘레는 늘 탁 트인 공터로(숲에 묻히지 않게)
+	for jj in range(cy - 9, cy + 1):
+		for ii in range(cx - 16, cx - 6):
+			if Vector2(ii + .5, jj + .5).distance_to(smith / T) < 3.6: map[jj * MW + ii] = 0
 	start = Vector2(cx * T, (cy + 9) * T)
 	# 흙길: 문→분수, 분수→상점, 분수→루멘 교수, 분수→남쪽 시작점, 상점↔루멘 교수 바깥 고리
 	var path := PackedByteArray(); path.resize(MW * MH); path.fill(0)
@@ -213,15 +218,17 @@ func gen_town() -> void:
 	curve.call(fountain, guide + Vector2(20, -10), rnd(-4, 4), 1.3)
 	curve.call(fountain, start + Vector2(0, 40), rnd(-3, 3), 1.4)
 	curve.call(shop + Vector2(0, 40), guide + Vector2(40, 30), rnd(5, 8), 1.0)
+	curve.call(fountain, smith + Vector2(40, 10), rnd(-3, 3), 1.2)
 	# 분수 둘레 광장
 	for jj in range(cy - 4, cy + 6):
 		for ii in range(cx - 4, cx + 5):
 			if Vector2(ii + .5, jj + .5).distance_to(fountain / T) < 4.2: path[jj * MW + ii] = 1
-	town = {x0 = x0, y0 = y0, w = w, h = h, path = path, cx = cx, cy = cy, guide = guide, shop = shop}
+	town = {x0 = x0, y0 = y0, w = w, h = h, path = path, cx = cx, cy = cy, guide = guide, shop = shop, smith = smith}
 	obst.append({x = fountain.x, y = fountain.y, r = 44.0})
 	obst.append({x = shop.x, y = shop.y + 10, r = 26.0})
 	decor.append({kind = "fountain", pos = fountain})
 	decor.append({kind = "stall", pos = shop + Vector2(0, 10)})
+	decor.append({kind = "circle", pos = smith + Vector2(0, 14)})
 	# 나무·덤불·꽃: 길이 아닌 곳에 자연스럽게
 	const TREES := ["oak1", "oak2", "oak3", "oak4", "birch1", "birch3", "pine1", "pine2"]
 	var placed := 0; var tries := 0
@@ -230,7 +237,7 @@ func gen_town() -> void:
 		var ti := ri(x0 + 2, x0 + w - 3); var tj := ri(y0 + 3, y0 + h - 3)
 		if at(ti, tj) != 0 or path[tj * MW + ti] or at(ti, tj + 1) != 0: continue
 		var p := Vector2((ti + .5) * T, (tj + .5) * T)
-		if p.distance_to(fountain) < 150 or p.distance_to(shop) < 90 or p.distance_to(guide) < 90 or p.distance_to(start) < 80 or p.distance_to(gate) < 120: continue
+		if p.distance_to(fountain) < 150 or p.distance_to(shop) < 90 or p.distance_to(guide) < 90 or p.distance_to(smith) < 110 or p.distance_to(start) < 80 or p.distance_to(gate) < 120: continue
 		var far := true
 		for o in obst:
 			if Vector2(o.x, o.y).distance_to(p) < 70: far = false

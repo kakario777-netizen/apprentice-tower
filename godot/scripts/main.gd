@@ -19,6 +19,8 @@ var title_t := 0.0
 var pad_swap := false
 var quality := 1.0
 var show_fps := false
+var autosave_min := 5          # 자동 저장 간격(분): 5 · 10 · 15 · 30
+var autosave_t := 0.0
 var pad_prev := {}
 var pad_was := false
 var last_town := false
@@ -61,6 +63,7 @@ func _ready() -> void:
 	hud = Hud.new(); hud.main = self; hud.game = game; hud.cam = cam; add_child(hud)
 	ui = Ui.new(); ui.main = self; ui.game = game; add_child(ui)
 	game.toast.connect(hud.show_toast)
+	game.saved.connect(hud.show_saving)
 	game.ui.connect(_on_ui)
 	game.rumble.connect(_rumble)
 	# 타이틀: 마을 장면을 배경으로
@@ -112,17 +115,20 @@ func _rebuild_level() -> void:
 	cam.position = Vector3()   # 다음 프레임에 바로 따라붙도록
 
 # ---------------- 메뉴에서 부르는 것 ----------------
-func new_game(diff: String) -> void:
-	ui.hide_all(); game.new_game(diff); hud.build_buttons()
-func continue_game() -> void:
-	var sv = Game.read_save()
+func new_game(diff: String, slot_i := -1) -> void:
+	if slot_i < 0: slot_i = max(0, Game.free_slot())
+	ui.hide_all(); game.new_game(diff, slot_i); hud.build_buttons(); autosave_t = 0.0
+func continue_game(slot_i := -1) -> void:
+	if slot_i < 0: slot_i = Game.latest_slot()
+	if slot_i < 0: return
+	var sv = Game.read_slot(slot_i)
 	if sv != null:
-		ui.hide_all(); game.load_game(sv); hud.build_buttons()
+		ui.hide_all(); game.load_game(sv, slot_i); hud.build_buttons(); autosave_t = 0.0
 func sand_start() -> void:
 	ui.hide_all(); game.sand_start(); hud.build_buttons(); ui.open_sand()
 func open_pause() -> void:
 	if game.G == null or game.G.state != "play": return
-	game.set_state("pause"); ui.open_pause()
+	game.set_state("pause"); ui.open_pause(); game.save()
 func resume() -> void:
 	ui.hide_all(); game.set_state("play"); hud.build_buttons()
 func to_title(do_save := true) -> void:
@@ -140,7 +146,7 @@ func try_talk() -> void:
 	if n != null and game.G.state == "play": ui.open_talk(n)
 func save_settings() -> void:
 	var cfg = ConfigFile.new(); cfg.set_value("pad", "swap", pad_swap)
-	cfg.set_value("gfx", "quality", quality); cfg.set_value("gfx", "fps", show_fps); cfg.save(SETTINGS)
+	cfg.set_value("gfx", "quality", quality); cfg.set_value("gfx", "fps", show_fps); cfg.set_value("game", "autosave", autosave_min); cfg.save(SETTINGS)
 
 func set_quality(q: float) -> void:
 	quality = q; get_viewport().scaling_3d_scale = q; save_settings()
@@ -300,6 +306,9 @@ func _process(dt: float) -> void:
 	if G != null and G.state == "play":
 		_read_input(st)
 		game.update(dt)
+		autosave_t += dt
+		if autosave_t >= autosave_min * 60.0:
+			autosave_t = 0.0; game.save()
 	elif G != null and G.state == "title":
 		title_t += dt
 	if game.level_changed: _rebuild_level()
@@ -336,7 +345,7 @@ func _test_setup() -> void:
 	P.prim.fire = 3; P.prim.arcane = 2; P.active = "fire"
 	P.sec.ward = 1; P.secOrder.append("ward"); P.sec.nova = 1; P.secOrder.append("nova")
 	P.lv = 6; P.next = Game.xp_need(6); game.recalc()
-	P.bag.append(game.make_item("rare", 3)); P.bag.append(game.make_item("epic", 5)); P.bag.append(game.make_item("magic", 2))
+	P.bag.append(game.make_item("rare", 3)); P.bag.append(game.make_item("unique", 5)); P.bag.append(game.make_item("magic", 2))
 	if test_floor > 0:
 		game.G.resume = test_floor; game.enter_tower()
 		var r: Dictionary = game.mg.rooms[0]
@@ -404,13 +413,21 @@ func _run_samples() -> void:
 	P.prim.fire = 3; P.prim.arcane = 2; P.active = "fire"
 	P.sec.ward = 1; P.secOrder.append("ward"); P.sec.nova = 1; P.secOrder.append("nova")
 	P.lv = 6; P.next = Game.xp_need(6); game.recalc()
-	for r in ["rare", "epic", "magic", "rare", "magic"]: P.bag.append(game.make_item(r, 3))
-	game.G.gold = 2600; P.eq.amulet = game.make_item("rare", 4, "amulet"); P.eq.boots = game.make_item("magic", 4, "boots"); P.eq.weapon = game.make_item("epic", 4, "staff")
+	for r in ["rare", "unique", "set", "magic", "normal"]: P.bag.append(game.make_item(r, 3))
+	game.G.gold = 26000; P.stones = 6
+	P.eq.amulet = game.make_item("set", 4, "amulet"); P.eq.boots = game.make_item("set", 4, "boots"); P.eq.weapon = game.make_item("unique", 4, "staff"); P.eq.weapon.enh = 3
+	P.eq.gloves = game.make_item("rare", 4, "gloves"); game.recalc()
 	hud.build_buttons()
 	await _frames(10)
 	P.x = game.G.npcs[0].x + 40; P.y = game.G.npcs[0].y + 30
 	await _frames(12); await _snap("2_town")
 	ui.open_talk(game.G.npcs[1]); await _frames(4); await _snap("3_shop"); ui.close_talk()
+	P.x = game.G.npcs[2].x + 30; P.y = game.G.npcs[2].y + 40; await _frames(10); await _snap("3a_smith")
+	ui.open_talk(game.G.npcs[2]); ui.enh_sel = ui._enh_items()[0]; ui._render_enhance(); await _frames(4); await _snap("3b_enhance"); ui.close_talk()
+	ui.open_slots(false); await _frames(4); await _snap("3c_slots"); ui.hide_all(); game.set_state("play")
+	var keep = P.prim.duplicate()
+	for k in P.prim.keys(): P.prim[k] = 0
+	game.set_state("first"); await _frames(4); await _snap("3d_first"); ui.hide_all(); P.prim = keep; P.active = "fire"; game.set_state("play")
 	game.G.resume = 1; game.enter_tower(); await _frames(3)
 	var r0: Dictionary = game.mg.rooms[0]; P.x = r0.cx; P.y = r0.cy
 	var n := 0
@@ -419,9 +436,15 @@ func _run_samples() -> void:
 			e.x = P.x - 150 + n * 60; e.y = P.y - 80 + (n % 2) * 50; e.aggro = true; n += 1
 	game.mg.reveal(P.x, P.y); game.mg.dirty = true
 	await _frames(4); game.cast_sec("ward"); await _fight(26); await _snap("4_fight")
+	var el = game.spawn_elite("skel_knight", P.x + 90, P.y - 40); el.aggro = true; await _frames(6); await _snap("4b_elite")
 	game.cast_sec("nova"); await _frames(6); await _snap("5_nova")
 	game.G.pendingLv = 1; game.set_state("levelup"); ui.open_level(); await _frames(4); await _snap("6_levelup"); ui.hide_all(); game.G.pendingLv = 0; game.set_state("play")
-	ui.open_bag(); ui.bag_sel = {from = "bag", i = 0}; ui._render_bag(); await _frames(4); await _snap("7_bag"); ui.close_bag()
+	ui.open_bag(); ui.bag_sel = {from = "bag", i = 2}; ui._render_bag(); await _frames(4); await _snap("7_bag"); ui.close_bag()
+	ui.open_bag(); ui.bag_sel = {from = "eq", slot = "weapon"}; ui._render_bag(); await _frames(4); await _snap("7a_bag_unique"); ui.close_bag()
+	# 포탈: 그 자리에 열고 → 마을 → 마을 포탈로 다시 그 자리
+	game.G.enemies = []; game.use_pot("scroll"); await _frames(8); await _snap("8a_portal")
+	P.x = game.G.portal.x; P.y = game.G.portal.y; await _frames(6); await _snap("8b_town_portal")
+	P.x = game.G.portal.x; P.y = game.G.portal.y; await _frames(6); await _snap("8c_back")
 	game.G.killsBy = {skel = 12, zombie = 5, archer = 3}
 	ui.open_tab("stats"); await _frames(4); await _snap("7b_stats")
 	ui.open_tab("record"); await _frames(4); await _snap("7c_record")

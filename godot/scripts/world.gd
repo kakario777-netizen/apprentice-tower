@@ -241,6 +241,50 @@ func _build_props() -> void:
 			add_prop("fountain", d.pos, 1.0)
 		elif d.kind == "stall":
 			add_prop("stall", d.pos, 1.0); add_prop("barrel1", d.pos + Vector2(44, 10), .8); add_prop("crate2", d.pos + Vector2(-46, 8), .7)
+		elif d.kind == "circle": _magic_circle(d.pos)
+
+# 강화 교수가 서 있는 바닥 마법진(천천히 도는 푸른 룬 고리)
+static var _circle_tex: ImageTexture
+static func circle_tex() -> ImageTexture:
+	if _circle_tex != null: return _circle_tex
+	var N := 256; var img := Image.create(N, N, false, Image.FORMAT_RGBA8); img.fill(Color(0, 0, 0, 0))
+	var c := Vector2(N / 2.0, N / 2.0)
+	var dot := func(p: Vector2, a: float):
+		var x := int(p.x); var y := int(p.y)
+		for oy in range(-1, 2):
+			for ox in range(-1, 2):
+				if x + ox < 0 or y + oy < 0 or x + ox >= N or y + oy >= N: continue
+				var cur: Color = img.get_pixel(x + ox, y + oy)
+				var k: float = a * (1.0 if ox == 0 and oy == 0 else .35)
+				img.set_pixel(x + ox, y + oy, Color(1, 1, 1, min(1.0, cur.a + k)))
+	for r in [122.0, 114.0, 72.0, 64.0]:
+		for i in int(r * 7):
+			var t: float = i / (r * 7.0) * TAU; dot.call(c + Vector2(cos(t), sin(t)) * r, .9)
+	# 육망성
+	for tri in 2:
+		var pts: Array = []
+		for k in 3: pts.append(c + Vector2.from_angle(tri * PI / 3 + k * TAU / 3 - PI / 2) * 112)
+		for k in 3:
+			var a: Vector2 = pts[k]; var b: Vector2 = pts[(k + 1) % 3]
+			for i in 160: dot.call(a.lerp(b, i / 159.0), .8)
+	# 룬 눈금
+	for i in 24:
+		var t := i / 24.0 * TAU
+		for d in range(80, 106, 2):
+			if i % 2 == 0 or d < 94: dot.call(c + Vector2(cos(t), sin(t)) * d, .5)
+	_circle_tex = ImageTexture.create_from_image(img)
+	return _circle_tex
+
+func _magic_circle(p: Vector2) -> void:
+	var q = QuadMesh.new(); q.size = Vector2(3.4, 3.4); q.orientation = PlaneMesh.FACE_Y
+	var m = StandardMaterial3D.new(); m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA; m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	m.albedo_texture = circle_tex(); m.albedo_color = Color(.45, .75, 1.6, .95)
+	var mi = MeshInstance3D.new(); mi.mesh = q; mi.material_override = m; mi.position = Vector3(p.x / 32.0, .03, p.y / 32.0)
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF; add_child(mi)
+	var tw = mi.create_tween().set_loops(); tw.tween_property(mi, "rotation:y", TAU, 24.0).from(0.0)
+	var g = glow_quad(Color(.4, .7, 1, .35), 3.6); g.position = Vector3(p.x / 32.0, .5, p.y / 32.0); add_child(g)
+	add_light(Vector3(p.x / 32.0, 1.2, p.y / 32.0), Color(.5, .75, 1), 5.0, 1.6)
 
 # ---------------- 빛 ----------------
 static var _glow_tex: Texture2D

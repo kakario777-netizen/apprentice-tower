@@ -9,13 +9,15 @@ const T := 32.0
 const MW := 82
 const MH := 62
 const BAGMAX := 12
-const SLOTS := ["amulet", "weapon", "cloak", "ring1", "ring2", "belt", "boots"]
-const SLOTNAME := {amulet = "목걸이", weapon = "스태프", cloak = "망토", ring1 = "반지 1", ring2 = "반지 2", belt = "허리띠", boots = "장화"}
+const SLOTS := ["amulet", "weapon", "cloak", "gloves", "ring1", "ring2", "belt", "boots"]
+const SLOTNAME := {amulet = "목걸이", weapon = "무기", cloak = "망토", gloves = "장갑", ring1 = "반지 1", ring2 = "반지 2", belt = "허리띠", boots = "장화"}
+static func slot_name(slot: String) -> String: return "반지" if slot == "ring" else SLOTNAME.get(slot, slot)
 const BAG_START := 12
-const BAG_LIMIT := 36
+const BAG_LIMIT := 42
+const BAG_STEP := 6
 static func bag_price(cur: int) -> int:
-	var n := (cur - BAG_START) / 4
-	return [800, 2000, 4000, 7000, 11000, 16000][min(n, 5)]
+	var n := (cur - BAG_START) / BAG_STEP
+	return [3000, 8000, 18000, 35000, 60000][min(n, 4)]
 
 const PRIMARIES := {
 	arcane = {name = "비전탄", color = "#c39bff", kind = "shot", desc = "적을 스스로 쫓아가는 마력탄. 조준이 서툴러도 잘 맞는다.", cd = .3, speed = 340, homing = 3.2, radius = 5},
@@ -118,9 +120,9 @@ const DIFFICULTIES := [
 ]
 
 const SHOP := [
-	{id = "pothp", name = "생명 물약", desc = "생명을 45% 즉시 회복", price = 40, max = 5},
-	{id = "potmp", name = "마나 물약", desc = "마나를 60% 즉시 회복", price = 40, max = 5},
-	{id = "scroll", name = "귀환 주문서", desc = "탑 어디서든 마을로 가는 문을 연다", price = 120, max = 3},
+	{id = "pothp", name = "생명 물약", desc = "생명을 45% 즉시 회복", price = 400, max = 5},
+	{id = "potmp", name = "마나 물약", desc = "마나를 60% 즉시 회복", price = 400, max = 5},
+	{id = "scroll", name = "포탈 주문서", desc = "마을로 갔다가 그 자리로 돌아오는 포탈", price = 1200, max = 5},
 ]
 static func shop(id: String) -> Dictionary:
 	for s in SHOP:
@@ -158,18 +160,24 @@ const SPRMAP := {skel = "skel", archer = "archer", mage = "mage", zombie = "zomb
 const BOSSMAP := {golem = "minotaur", flesh = "antlion", warlock = "lich"}
 const SPRH := {skel = 46, archer = 46, mage = 48, zombie = 46, bat = 34, imp = 24, shade = 22, demon = 60, golem = 86, warlock = 74}
 
-# ---------------- 장비 ----------------
+# ---------------- 장비(디아블로식: 노말 · 매직 · 레어 · 세트 · 유니크) ----------------
 const RAR := {
-	magic = {name = "마법", color = "#6f9cff", mods = [1, 2], mult = 1.0},
-	rare = {name = "희귀", color = "#ffd76a", mods = [3, 4], mult = 1.25},
-	epic = {name = "영웅", color = "#ff9a3a", mods = [4, 5], mult = 1.6},
+	normal = {name = "노말", color = "#e8e2d4", mods = [0, 0], mult = .8, val = .5},
+	magic = {name = "매직", color = "#6f9cff", mods = [1, 2], mult = 1.0, val = 1.0},
+	rare = {name = "레어", color = "#ffe066", mods = [3, 5], mult = 1.25, val = 1.9},
+	set = {name = "세트", color = "#4fe06a", mods = [0, 0], mult = 1.4, val = 3.0},
+	unique = {name = "유니크", color = "#d8a35a", mods = [0, 0], mult = 1.6, val = 4.0},
 }
+const RAR_ORDER := ["normal", "magic", "rare", "set", "unique"]
 const BASES := [
 	{id = "staff", slot = "weapon", names = ["참나무 지팡이", "흑단 지팡이", "뼈 지팡이", "별빛 지팡이", "용목 지팡이"], imp = {k = "dmg", v = .08}},
 	{id = "wand", slot = "weapon", names = ["자작나무 완드", "수정 완드", "은 완드", "유리 완드", "달빛 완드"], imp = {k = "cast", v = .08}},
+	{id = "sceptre", slot = "weapon", names = ["청동 홀", "철 홀", "은 홀", "룬 홀", "왕의 홀"], imp = {k = "cdr", v = .06}},
 	{id = "ring", slot = "ring", names = ["구리 반지", "은 반지", "금 반지", "흑요석 반지", "월장석 반지"], imp = null},
 	{id = "cloak", slot = "cloak", names = ["양모 망토", "가죽 망토", "비단 망토", "그림자 망토", "불사조 망토"], imp = {k = "res", v = .04}},
+	{id = "robe", slot = "cloak", names = ["수습생 로브", "학자 로브", "비단 로브", "마도 로브", "대현자 로브"], imp = {k = "mp", v = 8}},
 	{id = "amulet", slot = "amulet", names = ["은 목걸이", "호박 목걸이", "수정 목걸이", "별빛 목걸이", "용의 눈 목걸이"], imp = null},
+	{id = "gloves", slot = "gloves", names = ["천 장갑", "가죽 장갑", "사슬 장갑", "룬 장갑", "용린 장갑"], imp = {k = "cast", v = .03}},
 	{id = "belt", slot = "belt", names = ["가죽 허리띠", "징 박힌 허리띠", "은사 허리띠", "수호자 허리띠", "거인 허리띠"], imp = {k = "hp", v = 6}},
 	{id = "boots", slot = "boots", names = ["천 신발", "가죽 장화", "여행자 장화", "바람 장화", "구름 장화"], imp = {k = "spd", v = .03}},
 ]
@@ -177,10 +185,87 @@ static func base(id: String) -> Dictionary:
 	for b in BASES:
 		if b.id == id: return b
 	return BASES[0]
+static func tier(lvl: int) -> int: return clampi(lvl / 12, 0, 4)
 const PREFIX := {prim = {arcane = "비전의", fire = "불꽃의", storm = "번개의", frost = "서리의"}, hp = "튼튼한", mp = "깊은", regen = "샘솟는", dmg = "날카로운", cast = "재빠른", cdr = "명상가의", res = "단단한", spd = "바람의", gold = "욕심쟁이의", sub = "숙련된", sec = "학자의"}
-const RARENAMES := ["황혼", "망령", "폭풍", "잿빛", "월광", "심연", "서약", "유성", "파수", "은하"]
-const EPICNAMES := {weapon = ["대현자의 지팡이", "벼락 삼킨 가지", "첫 불씨", "겨울 왕의 홀"], ring = ["시간 매듭", "일곱 번째 별", "잊힌 맹세"], cloak = ["밤의 장막", "불사조의 깃", "유령 걸음"],
-	amulet = ["별의 심장", "마녀의 눈물", "현자의 숨결"], belt = ["거신의 띠", "피의 서약"], boots = ["바람 걸음", "그림자 발자국"]}
+# 접두사(이름 앞) · 접미사(이름 맨 앞 "~의") — 아이템 레벨이 높을수록 센 이름
+const AFX := {
+	dmg = {pre = true, n = ["날카로운", "예리한", "잔혹한", "파멸의", "학살자의"]},
+	mp = {pre = true, n = ["푸른", "깊은", "심연의", "무한한", "별바다의"]},
+	res = {pre = true, n = ["단단한", "강철", "금강", "수호자의", "철벽"]},
+	gold = {pre = true, n = ["욕심쟁이의", "탐욕스러운", "황금빛", "부호의", "용의 보물"]},
+	sub = {pre = true, n = ["숙련된", "능숙한", "노련한", "달인의", "대가의"]},
+	sec = {pre = true, n = ["학자의", "연구자의", "교수의", "대학자의", "현자의"]},
+	prim = {pre = true, n = []},
+	hp = {pre = false, n = ["여우", "늑대", "곰", "거인", "티탄"]},
+	regen = {pre = false, n = ["샘물", "강물", "폭포", "바다", "폭풍해"]},
+	cast = {pre = false, n = ["재치", "신속", "질풍", "번개", "찰나"]},
+	spd = {pre = false, n = ["사슴", "표범", "바람", "유성", "순간"]},
+	cdr = {pre = false, n = ["명상", "통찰", "지혜", "현자", "시간"]},
+}
+static func is_pre(k: String) -> bool: return AFX.get(k.split(":")[0], {pre = true}).pre
+const RARENAMES := ["황혼", "망령", "폭풍", "잿빛", "월광", "심연", "서약", "유성", "파수", "은하", "핏빛", "서리", "흑요", "천둥", "고요"]
+const RARENOUN := {weapon = ["가지", "송곳", "지휘봉", "뿔", "홀"], ring = ["고리", "매듭", "눈동자", "약속"], amulet = ["부적", "목줄", "심장", "눈물"], cloak = ["장막", "날개", "외투", "그늘"],
+	gloves = ["손아귀", "손길", "발톱", "주먹"], belt = ["허리끈", "사슬", "띠", "매듭"], boots = ["걸음", "발굽", "질주", "발자국"]}
+# 유니크: 이름·옵션 고정(수치는 범위 안에서) · 강화 가능
+const UNIQUES := [
+	{name = "벼락 삼킨 가지", base = "staff", mods = [["prim:storm", 2, 2], ["dmg", .15, .25], ["cast", .1, .15], ["sub:chain", 1, 1]]},
+	{name = "첫 불씨", base = "staff", mods = [["prim:fire", 2, 2], ["sub:burn", 1, 2], ["dmg", .15, .22], ["mp", 20, 35]]},
+	{name = "대현자의 지팡이", base = "staff", mods = [["prim:arcane", 2, 2], ["sub:multi", 1, 1], ["mp", 30, 50], ["regen", .2, .3]]},
+	{name = "겨울 왕의 홀", base = "sceptre", mods = [["prim:frost", 2, 2], ["sub:widen", 1, 1], ["cdr", .1, .15], ["res", .05, .08]]},
+	{name = "속삭이는 완드", base = "wand", mods = [["prim:mine", 1, 1], ["cast", .15, .22], ["mp", 15, 30], ["gold", .2, .35]]},
+	{name = "시간 매듭", base = "ring", mods = [["cdr", .12, .18], ["sec:stasis", 1, 1], ["cast", .05, .08]]},
+	{name = "일곱 번째 별", base = "ring", mods = [["dmg", .08, .12], ["mp", 15, 25], ["gold", .2, .4]]},
+	{name = "별의 심장", base = "amulet", mods = [["prim:mine", 1, 1], ["hp", 25, 40], ["regen", .15, .25]]},
+	{name = "마녀의 눈물", base = "amulet", mods = [["mp", 30, 50], ["sec:freeze", 1, 1], ["dmg", .08, .12]]},
+	{name = "밤의 장막", base = "cloak", mods = [["res", .1, .15], ["spd", .06, .1], ["sec:blink", 1, 1]]},
+	{name = "불사조의 깃", base = "robe", mods = [["hp", 30, 50], ["prim:fire", 1, 1], ["res", .06, .1]]},
+	{name = "마법사의 손길", base = "gloves", mods = [["cast", .1, .15], ["dmg", .06, .1], ["mp", 15, 25]]},
+	{name = "얼음 손아귀", base = "gloves", mods = [["prim:frost", 1, 1], ["sub:harden", 1, 1], ["res", .05, .08]]},
+	{name = "거신의 띠", base = "belt", mods = [["hp", 40, 70], ["res", .05, .08]]},
+	{name = "바람 걸음", base = "boots", mods = [["spd", .12, .18], ["cast", .05, .08]]},
+	{name = "그림자 발자국", base = "boots", mods = [["spd", .08, .12], ["sec:blink", 1, 1], ["res", .04, .06]]},
+]
+# 세트: 같은 세트를 여러 개 끼면 추가 효과(초록색)
+const SETS := {
+	apprentice = {name = "견습생의 유산", pieces = [
+		{name = "견습생의 지팡이", base = "staff", mods = [["dmg", .1, .1], ["mp", 15, 15]]},
+		{name = "견습생의 망토", base = "cloak", mods = [["res", .05, .05], ["hp", 15, 15]]},
+		{name = "견습생의 반지", base = "ring", mods = [["regen", .15, .15], ["mp", 10, 10]]}],
+		bonus = {2: [["mp", 30]], 3: [["dmg", .15], ["cast", .1]]}},
+	phoenix = {name = "불새의 의복", pieces = [
+		{name = "불새의 목걸이", base = "amulet", mods = [["hp", 20, 20], ["dmg", .06, .06]]},
+		{name = "불새의 로브", base = "robe", mods = [["res", .06, .06], ["mp", 20, 20]]},
+		{name = "불새의 장갑", base = "gloves", mods = [["cast", .08, .08]]},
+		{name = "불새의 장화", base = "boots", mods = [["spd", .08, .08]]}],
+		bonus = {2: [["prim:fire", 1]], 3: [["res", .08]], 4: [["dmg", .2], ["hp", 40]]}},
+	star = {name = "별지기의 장신구", pieces = [
+		{name = "별지기의 목걸이", base = "amulet", mods = [["mp", 25, 25]]},
+		{name = "별지기의 반지", base = "ring", mods = [["regen", .15, .15]]},
+		{name = "별지기의 허리띠", base = "belt", mods = [["hp", 25, 25], ["cdr", .05, .05]]}],
+		bonus = {2: [["regen", .3]], 3: [["cdr", .15], ["sub:multi", 1]]}},
+	frost = {name = "서리 군주의 갑주", pieces = [
+		{name = "서리 군주의 망토", base = "cloak", mods = [["res", .08, .08], ["hp", 20, 20]]},
+		{name = "서리 군주의 장갑", base = "gloves", mods = [["dmg", .06, .06]]},
+		{name = "서리 군주의 장화", base = "boots", mods = [["spd", .06, .06], ["res", .03, .03]]}],
+		bonus = {2: [["prim:frost", 1]], 3: [["res", .12], ["spd", .08]]}},
+}
+# 강화(강화석 1개씩): 성공률은 점점 낮아짐 · 한 번 성공할 때마다 옵션 +20%, 스킬 +1
+const ENH_RATE := [100, 85, 70, 55, 40, 25, 10, 8, 6, 5]
+static func enh_rate(lv: int) -> int: return ENH_RATE[min(lv, ENH_RATE.size() - 1)]
+const ENH_MAX := 10
+static func can_enhance(it) -> bool: return it != null and (it.rar == "unique" or it.rar == "set")
+static func is_skill(k: String) -> bool: return k.begins_with("prim:") or k.begins_with("sub:") or k.begins_with("sec:")
+static func eff_mods(it) -> Array:
+	var e: int = int(it.get("enh", 0))
+	if e <= 0: return it.mods
+	var out: Array = []
+	for m in it.mods:
+		var k: String = m.k; var v = m.v
+		if is_skill(k): v = int(v) + e
+		elif k == "hp" or k == "mp": v = int(round(float(v) * (1 + .2 * e)))
+		else: v = snappedf(float(v) * (1 + .2 * e), .01)
+		out.append({k = k, v = v})
+	return out
 
 # 층 구성: 5층마다 보스(5 네임드 · 10 준보스 · 15 네임드 · 20 계층 보스 반복), 20층마다 분위기
 static func boss_kind(f: int) -> String:
@@ -226,11 +311,12 @@ const TALK := {
 		"적을 쓰러뜨리면 경험이 쌓이고, 레벨이 오를 때마다 셋 중 하나를 고를 수 있다. 한 계열을 깊게 파는 편이 대체로 강하지.",
 		"주 마법 두 가지를 익히면 융합 마법을 고를 수 있다. 융합을 고르면 다른 계열은 더 배울 수 없으니 신중해라.",
 		"방 구석의 보물상자도 열어 봐라. 금화나 물약, 가끔은 마법 장비가 들어 있다. 물약은 미라 교수에게서도 살 수 있고.",
-		"장비는 파랑(마법), 노랑(희귀), 주황(영웅) 순으로 귀하다. 스킬 단계를 올려 주는 옵션이 붙기도 하지. 왼쪽 위 가방에서 갈아 끼워라.",
-		"5층과 10층의 문지기를 쓰러뜨리면 마을로 돌아오는 푸른 문이 열린다. 쓰러지더라도 우리가 데려오겠지만, 금화 절반은 각오해라.",
+		"장비는 흰색(노말), 파랑(매직), 노랑(레어), 초록(세트), 금빛(유니크) 순으로 귀하다. 세트는 여러 개를 함께 끼면 효과가 붙고, 유니크와 세트는 마을 서쪽 마법진의 강화 교수가 강화석으로 강화해 준다.",
+		"포탈 주문서를 쓰면 그 자리에 마을로 가는 포탈이 열린다. 마을에 생긴 포탈로 들어가면 떠났던 자리로 그대로 돌아가지. 하나는 줄 테니, 다음부터는 미라 교수에게 사라.",
 		"준비가 되면 북쪽의 탑 문으로 들어가라. 들어가기 전에 첫 마법을 하나 고르게 될 거다.",
 	],
 	shop = ["어서 와. 필요한 걸 골라. 쓰지 않는 장비는 마을에서 가방을 열면 나한테 팔 수 있어."],
+	smith = ["강화석을 가져왔나? 유니크나 세트 장비라면 이 마법진 위에서 더 강하게 만들어 주지. 단계가 오를수록 성공하기 어려워지니 각오하고."],
 }
 
 static func col(hex: String, a := 1.0) -> Color:

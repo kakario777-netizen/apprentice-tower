@@ -13,6 +13,8 @@ var mini := TextureRect.new()
 var mini_img: Image
 var mini_tex: ImageTexture
 var toast_l := Label.new()
+var save_l := Label.new()      # 오른쪽 위 "자동 저장 중…"
+var save_t := 0.0
 var toast_t := 0.0
 var fader := ColorRect.new()
 
@@ -63,6 +65,9 @@ func _ready() -> void:
 	toast_l.add_theme_stylebox_override("normal", Ui.sb(Color(.1, .08, .14, .92), 16, Color("#e3b04b"), 1, Vector4(18, 8, 18, 8)))
 	toast_l.add_theme_font_size_override("font_size", 16); toast_l.add_theme_font_override("font", Ui.bold); toast_l.add_theme_color_override("font_color", Color("#fff3d6")); toast_l.modulate.a = 0; toast_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(toast_l)
+	save_l.text = "자동 저장 중 …"; save_l.add_theme_font_size_override("font_size", 13); save_l.add_theme_color_override("font_color", Color(1, .95, .8))
+	save_l.add_theme_color_override("font_outline_color", Color(0, 0, 0, .8)); save_l.add_theme_constant_override("outline_size", 4)
+	save_l.modulate.a = 0; save_l.mouse_filter = Control.MOUSE_FILTER_IGNORE; root.add_child(save_l)
 	fader.color = Color(0, 0, 0, 1); fader.set_anchors_preset(Control.PRESET_FULL_RECT); fader.mouse_filter = Control.MOUSE_FILTER_IGNORE; fader.modulate.a = 0
 	root.add_child(fader)
 	touch_ui = DisplayServer.is_touchscreen_available() or OS.has_feature("mobile")
@@ -74,6 +79,10 @@ func inset() -> Dictionary:
 	var k = vs.x / ss.x
 	return {t = sa.position.y * k, l = sa.position.x * k, r = (ss.x - sa.end.x) * k, b = (ss.y - sa.end.y) * k}
 
+func show_saving() -> void:
+	if game.no_save: return
+	save_t = 1.6
+
 func show_toast(msg: String) -> void:
 	toast_l.text = msg; toast_t = 1.4
 
@@ -82,6 +91,11 @@ func playing() -> bool: return game.G != null and game.G.state == "play"
 func _process(dt: float) -> void:
 	var vs = get_viewport().get_visible_rect().size; var ins = inset()
 	toast_t -= dt
+	save_t -= dt
+	save_l.modulate.a = clamp(save_t * 2.0, 0, 1) * (.55 + .15 * sin(Time.get_ticks_msec() / 160.0))
+	save_l.reset_size()
+	var mx: float = mini.position.x if mini.visible else vs.x - ins.r
+	save_l.position = Vector2(mx - save_l.size.x - 14, ins.t + 10)
 	if game.G != null and game.G.get("pull") != null: fader.modulate.a = clamp(game.G.pull.t / .9, 0, 1)
 	else: fader.modulate.a = move_toward(fader.modulate.a, 0.0, dt * 2.4)
 	toast_l.modulate.a = clamp(toast_t * 4, 0, 1) if toast_t < .25 else min(1.0, toast_l.modulate.a + dt * 4)
@@ -99,7 +113,7 @@ func _process(dt: float) -> void:
 		var n = game.near_npc() if game.G.floor == 0 else null
 		talk_b.visible = n != null
 		if n != null:
-			talk_b.text = "%s%s · %s" % ["A  " if pad_on else "", "거래하기" if n.id == "shop" else "말 걸기", n.name]
+			talk_b.text = "%s%s · %s" % ["A  " if pad_on else "", "거래하기" if n.id == "shop" else ("강화하기" if n.id == "smith" else "말 걸기"), n.name]
 			talk_b.custom_minimum_size = Vector2(150, 56); talk_b.reset_size()
 			var rc := pad_pos(1)
 			talk_b.position = Vector2(min(vs.x - ins.r - 12 - talk_b.size.x, rc.x - talk_b.size.x / 2), rc.y - STICKR - 22 - talk_b.size.y)
@@ -393,13 +407,13 @@ class HudDraw extends Control:
 				draw_circle(p + Vector2(0, -4), 7.5, Color("#ffd76a")); text(p, "!", 11, Color("#1b1206"), HORIZONTAL_ALIGNMENT_CENTER, null, 0)
 		if mg.gate != null:
 			text(wp(mg.gate.x, mg.gate.y, 132), "탑 입구 · %d층부터" % G.resume, 13, Color("#e3b04b"), HORIZONTAL_ALIGNMENT_CENTER, dfont())
-		if G.portal != null: text(wp(G.portal.x, G.portal.y + 22, 52), "웨이포인트 · 마을로" if G.portal.get("way", false) else "마을로", 11, Color("#cfe6ff"))
+		if G.portal != null: text(wp(G.portal.x, G.portal.y + 22, 52), ("포탈 · %d층으로 돌아가기" % G.portal.resume) if G.portal.get("back", false) else ("웨이포인트 · 마을로" if G.portal.get("way", false) else ("포탈 · 마을로" if G.portal.get("tp", false) else "마을로")), 11, Color("#cfe6ff"))
 		if mg.door != null and G.floor > 0 and mg.is_seen(mg.door.x, mg.door.y + 8):
 			text(wp(mg.door.x, mg.door.y, 70), "탑 안으로" if mg.terrace else "바깥 테라스", 12, Color("#cfe6ff") if not mg.terrace else Color("#ffe0b0"))
 		if G.nearItem != null:
 			var d = G.nearItem
 			var p = wp(d.x, d.y, 30)
-			var t: String = d.it.name; var w = font().get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x + 10
+			var t: String = Ui.iname(d.it); var w = font().get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x + 10
 			var col = Color(D.RAR[d.it.rar].color)
 			draw_rect(Rect2(p.x - w / 2, p.y - 11, w, 15), Color(.024, .016, .04, .78)); draw_rect(Rect2(p.x - w / 2 + .5, p.y - 10.5, w - 1, 14), Color(col, .6), false, 1)
 			text(p, t, 11, col)
@@ -410,7 +424,9 @@ class HudDraw extends Control:
 			var alpha = 1.0
 			if e.d.has("hidden"):
 				var dp = Game.hyp(P.x - e.x, P.y - e.y); alpha = 1.0 if dp < 110 else (.35 if dp < 170 else .06)
-			if not e.isBoss and e.hp < e.max and alpha > .5:
+			if e.get("elite", false) and alpha > .5:
+				text(wp(e.x, e.y, top + 18), e.name, 12, Color("#ffd76a"), HORIZONTAL_ALIGNMENT_CENTER, dfont(), 3, Color(.04, .016, .03, .9))
+			if not e.isBoss and (e.hp < e.max or e.get("elite", false)) and alpha > .5:
 				var p = wp(e.x, e.y, top + 6); var w: float = e.r * 2
 				draw_rect(Rect2(p.x - w / 2, p.y, w, 3), Color(0, 0, 0, .65)); draw_rect(Rect2(p.x - w / 2, p.y, w * max(0.0, e.hp / e.max), 3), Color("#e0444f"))
 		for t in G.texts:
