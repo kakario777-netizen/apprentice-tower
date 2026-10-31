@@ -31,17 +31,28 @@ static func mat(t: Texture2D, _vcol := true) -> ShaderMaterial:
 		FOG_SHADER = Shader.new()
 		FOG_SHADER.code = """
 shader_type spatial;
-render_mode cull_disabled, specular_disabled;
+render_mode cull_disabled;
 uniform sampler2D tex : source_color, filter_linear_mipmap_anisotropic;
 uniform sampler2D fog : filter_linear;
 uniform vec3 tint = vec3(1.0);
+uniform float bump = 1.6;
 varying vec3 wp;
 void vertex() { wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
 void fragment() {
 	vec4 c = texture(tex, UV);
 	float f = texture(fog, wp.xz / vec2(82.0, 62.0)).r;
-	ALBEDO = c.rgb * COLOR.rgb * tint * f;
-	ROUGHNESS = 1.0;
+	// 질감의 밝기를 높이로 보고 요철을 만든다(돌 틈·이음매가 빛을 받아 도드라짐)
+	float h = dot(c.rgb, vec3(.3, .59, .11));
+	vec3 dpx = dFdx(VERTEX); vec3 dpy = dFdy(VERTEX);
+	vec3 r1 = cross(dpy, NORMAL); vec3 r2 = cross(NORMAL, dpx);
+	float det = dot(dpx, r1);
+	vec3 grad = sign(det) * (dFdx(h) * r1 + dFdy(h) * r2);
+	NORMAL = normalize(abs(det) * NORMAL - grad * bump);
+	vec3 col = c.rgb * COLOR.rgb * tint;
+	col = mix(vec3(dot(col, vec3(.3, .59, .11))), col, 1.12);   // 색을 조금 더 진하게
+	ALBEDO = col * f;
+	ROUGHNESS = mix(.42, .9, h);           // 밝은 돌은 살짝 반들반들 → 횃불에 은은한 광택
+	SPECULAR = .28 * f;
 }
 """
 	var m = ShaderMaterial.new()
@@ -228,6 +239,7 @@ func add_prop(n: String, p: Vector2, sc := 1.0) -> Node3D:
 	s.pixel_size = PF * sc / 32.0 * STAND
 	s.centered = true
 	s.alpha_cut = SpriteBase3D.ALPHA_CUT_OPAQUE_PREPASS
+	s.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	s.shaded = true
 	s.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
 	if mg.town == null: fog_nodes.append([s, p.x, p.y])

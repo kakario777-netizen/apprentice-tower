@@ -392,9 +392,6 @@ func open_pause() -> void:
 	var r = HFlowContainer.new(); r.alignment = FlowContainer.ALIGNMENT_CENTER; r.add_theme_constant_override("h_separation", 28); _center(r)
 	r.add_child(stats([["층", "%d / %d" % [G.floor, D.LAST_FLOOR] if G.floor else "마을 (다음 %d층)" % G.resume], ["난이도", game.diff_d().name], ["레벨", P.lv],
 		["생명", "%d / %d" % [ceili(P.hp), P.maxhp]], ["마나", "%d / %d" % [floori(P.mp), P.maxmp]], ["처치", G.kills], ["금화", G.gold]]))
-	var kd = btn("처치 자세히", func(): open_tab("record"), true); kd.add_theme_font_size_override("font_size", 13)
-	for k in ["normal", "hover", "pressed"]: kd.add_theme_stylebox_override(k, _small(btn_sb(true)))
-	r.add_child(kd)
 	var li = VBoxContainer.new(); li.add_theme_constant_override("separation", 4); li.custom_minimum_size.x = 280
 	var bx = func(v): return " (+%s 장비)" % str(v) if v else ""
 	var add = func(n: String, l: String):
@@ -411,15 +408,12 @@ func open_pause() -> void:
 		if P["pass"].get(s.id, 0): add.call(s.name, "%d단계" % P["pass"][s.id])
 	r.add_child(li)
 	box.add_child(r)
-	box.add_child(row([btn("계속하기", func(): main.resume()), btn("가방", func(): open_bag(), true), btn("샌드박스", func(): open_sand(), true),
+	# 크게 누르기 쉬운 "계속하기"
+	var cont = btn("계속하기", func(): main.resume()); cont.custom_minimum_size = Vector2(min(420.0, get_viewport().get_visible_rect().size.x - 60), 64)
+	cont.add_theme_font_override("font", display); cont.add_theme_font_size_override("font_size", 24)
+	cont.size_flags_horizontal = Control.SIZE_SHRINK_CENTER; box.add_child(cont)
+	box.add_child(row([btn("가방", func(): open_bag(), true), btn("설정", func(): open_tab("settings"), true), btn("샌드박스", func(): open_sand(), true),
 		btn("처음 화면으로", func(): main.to_title(), true)]))
-	var swf = func():
-		main.pad_swap = not main.pad_swap; main.save_settings(); open_pause()
-	var sw = btn("컨트롤러 버튼 배치: %s" % ("닌텐도식 (A·B 위치 바꿈)" if main.pad_swap else "엑스박스식"), swf, true)
-	box.add_child(row([sw]))
-	var pi = label("연결됨: %s · 왼스틱 이동, 오른스틱 조준·발사, RT/A 자동 조준 공격, X·Y·B 보조 마법, LB·RB 물약, LT 마법 교체, START 일시정지, SELECT 가방" % main.pad_name() if main.pad_connected() else "컨트롤러를 연결하면 바로 쓸 수 있어요 (유선·블루투스 모두 가능).", 12, MUTED)
-	pi.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER; pi.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; _center(pi, 640)
-	box.add_child(pi)
 	_focus_first()
 
 # ================= 탑 문(웨이포인트) =================

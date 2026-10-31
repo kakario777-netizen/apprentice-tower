@@ -373,21 +373,16 @@ func _sync_drops(G, P) -> void:
 		live[d.id] = true
 		if not drops.has(d.id):
 			var n = Node3D.new(); add_child(n); drops[d.id] = n
-			var ln: String = _lname(d)
-			if ln != "" and M.has(ln):
-				var m: Dictionary = M[ln]
-				var tw: float = 14.0 if d.kind == "gold" else (((12.0 if d.it.base == "ring" else 22.0)) if d.kind == "item" else 14.0)
-				var k: float = tw / max(m.cw, m.ch)
-				var s = _sprite(load("res://assets/sprites/%s.png" % ln)); s.pixel_size = k * UP
-				s.position = Vector3(0, m.ch * .8 * k * UP - m.ch / 2.0 * k * UP + 2 * UP, 0)
-				s.name = "spr"; n.add_child(s)
-				var sh = MeshInstance3D.new(); var sq = QuadMesh.new(); sq.size = Vector2(tw * .9 * S, tw * .3 * S); sq.orientation = PlaneMesh.FACE_Y; sh.mesh = sq
-				var sm = StandardMaterial3D.new(); sm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; sm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-				sm.albedo_texture = World.glow_tex(); sm.albedo_color = Color(0, 0, 0, .45); sh.material_override = sm; sh.position = Vector3(0, .02, 3 * S); n.add_child(sh)
-			if d.kind == "item":
+			# 입체 모형(동전 더미·유리 물약·두루마리·수정·장비)
+			if d.kind in ["gold", "pothp", "potmp", "scroll", "stone", "item"]:
+				var lo := Props3D.loot(d.kind, d.get("it")); lo.name = "spr"; lo.scale = Vector3.ONE * (1.75 if d.kind == "item" else 1.5); n.add_child(lo)
+				Props3D.shadow(n, .5, .32, .45)
+			if d.kind == "item" and d.it.rar in ["normal", "magic"]:
+				_glow(n, Color(Color(D.RAR[d.it.rar].color), .3), 30 * S * 1.4, Vector3(0, .12, 0))
+			elif d.kind == "item":
 				var col = Color(D.RAR[d.it.rar].color)
 				var beam = MeshInstance3D.new(); var bq = QuadMesh.new(); bq.size = Vector2((14.0 if d.it.rar in ["unique", "set"] else 10.0) * S, 90 * UP); beam.mesh = bq
-				var g = Gradient.new(); g.set_color(0, Color(col, .3 if d.it.rar in ["magic", "normal"] else .55)); g.set_color(1, Color(col, 0))
+				var g = Gradient.new(); g.set_color(0, Color(col, .4)); g.set_color(1, Color(col, 0))
 				var gt = GradientTexture2D.new(); gt.gradient = g; gt.fill_from = Vector2(0, 1); gt.fill_to = Vector2(0, 0); gt.width = 8; gt.height = 64
 				var bm = StandardMaterial3D.new(); bm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; bm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 				bm.blend_mode = BaseMaterial3D.BLEND_MODE_ADD; bm.albedo_texture = gt; beam.material_override = bm; beam.position = Vector3(0, 45 * UP, 0); n.add_child(beam)
@@ -405,13 +400,16 @@ func _sync_drops(G, P) -> void:
 		var b = sin(G.time * 5 + d.x) * 2
 		n.position = w3(d.x, d.y)
 		var sp = n.get_node_or_null("spr")
-		if sp: sp.position.y = sp.position.y * 0 + _drop_base(d, M) + (d.get("h", 0.0)) * UP + (0.0 if d.kind == "gold" else b * .4 * UP)
+		if sp:
+			sp.position.y = _drop_base(d, M) + (d.get("h", 0.0)) * UP + (0.0 if d.kind == "gold" else b * .4 * UP)
+			if d.kind != "gold" and sp is Node3D and not (sp is MeshInstance3D): sp.rotation.y = G.time * 1.4 + d.x * .01
 	for k in drops.keys():
 		if not live.has(k):
 			drops[k].queue_free(); drops.erase(k)
 
 func _drop_base(d, M) -> float:
 	if d.kind == "hp" or d.kind == "mp": return .3
+	if d.kind in ["gold", "pothp", "potmp", "scroll", "stone", "item"]: return .03
 	var ln: String = _lname(d)
 	if not M.has(ln): return .3
 	var m: Dictionary = M[ln]

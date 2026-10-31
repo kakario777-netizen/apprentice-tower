@@ -60,6 +60,7 @@ func _ready() -> void:
 	env.environment = Environment.new(); add_child(env)
 	moon.rotation_degrees = Vector3(-55, 30, 0); add_child(moon)
 	plight = OmniLight3D.new(); plight.omni_range = 10.0; plight.light_energy = 1.1; plight.light_color = Color(1, .92, .85); add_child(plight)
+	_make_dust(); _make_vignette(); _apply_shadows()
 	hud = Hud.new(); hud.main = self; hud.game = game; hud.cam = cam; add_child(hud)
 	ui = Ui.new(); ui.main = self; ui.game = game; add_child(ui)
 	game.toast.connect(hud.show_toast)
@@ -78,7 +79,11 @@ func _setup_env(town: bool) -> void:
 	e.background_mode = Environment.BG_COLOR; e.background_color = Color(.02, .016, .03)
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	e.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-	e.glow_enabled = true; e.glow_intensity = .6; e.glow_bloom = .05; e.glow_hdr_threshold = 1.1
+	e.glow_enabled = true; e.glow_intensity = .7; e.glow_bloom = .06; e.glow_hdr_threshold = 1.0
+	# 색 보정: 대비·채도를 살짝 올려 화면이 덜 밋밋하게
+	e.adjustment_enabled = true; e.adjustment_contrast = 1.1; e.adjustment_saturation = 1.06; e.adjustment_brightness = 1.02
+	var dm: StandardMaterial3D = dust.mesh.surface_get_material(0)
+	dm.albedo_color = Color(.85, 1, .55, .55) if town else Color(1, .82, .55, .35)
 	if town:
 		e.ambient_light_color = Color(.42, .44, .58); e.ambient_light_energy = 1.0
 		moon.visible = true; moon.light_color = Color(.62, .68, .95); moon.light_energy = .55; plight.visible = false
@@ -149,7 +154,43 @@ func save_settings() -> void:
 	cfg.set_value("gfx", "quality", quality); cfg.set_value("gfx", "fps", show_fps); cfg.set_value("game", "autosave", autosave_min); cfg.save(SETTINGS)
 
 func set_quality(q: float) -> void:
-	quality = q; get_viewport().scaling_3d_scale = q; save_settings()
+	quality = q; get_viewport().scaling_3d_scale = q; _apply_shadows(); save_settings()
+
+# 선명하게: 내 주변 빛·달빛이 소품 그림자를 드리운다(보통·가볍게는 끔)
+func _apply_shadows() -> void:
+	var on := quality >= .99
+	plight.shadow_enabled = on; plight.shadow_bias = .08; plight.shadow_normal_bias = 1.5; plight.shadow_blur = 1.5
+	moon.shadow_enabled = on; moon.shadow_blur = 1.5
+	moon.directional_shadow_max_distance = 30.0
+
+# 공기 중에 떠다니는 먼지·반딧불(던전은 따뜻한 먼지, 마을은 연둣빛)
+var dust := CPUParticles3D.new()
+func _make_dust() -> void:
+	var q := QuadMesh.new(); q.size = Vector2(.07, .07)
+	var m := StandardMaterial3D.new(); m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD; m.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED; m.albedo_texture = World.glow_tex()
+	m.albedo_color = Color(1, .82, .55, .35); m.vertex_color_use_as_albedo = true
+	q.material = m; dust.mesh = q
+	dust.amount = 70; dust.lifetime = 7.0; dust.preprocess = 7.0; dust.local_coords = false
+	dust.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX; dust.emission_box_extents = Vector3(10, 1.4, 8)
+	dust.direction = Vector3(0, 1, 0); dust.spread = 180.0; dust.initial_velocity_min = .05; dust.initial_velocity_max = .25; dust.gravity = Vector3(0, .02, 0)
+	var g := Gradient.new(); g.set_color(0, Color(1, 1, 1, 0)); g.add_point(.3, Color(1, 1, 1, 1)); g.add_point(.7, Color(1, 1, 1, 1)); g.set_color(g.get_point_count() - 1, Color(1, 1, 1, 0))
+	dust.color_ramp = g; dust.scale_amount_min = .6; dust.scale_amount_max = 1.6
+	add_child(dust)
+
+# 화면 가장자리를 살짝 어둡게(비네트) — 시선이 가운데로 모이고 화면이 묵직해 보인다
+func _make_vignette() -> void:
+	var cl := CanvasLayer.new(); cl.layer = 0; add_child(cl)
+	var r := ColorRect.new(); r.set_anchors_preset(Control.PRESET_FULL_RECT); r.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var sh := Shader.new(); sh.code = """
+shader_type canvas_item;
+void fragment() {
+	vec2 d = UV - .5; d.x *= 1.6;
+	float v = smoothstep(.45, 1.05, length(d));
+	COLOR = vec4(.01, .005, .02, v * .55);
+}
+"""
+	var sm := ShaderMaterial.new(); sm.shader = sh; r.material = sm; cl.add_child(r)
 func pad_mode(on: bool) -> void: hud.set_pad(on)
 
 # ---------------- 시스템 ----------------
@@ -334,6 +375,7 @@ func _place_cam(dt: float) -> void:
 	cam.rotation = Vector3(-e, 0, 0)
 	cam.v_offset = .65
 	plight.position = Vector3(P.x / 32.0, 1.6, P.y / 32.0 + .6)
+	dust.position = Vector3(P.x / 32.0, 1.2, P.y / 32.0)
 
 # ---------------- 시험 ----------------
 func _test_setup() -> void:
@@ -437,6 +479,13 @@ func _run_samples() -> void:
 	game.mg.reveal(P.x, P.y); game.mg.dirty = true
 	await _frames(4); game.cast_sec("ward"); await _fight(26); await _snap("4_fight")
 	var el = game.spawn_elite("skel_knight", P.x + 90, P.y - 40); el.aggro = true; await _frames(6); await _snap("4b_elite")
+	# 바닥 아이템 모형
+	game.G.enemies = []; game.G.drops = []
+	var kinds := ["gold", "gold", "pothp", "potmp", "scroll", "stone"]
+	for i in kinds.size(): game.G.drops.append({id = game.nid(), x = P.x - 100 + i * 40, y = P.y + 50, kind = kinds[i], v = 10, t = 0.0, noPick = 1})
+	var bases := ["staff", "wand", "sceptre", "ring", "amulet", "cloak", "gloves", "belt", "boots"]
+	for i in bases.size(): game.G.drops.append({id = game.nid(), x = P.x - 160 + i * 40, y = P.y + 110, kind = "item", it = game.make_item(D.RAR_ORDER[i % 5], 5, bases[i]), t = 0.0, noPick = 1})
+	await _frames(8); await _snap("4c_loot"); game.G.drops = []
 	game.cast_sec("nova"); await _frames(6); await _snap("5_nova")
 	game.G.pendingLv = 1; game.set_state("levelup"); ui.open_level(); await _frames(4); await _snap("6_levelup"); ui.hide_all(); game.G.pendingLv = 0; game.set_state("play")
 	ui.open_bag(); ui.bag_sel = {from = "bag", i = 2}; ui._render_bag(); await _frames(4); await _snap("7_bag"); ui.close_bag()

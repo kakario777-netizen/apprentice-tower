@@ -30,6 +30,7 @@ func setup(name: String, h_px: float) -> void:
 	spr.region_enabled = true
 	spr.centered = true
 	spr.alpha_cut = SpriteBase3D.ALPHA_CUT_OPAQUE_PREPASS
+	spr.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF   # 발밑 그림자를 따로 그림
 	spr.shaded = true
 	spr.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
 	var k: float = height_px / float(m.get("hgt", m.ch))

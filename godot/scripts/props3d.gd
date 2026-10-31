@@ -9,18 +9,24 @@ static func m(name: String, col := Color.WHITE, rough := 1.0, emis := Color(0, 0
 	var key := "%s|%s|%s" % [name, col.to_html(), emis.to_html()]
 	if MATS.has(key): return MATS[key]
 	var mt := StandardMaterial3D.new()
-	if name != "": mt.albedo_texture = load("res://ui/tex_%s.png" % name)
+	if name != "":
+		mt.albedo_texture = load("res://ui/tex_%s.png" % name)
+		# 요철(노멀맵)로 나뭇결·돌결이 빛을 받아 도드라지게
+		if ResourceLoader.exists("res://ui/tex_%s_n.png" % name):
+			mt.normal_enabled = true; mt.normal_texture = load("res://ui/tex_%s_n.png" % name); mt.normal_scale = 1.4
 	mt.albedo_color = col; mt.roughness = rough
+	mt.rim_enabled = true; mt.rim = .12 if name == "leaf" else .22; mt.rim_tint = .7       # 가장자리 빛(윤곽이 살아 보이게)
 	mt.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
 	if emis.r + emis.g + emis.b > 0:
 		mt.emission_enabled = true; mt.emission = emis
 	MATS[key] = mt
 	return mt
 
+static var cast := true      # 그림자를 드리울지(바닥 아이템 등은 끔)
 static func _mesh(parent: Node3D, mesh: Mesh, mat: Material, pos: Vector3, rot := Vector3(), scl := Vector3.ONE) -> MeshInstance3D:
 	var mi := MeshInstance3D.new(); mi.mesh = mesh; mi.material_override = mat
 	mi.position = pos; mi.rotation = rot; mi.scale = scl
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if cast else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	parent.add_child(mi); return mi
 
 static func cyl(r0: float, r1: float, h: float, seg := 14) -> CylinderMesh:
@@ -35,7 +41,8 @@ static func shadow(parent: Node3D, w: float, d: float, a := .5) -> void:
 	var q := QuadMesh.new(); q.size = Vector2(w, d); q.orientation = PlaneMesh.FACE_Y
 	var sm := StandardMaterial3D.new(); sm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	sm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA; sm.albedo_texture = World.glow_tex(); sm.albedo_color = Color(0, 0, 0, a)
-	_mesh(parent, q, sm, Vector3(0, .02, 0))
+	var c0 := cast; cast = false
+	_mesh(parent, q, sm, Vector3(0, .02, 0)); cast = c0
 
 const NAMES := ["barrel", "dcrate", "crate", "chest", "statue", "brazier", "lectern", "oak", "birch", "pine", "deadtree", "shrub", "rock", "stump", "grave", "cross", "fountain", "stall", "wood", "anvil", "campfire"]
 
@@ -132,7 +139,7 @@ static func _lectern(r: Node3D) -> void:
 	_mesh(r, box(.5, .03, .36), m("", Color(.9, .85, .7)), Vector3(0, .93, .02), Vector3(-.5, 0, 0))
 
 static func _foliage(r: Node3D, pos: Vector3, rad: float, col: Color) -> void:
-	_mesh(r, ball(rad, 9), m("leaf", col), pos, Vector3(), Vector3(1, .85, 1))
+	_mesh(r, ball(rad, 9), m("leaf", col * Color(.78, .8, .74)), pos, Vector3(), Vector3(1, .85, 1))   # 잎은 덜 쨍하게
 
 static func _tree(r: Node3D, sc: float, R: RandomNumberGenerator, birch: bool) -> void:
 	var s := sc * 1.25
@@ -219,3 +226,100 @@ static func _stall(r: Node3D) -> void:
 	_mesh(r, cyl(.08, .1, .25), m("", Color(.85, .2, .25), .3, Color(.3, 0, 0)), Vector3(-.5, .98, 0))
 	_mesh(r, cyl(.08, .1, .25), m("", Color(.25, .35, .9), .3, Color(0, 0, .3)), Vector3(-.25, .98, .05))
 	_mesh(r, box(.4, .08, .3), m("", Color(.9, .85, .7)), Vector3(.4, .9, 0))
+
+
+# ================= 바닥에 떨어진 것들(동전·물약·주문서·강화석·장비) =================
+static func metal(col: Color, rough := .3, emis := .0) -> StandardMaterial3D:
+	var key := "metal|%s|%s|%s" % [col.to_html(), rough, emis]
+	if MATS.has(key): return MATS[key]
+	var mt := StandardMaterial3D.new(); mt.albedo_color = col; mt.metallic = .75; mt.roughness = rough; mt.metallic_specular = 1.0
+	mt.rim_enabled = true; mt.rim = .5; mt.rim_tint = .3
+	if emis > 0:
+		mt.emission_enabled = true; mt.emission = col; mt.emission_energy_multiplier = emis
+	MATS[key] = mt; return mt
+
+static func glass(col: Color, glow := .6) -> StandardMaterial3D:
+	var key := "glass|%s|%s" % [col.to_html(), glow]
+	if MATS.has(key): return MATS[key]
+	var mt := StandardMaterial3D.new(); mt.albedo_color = Color(col, .82); mt.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mt.roughness = .05; mt.metallic_specular = 1.0; mt.rim_enabled = true; mt.rim = .8; mt.rim_tint = .2
+	mt.emission_enabled = true; mt.emission = col; mt.emission_energy_multiplier = glow
+	MATS[key] = mt; return mt
+
+static func torus(r_in: float, r_out: float, seg := 18) -> TorusMesh:
+	var t := TorusMesh.new(); t.inner_radius = r_in; t.outer_radius = r_out; t.rings = seg; t.ring_segments = 8; return t
+
+const GOLD_C := Color(1.0, .76, .28)
+static func loot(kind: String, it = null) -> Node3D:
+	var r := Node3D.new()
+	var c0 := cast; cast = false
+	match kind:
+		"gold":
+			var g := metal(GOLD_C, .22, .25)
+			var coin := cyl(.1, .1, .028, 18)
+			for i in 4: _mesh(r, coin, g, Vector3(randf_range(-.02, .02), .015 + i * .03, randf_range(-.02, .02)))
+			_mesh(r, coin, g, Vector3(.15, .06, .04), Vector3(0, 0, 1.0))
+			_mesh(r, coin, g, Vector3(-.12, .02, .1), Vector3(.2, 0, .15))
+		"pothp", "potmp":
+			var col := Color(1, .18, .22) if kind == "pothp" else Color(.25, .45, 1)
+			_mesh(r, ball(.13, 14), glass(col, .9), Vector3(0, .14, 0))
+			_mesh(r, cyl(.045, .05, .1, 10), glass(col.lerp(Color.WHITE, .5), .3), Vector3(0, .3, 0))
+			_mesh(r, cyl(.05, .04, .05, 8), m("wood", Color(.7, .5, .35)), Vector3(0, .37, 0))
+			_mesh(r, ball(.05, 8), m("", Color(1, 1, 1), .1, Color(.9, .9, .9)), Vector3(.05, .19, .08))   # 반짝임
+		"scroll":
+			_mesh(r, cyl(.07, .07, .36, 14), m("cloth", Color(.95, .85, .62)), Vector3(0, .08, 0), Vector3(0, 0, PI / 2))
+			_mesh(r, cyl(.075, .075, .06, 14), m("", Color(.75, .15, .15), .5), Vector3(0, .08, 0), Vector3(0, 0, PI / 2))
+			for sx in [-.2, .2]: _mesh(r, cyl(.03, .03, .05, 8), m("wood", Color(.55, .38, .25)), Vector3(sx, .08, 0), Vector3(0, 0, PI / 2))
+		"stone":
+			var gem := SphereMesh.new(); gem.radius = .12; gem.height = .36; gem.radial_segments = 6; gem.rings = 3
+			_mesh(r, gem, glass(Color(.45, .8, 1.0), 1.4), Vector3(0, .2, 0))
+			_mesh(r, gem, glass(Color(.7, .95, 1.0), 1.0), Vector3(.12, .1, .05), Vector3(0, .5, .6), Vector3(.5, .5, .5))
+		"item":
+			_gear(r, it)
+	cast = c0
+	return r
+
+static func _gear(r: Node3D, it) -> void:
+	var rc := Color(D.RAR[it.rar].color)
+	var gem := glass(rc, 1.3)
+	var wood := m("wood", Color(.75, .55, .4))
+	var leather := m("cloth", Color(.45, .3, .2))
+	var silver := metal(Color(.85, .87, .92), .25, .05); var gold := metal(GOLD_C, .25, .1)
+	var band := gold if it.rar in ["rare", "unique", "set"] else silver
+	match String(it.base):
+		"staff":
+			_mesh(r, cyl(.025, .035, .9, 8), wood, Vector3(0, .06, 0), Vector3(0, 0, PI / 2))
+			_mesh(r, torus(.05, .075), band, Vector3(.42, .06, 0), Vector3(0, 0, PI / 2))
+			_mesh(r, ball(.07, 10), gem, Vector3(.5, .08, 0))
+		"wand":
+			_mesh(r, cyl(.018, .025, .5, 8), wood, Vector3(0, .05, 0), Vector3(0, 0, PI / 2))
+			_mesh(r, ball(.045, 8), gem, Vector3(.27, .06, 0))
+		"sceptre":
+			_mesh(r, cyl(.025, .03, .6, 8), band, Vector3(0, .05, 0), Vector3(0, 0, PI / 2))
+			_mesh(r, ball(.08, 10), band, Vector3(.32, .07, 0))
+			_mesh(r, ball(.05, 8), gem, Vector3(.38, .1, 0))
+		"ring":
+			_mesh(r, torus(.06, .085), band, Vector3(0, .1, 0), Vector3(PI / 2 * .6, 0, 0))
+			_mesh(r, ball(.035, 8), gem, Vector3(0, .19, -.03))
+		"amulet":
+			_mesh(r, torus(.13, .145, 22), band, Vector3(0, .02, 0))
+			_mesh(r, ball(.06, 10), gem, Vector3(0, .05, .14), Vector3(), Vector3(1, .6, 1.3))
+		"cloak", "robe":
+			var cl := m("cloth", rc.lerp(Color(.35, .3, .4), .55))
+			_mesh(r, box(.42, .06, .32), cl, Vector3(0, .03, 0))
+			_mesh(r, box(.38, .05, .2), cl, Vector3(0, .08, -.04), Vector3(.2, 0, 0))
+			_mesh(r, ball(.03, 6), band, Vector3(0, .11, .06))
+		"gloves":
+			for sx in [-.1, .1]:
+				_mesh(r, box(.12, .06, .2), leather, Vector3(sx, .03, 0), Vector3(0, sx, 0))
+				_mesh(r, cyl(.06, .065, .06, 10), band, Vector3(sx, .04, .12), Vector3(PI / 2, 0, 0))
+		"belt":
+			_mesh(r, torus(.15, .19, 22), leather, Vector3(0, .02, 0), Vector3(), Vector3(1, .5, 1))
+			_mesh(r, box(.08, .05, .06), band, Vector3(0, .04, .17))
+		"boots":
+			for sx in [-.09, .09]:
+				_mesh(r, box(.1, .22, .12), leather, Vector3(sx, .11, 0))
+				_mesh(r, box(.1, .07, .2), leather, Vector3(sx, .035, .06))
+				_mesh(r, box(.11, .03, .13), band, Vector3(sx, .2, 0))
+		_:
+			_mesh(r, box(.2, .1, .2), m("cloth", rc), Vector3(0, .05, 0))
