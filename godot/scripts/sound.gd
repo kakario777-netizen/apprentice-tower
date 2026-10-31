@@ -51,7 +51,9 @@ func set_music_vol(v: float) -> void:
 	if front.playing: front.volume_db = db(music_vol * .8)
 
 # ---------------- 효과음 ----------------
-const GAIN := {hit = .5, coin = .55, coin2 = .55, click = .6, step = .4, hurt = .6, die = .7, arrow = .6, eorb = .55, pickup = .7, item = .8, boom = .8, arcane = .55, fire = .7}
+# 전체적으로 크다는 의견 → 모든 효과음을 한 단계(약 -3dB) 낮춤
+const MASTER := .68
+const GAIN := {hit = .45, coin = .5, coin2 = .5, click = .55, step = .35, hurt = .55, die = .6, arrow = .55, eorb = .5, pickup = .6, item = .7, boom = .75, arcane = .5, fire = .75, creak = .6, chest = .7, levelup = .8, roar = .8}
 func play(name: String, vol := 1.0, pitch_var := .08) -> void:
 	if sfx_vol <= .01: return
 	var now := Time.get_ticks_msec()
@@ -65,8 +67,9 @@ func play(name: String, vol := 1.0, pitch_var := .08) -> void:
 			p = q; break
 	if p == null: p = pool[randi() % pool.size()]
 	p.stream = s; p.pitch_scale = 1.0 + randf_range(-pitch_var, pitch_var)
-	p.volume_db = db(sfx_vol * vol * GAIN.get(name, 1.0)); p.play()
+	p.volume_db = db(sfx_vol * vol * MASTER * GAIN.get(name, .85)); p.play()
 
+const LOOP_GAIN := {storm = .6, frost = .75}
 # 누르고 있는 동안 계속 나는 소리(번개·냉기 숨결)
 func loop(name: String) -> void:
 	if name == loop_name: return
@@ -74,7 +77,9 @@ func loop(name: String) -> void:
 	if name == "":
 		var tw := create_tween(); tw.tween_property(loop_p, "volume_db", -60.0, .15); tw.tween_callback(_loop_off); return
 	loop_p.stream = _stream("res://sound/sfx/%s.ogg" % name, true)
-	loop_p.volume_db = db(sfx_vol * .5); loop_p.play()
+	var target := db(sfx_vol * MASTER * LOOP_GAIN.get(name, .6))
+	loop_p.volume_db = target - 14.0; loop_p.play()
+	create_tween().tween_property(loop_p, "volume_db", target, .12)   # 부드럽게 시작
 
 func _loop_off() -> void:
 	if loop_name == "": loop_p.stop()

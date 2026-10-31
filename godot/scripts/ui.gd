@@ -829,7 +829,7 @@ func _render_bag() -> void:
 	_begin("bag", .9, BoxContainer.ALIGNMENT_BEGIN)
 	game.recalc()
 	var P = game.P; var G = game.G
-	box.add_child(_tabbar("bag"))
+	box.add_child(_tradebar() if trade_bag else _tabbar("bag"))
 	# 화면 크기에 맞춰: 장비창 | 가방창 을 나란히, 자세히 보기는 밑(세로 여유가 있으면) 또는 옆
 	var vs = get_viewport().get_visible_rect().size; var ins: Dictionary = main.hud.inset()
 	var AW: float = vs.x - 32 - ins.l - ins.r; var AH: float = vs.y - 40 - ins.t - ins.b - 48
@@ -877,7 +877,7 @@ func _render_bag() -> void:
 		var it = P.bag[i] if i < P.bag.size() else null
 		var b = _slot(it, "", bag_sel != null and bag_sel.from == "bag" and bag_sel.i == i, SL, func():
 			if i >= P.bag.size(): return
-			if _dbl("bag:%d" % i):
+			if not trade_bag and _dbl("bag:%d" % i):
 				# 두 번 누르면 바로 착용(반지는 빈 칸 또는 약한 쪽)
 				var bi = P.bag[i]; var slot: String = bi.slot
 				if slot == "ring":
@@ -891,7 +891,11 @@ func _render_bag() -> void:
 	var dt = PanelContainer.new(); dt.custom_minimum_size = Vector2(230, 90); dt.size_flags_horizontal = Control.SIZE_EXPAND_FILL; dt.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	var dv = VBoxContainer.new(); dv.add_theme_constant_override("separation", 6); dt.add_child(dv)
 	var it = _sel_item()
-	if it == null:
+	if it == null and trade_bag:
+		dv.add_child(label("물건 판매", 16, GOLD, display))
+		dv.add_child(label("가방에서 팔 물건을 눌러 고르세요.", 14, INK))
+		dv.add_child(label("고른 뒤 [판매]를 누르면 값을 알려 드려요.", 13, MUTED))
+	elif it == null:
 		dv.add_child(label("착용 효과", 14, GOLD, display))
 		var tot = {}
 		for k in D.SLOTS:
@@ -930,7 +934,16 @@ func _render_bag() -> void:
 			var b = btn(t, fn, ghost); b.add_theme_font_size_override("font_size", 14)
 			for st in ["normal", "hover", "pressed"]: b.add_theme_stylebox_override(st, _small(btn_sb(ghost)))
 			rr.add_child(b)
-		if bag_sel.from == "bag":
+		if trade_bag:
+			# 판매 모드: 착용 버튼 대신 판매만
+			if bag_sel.from == "bag":
+				var ask = func(): _sell_ask(bag_sel.i)
+				sbtn.call("판매", ask, false)
+			else:
+				dv.add_child(label("착용 중인 장비는 팔 수 없어요. 벗은 뒤 팔아 주세요.", 12, MUTED))
+				var unf2 = func(): _unequip_sel()
+				sbtn.call("벗기", unf2, true)
+		elif bag_sel.from == "bag":
 			var targets: Array = ["ring1", "ring2"] if it.slot == "ring" else [it.slot]
 			var curs: Array = targets.map(func(k): return P.eq[k]).filter(func(x): return x != null)
 			if curs.size():
@@ -957,12 +970,9 @@ func _render_bag() -> void:
 			else:
 				var e0 = func(): _equip(it.slot)
 				sbtn.call("착용", e0, false)
-			var sellf = func():
-				game.sell(bag_sel.i); bag_sel = null; _render_bag()
 			var dropf = func():
 				game.discard(bag_sel.i); bag_sel = null; _render_bag()
-			if trade_bag and G.floor == 0: sbtn.call("상인에게 팔기 · 금화 %d" % it.value, sellf, true)
-			else: sbtn.call("버리기", dropf, true)
+			sbtn.call("버리기", dropf, true)
 		else:
 			var unf = func():
 				if game.unequip(bag_sel.slot):
@@ -1010,6 +1020,59 @@ func _render_bag() -> void:
 			if c.has_meta("key") and c.get_meta("key") == keep_focus:
 				c.grab_focus(); return
 	_focus_first()
+
+# 판매 창 위쪽 띠: 무엇을 하는 화면인지 + 판매 버튼(물건을 고르면 켜짐)
+func _tradebar() -> Control:
+	var bar = HBoxContainer.new(); bar.add_theme_constant_override("separation", 12); _center(bar, 1040)
+	var t = label("상인 미라 · 물건 판매", 19, GOLD, display); t.vertical_alignment = VERTICAL_ALIGNMENT_CENTER; bar.add_child(t)
+	var can: bool = bag_sel != null and bag_sel.from == "bag" and bag_sel.i < game.P.bag.size()
+	var h = label("물건을 누른 뒤 판매를 누르세요" if not can else "「%s」 판매할까요?" % iname(game.P.bag[bag_sel.i]), 14, INK if can else MUTED)
+	h.vertical_alignment = VERTICAL_ALIGNMENT_CENTER; h.clip_text = true; h.size_flags_horizontal = Control.SIZE_EXPAND_FILL; bar.add_child(h)
+	var sb_ = btn("판매", func(): _sell_sel())
+	sb_.custom_minimum_size = Vector2(110, 40); sb_.disabled = not can
+	if not can: sb_.modulate = Color(1, 1, 1, .4)
+	sb_.set_meta("key", "trade:sell"); bar.add_child(sb_)
+	bar.add_child(btn("가게로 돌아가기", func(): close_bag(), true))
+	return bar
+
+func _sell_sel() -> void:
+	if bag_sel != null and bag_sel.from == "bag":
+		_sell_ask(bag_sel.i)
+
+func _unequip_sel() -> void:
+	if bag_sel != null and bag_sel.from == "eq" and game.unequip(bag_sel.slot):
+		bag_sel = null
+	_render_bag()
+
+# "판매하시겠습니까?" — 판매 값은 이때(상점에서 팔기 직전)만 보여 준다
+func _sell_ask(i: int) -> void:
+	if i < 0 or i >= game.P.bag.size() or root.get_node_or_null("sellask"): return
+	var it = game.P.bag[i]
+	var dim = ColorRect.new(); dim.name = "sellask"; dim.set_anchors_preset(Control.PRESET_FULL_RECT); dim.color = Color(0, 0, 0, .55)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP; root.add_child(dim)
+	var cc = CenterContainer.new(); cc.set_anchors_preset(Control.PRESET_FULL_RECT); dim.add_child(cc)
+	var pn = PanelContainer.new(); pn.add_theme_stylebox_override("panel", sb(Color(.13, .105, .18, .98), 14, Color(D.RAR[it.rar].color), 2, Vector4(26, 18, 26, 18)))
+	cc.add_child(pn)
+	var v = VBoxContainer.new(); v.add_theme_constant_override("separation", 10); pn.add_child(v)
+	var top = HBoxContainer.new(); top.add_theme_constant_override("separation", 12); top.alignment = BoxContainer.ALIGNMENT_CENTER; v.add_child(top)
+	var ic = TextureRect.new(); ic.texture = load(gear_path(it)); ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; ic.custom_minimum_size = Vector2(52, 52); top.add_child(ic)
+	var nm = VBoxContainer.new(); top.add_child(nm)
+	nm.add_child(label(iname(it), 17, Color(D.RAR[it.rar].color), display))
+	nm.add_child(label("%s · %s" % [D.RAR[it.rar].name, D.slot_name(it.slot)], 12, MUTED))
+	var q = label("판매하시겠습니까?", 20, INK, display); q.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER; v.add_child(q)
+	var pr = HBoxContainer.new(); pr.alignment = BoxContainer.ALIGNMENT_CENTER; pr.add_theme_constant_override("separation", 8); v.add_child(pr)
+	pr.add_child(label("판매 가격", 15, MUTED)); pr.add_child(label("금화 %d" % int(it.value), 20, Color("#ffd76a"), display))
+	var close = func():
+		dim.queue_free(); _focus_first()
+	var yes = btn("판매", func():
+		var val: int = int(game.P.bag[i].value) if i < game.P.bag.size() else 0
+		game.sell(i); bag_sel = null; dim.queue_free(); main.hud.show_toast("금화 +%d" % val); _render_bag())
+	var no = btn("취소", close, true)
+	v.add_child(row([yes, no]))
+	pn.pivot_offset = pn.size / 2; pn.scale = Vector2(.92, .92); dim.modulate.a = 0.0
+	_tw().tween_property(dim, "modulate:a", 1.0, .15); _tw().tween_property(pn, "scale", Vector2.ONE, .18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	await get_tree().process_frame
+	if is_instance_valid(yes): yes.grab_focus()
 
 func _silhouette(w: float, h: float) -> Control:
 	var c = Control.new(); c.size = Vector2(w, h); c.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1283,6 +1346,9 @@ func close_map() -> void:
 	hide_all(); game.set_state("play")
 
 func close_bag() -> void:
+	var sa = root.get_node_or_null("sellask")
+	if sa:
+		sa.queue_free(); return          # 판매 확인창이 떠 있으면 그것만 닫기
 	var c = root.get_node_or_null("bagclose")
 	if c: c.queue_free()
 	if trade_bag:

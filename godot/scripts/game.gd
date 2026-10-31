@@ -5,6 +5,7 @@ extends Node
 signal toast(msg: String)
 signal ui(what: String)        # "buttons" "belt" "bag" "levelup" "end" "state" "talk"
 signal rumble(ms: int, strength: float)
+const GOLD_RATE := .1   # 떨어지는 금화 양(예전의 1/10)
 signal sfx(name: String)        # 효과음
 signal saved                    # 저장할 때마다(오른쪽 위 "자동 저장 중…")
 
@@ -55,7 +56,7 @@ func fresh_p() -> Dictionary:
 func fresh_g(diff: String) -> Dictionary:
 	return {corpses = [], anims = [], debris = [], floor = 0, resume = 1, diff = diff, state = "play", enemies = [], shots = [], eshots = [], zones = [],
 		fx = [], rings = [], bolts = [], drops = [], texts = [], chests = [], npcs = [], portal = null,
-		gold = 0, kills = 0, banner = {text = "", t = 0.0}, pendingLv = 0, flowT = 0.0, bossMax = 0.0, time = 0.0, coneT = 0.0, talkSeen = {},
+		gold = 0, kills = 0, banner = {text = "", t = 0.0}, pendingLv = 0, flowT = 0.0, bossMax = 0.0, time = 0.0, coneT = 0.0, talkSeen = {}, lights = [], cone = null,
 		sb = null, shake = 0.0, lvDelay = 0.0, revT = 0.0, goldPulse = 0.0, bagNew = false, nearItem = null, portalT = 0.0,
 		runSeed = randi() % 1000000, waypoints = [1], killsBy = {}, shop = [], stash = null, pull = null, townRet = null, cleared = [], fcache = {}, fcacheOrder = []}
 
@@ -207,7 +208,7 @@ func load_game(sv: Dictionary, slot_i := -1) -> void:
 
 func clear_level() -> void:
 	G.corpses = []; G.anims = []; G.debris = []; G.chests = []; G.enemies = []; G.shots = []; G.eshots = []; G.zones = []; G.drops = []; G.fx = []
-	G.rings = []; G.bolts = []; G.texts = []; G.bossMax = 0.0
+	G.rings = []; G.bolts = []; G.texts = []; G.bossMax = 0.0; G.lights = []; G.cone = null
 
 # ================= 맵 =================
 func go_town(first: bool) -> void:
@@ -507,7 +508,7 @@ func kill_enemy(e: Dictionary) -> void:
 	if roll < .10: G.drops.append({x = e.x, y = e.y, kind = "hp", t = 0.0, id = nid()})
 	elif roll < .25: G.drops.append({x = e.x, y = e.y, kind = "mp", t = 0.0, id = nid()})
 	if randf() < .5 or e.isBoss:
-		G.drops.append({x = e.x + rnd(-8, 8), y = e.y + rnd(-8, 8), kind = "gold", v = int(round((300 + G.floor * 30 if e.isBoss else (ri(2, 6) + G.floor) * 4) * diff_d().reward * (1 + P.st.gold))), t = 0.0, vx = rnd(-90, 90), vy = rnd(-90, 90), h = 0.0, vh = rnd(70, 120), id = nid()})
+		G.drops.append({x = e.x + rnd(-8, 8), y = e.y + rnd(-8, 8), kind = "gold", v = max(1, int(round((300 + G.floor * 30 if e.isBoss else (ri(2, 6) + G.floor) * 4) * diff_d().reward * (1 + P.st.gold) * GOLD_RATE))), t = 0.0, vx = rnd(-90, 90), vy = rnd(-90, 90), h = 0.0, vh = rnd(70, 120), id = nid()})
 	if not e.isBoss and G.floor >= 20 and randf() < (.006 if G.floor >= 50 else .003): drop_stone(e.x, e.y, 1)
 	# 한 층을 다 돌아야 3~4개 주울까 말까
 	if not e.isBoss and not e.get("elite", false) and e.xp > 1 and randf() < (.035 if (e.type == "demon" or e.type == "mage") else .022): drop_item(e.x, e.y)
@@ -696,7 +697,7 @@ func attack_of(id: String) -> Dictionary:
 		"chain":
 			a.dps = (14 + 8 * p + lvb * 3) * might; a.manaps = (8 + 2.4 * p) * thrift; a.range = 240.0
 		"cone":
-			a.dps = (12 + 7 * p + lvb * 3) * might; a.manaps = (8 + 2.2 * p) * thrift; a.range = 165.0
+			a.dps = (12 + 7 * p + lvb * 3) * might; a.manaps = (8 + 2.2 * p) * thrift; a.range = 190.0
 		_:
 			a.dps = (16 + 8 * p + lvb * 3) * might; a.manaps = (9 + 2.6 * p) * thrift; a.range = 360.0
 	return a
@@ -778,12 +779,18 @@ func fire(dt: float, ang: float) -> void:
 		if P.es.get("gust", 0):
 			G.eshots = G.eshots.filter(func(s): return not (s.kind == "arrow" and hyp(s.x - P.x, s.y - P.y) < range and absf(ang_diff(atan2(s.y - P.y, s.x - P.x), ang)) < half))
 		if P.es.get("harden", 0): P.hardenT = .15
+		# 고깔은 내 몸에 붙어 따라다닌다(뷰가 매 프레임 이 값으로 그림). 벽에 닿으면 거기까지만.
+		var ln := 16.0
+		while ln < range and not mg.solid_at(P.x + cos(ang) * ln, P.y + sin(ang) * ln): ln += 8
+		G.cone = {ang = ang, half = half, len = min(range, ln + 14), color = a.color, t = G.time}
 		G.coneT += dt
-		if G.coneT > .016:
+		if G.coneT > .03:
 			G.coneT = 0.0
-			for i in 3:
-				var an = ang + rnd(-half, half); var sp = rnd(.6, 1) * range * 2.4
-				G.fx.append({x = P.x + cos(ang) * 12, y = P.y + sin(ang) * 12, vx = cos(an) * sp, vy = sin(an) * sp, life = .38, max = .38, color = a.color, size = rnd(3, 6), cone = 1, wall = 1})
+			for i in 2:
+				var sp = rnd(.8, 1.1) * range * 1.9
+				# rel: 나를 기준으로 (각도, 거리) — 내가 움직여도 고깔 안에 그대로 있다
+				G.fx.append({rel = 1, a = rnd(-half, half) * .85, d = rnd(14, 30), dv = sp, x = P.x, y = P.y, vx = 0.0, vy = 0.0, life = .32, max = .32,
+					color = "#ffffff" if i == 0 else a.color, size = rnd(1.2, 2.2) if i == 0 else rnd(3, 5), hv = rnd(-.35, .35), mist = 0 if i == 0 else 1, lim = G.cone.len})
 	else:
 		var len = 0.0; var step = 8.0
 		while len < a.range and not mg.solid_at(P.x + cos(ang) * len, P.y + sin(ang) * len): len += step
@@ -810,7 +817,7 @@ func shot_hit(s: Dictionary, e: Dictionary) -> bool:
 	if s.els.has("arcane") and P.es.get("siphon", 0): P.mp = min(P.maxmp, P.mp + 1.2 * P.es.siphon)
 	if s.els.has("fire"):
 		var bl: int = P.es.get("blast", 0); var rad: float = 28 + 18 * bl if bl else 0.0
-		sfx.emit("boom"); burst(s.x, s.y, "#ff8a3a", 8 + bl * 3, 140, .35, 3, shot_h * .8); burst(s.x, s.y, "#fff0b0", 4, 60, .2, 4, shot_h * .8); smoke(s.x, s.y, 2 + bl); fx_anim("fx_blast", s.x, s.y + 10, 34 + bl * 10, 0.0, 0.0, shot_h * .7)
+		sfx.emit("boom"); fire_explode(s.x, s.y, 1.0 + .25 * bl)
 		if rad:
 			ring(s.x, s.y, 6, rad, .25, "#ffb05a")
 			for o in G.enemies:
@@ -1215,7 +1222,7 @@ func buy(id: String) -> void:
 # ================= 층 이동 / 종료 =================
 func open_chest(c: Dictionary) -> void:
 	c.open = true; sfx.emit("chest"); ring(c.x, c.y, 4, 34, .35, "#ffd76a"); burst(c.x, c.y - 6, "#ffd76a", 18, 140, .5, 2.5)
-	var n = ri(5, 9); var v: int = max(1, int(round((6 + G.floor * 3) * diff_d().reward)))
+	var n = ri(5, 9); var v: int = max(1, int(round((6 + G.floor * 3) * diff_d().reward * GOLD_RATE)))
 	for i in n: G.drops.append({id = nid(), x = c.x, y = c.y + 6, kind = "gold", v = v, t = .5, vx = rnd(-130, 130), vy = rnd(-40, 150), h = 8.0, vh = rnd(140, 220)})
 	if randf() < .18: drop_item(c.x, c.y, "", 1.5)
 	if G.floor >= 25 and randf() < .05: drop_stone(c.x, c.y, 1)
@@ -1313,7 +1320,26 @@ func burst(x: float, y: float, color: String, n: int, sp: float, life: float, si
 		var f = {x = x, y = y, vx = cos(a) * v, vy = sin(a) * v, life = life * rnd(.6, 1), max = life, color = color, size = size * rnd(.6, 1.3)}
 		if h >= 0: f.h = h
 		G.fx.append(f)
-	if G.fx.size() > 700: G.fx = G.fx.slice(G.fx.size() - 700)
+	if G.fx.size() > 900: G.fx = G.fx.slice(G.fx.size() - 900)
+
+# 화염구 폭발: 번쩍 → 불덩이가 부풀어 오르고 → 불티가 튀고 → 연기·그을음
+func fire_explode(x: float, y: float, k := 1.0) -> void:
+	var h: float = shot_h * .7
+	G.fx.append({flash = 1, x = x, y = y, vx = 0.0, vy = 0.0, life = .2, max = .2, color = "#fff3d0", size = 34.0 * k, h = h})
+	for i in int(16 * k):
+		var a = rnd(0, TAU); var v = rnd(40, 150) * k
+		G.fx.append({flame = 1, big = 1, x = x + cos(a) * 4, y = y + sin(a) * 4, vx = cos(a) * v, vy = sin(a) * v, life = rnd(.35, .6), max = .6, color = "#ff8a3a", size = rnd(7, 12) * k, h = h + rnd(-.1, .35)})
+	for i in int(26 * k):
+		var a = rnd(0, TAU); var v = rnd(160, 340) * k
+		G.fx.append({x = x, y = y, vx = cos(a) * v, vy = sin(a) * v, life = rnd(.25, .55), max = .55, color = pick(["#fff3c4", "#ffd27a", "#ffae4a"]), size = rnd(1.2, 2.2), h = h + rnd(-.2, .5)})
+	for i in int(5 * k):
+		G.fx.append({x = x + rnd(-14, 14) * k, y = y + rnd(-14, 14) * k, vx = rnd(-18, 18), vy = rnd(-35, -10), life = rnd(.8, 1.3), max = 1.3, color = "#3a2a26", size = rnd(7, 11) * k, smoke = 1})
+	ring(x, y, 8, 62 * k, .32, "#ffb05a"); ring(x, y, 4, 38 * k, .22, "#fff0b0")
+	fx_anim("fx_blast", x, y + 10, 64 * k, 0.0, 0.0, h)
+	G.zones.append({kind = "scorch", x = x, y = y, r = 20.0 * k, life = 2.5, max = 2.5})
+	G.lights.append({x = x, y = y, life = .32, max = .32, color = "#ffa54a", en = 5.0 * k})
+	G.shake = max(G.shake, .1 * k); rumble.emit(60, .35)
+	if G.fx.size() > 900: G.fx = G.fx.slice(G.fx.size() - 900)
 
 func lv_fx() -> void:
 	rumble.emit(120, .4); ring(P.x, P.y, 8, 90, .6, "#e3b04b"); ring(P.x, P.y, 4, 50, .45, "#fff2c2")
@@ -1499,9 +1525,15 @@ func update(dt: float) -> void:
 		s.x += s.vx * dt; s.y += s.vy * dt; s.life -= dt
 		if mg.solid_at(s.x, s.y):
 			s.life = 0.0
-			if s.els.has("fire"): burst(s.x, s.y, "#ff8a3a", 6, 100, .3, 3, shot_h * .8)
+			if s.els.has("fire"):
+				fire_explode(s.x - s.vx * dt * 2, s.y - s.vy * dt * 2, .7); sfx.emit("boom")
 			continue
-		if randf() < .5: G.fx.append({x = s.x, y = s.y, vx = rnd(-20, 20), vy = rnd(-20, 20), life = .25, max = .25, color = s.color, size = s.r * .6, h = shot_h})
+		if s.els.has("fire"):
+			# 불덩이 꼬리: 뒤로 흩어지며 커지고 노랑→주황→검붉게 식는 불꽃
+			for i in 3:
+				G.fx.append({flame = 1, x = s.x + rnd(-3, 3), y = s.y + rnd(-3, 3), vx = -s.vx * .12 + rnd(-25, 25), vy = -s.vy * .12 + rnd(-25, 25), life = rnd(.22, .36), max = .36,
+					color = "#ff8a3a", size = rnd(4.5, 7.0), h = shot_h + rnd(-.06, .1)})
+		elif randf() < .5: G.fx.append({x = s.x, y = s.y, vx = rnd(-20, 20), vy = rnd(-20, 20), life = .25, max = .25, color = s.color, size = s.r * .6, h = shot_h})
 		for e in G.enemies:
 			if e.dead or s.hitSet.has(e.id): continue
 			if hyp(e.x - s.x, e.y - s.y) < e.r + s.r:
@@ -1545,6 +1577,8 @@ func update(dt: float) -> void:
 			ring(z.x, z.y, 10, z.r, .3, "#e6dcc4"); burst(z.x, z.y, "#9b927f", 24, 240, .4, 4)
 			if hyp(P.x - z.x, P.y - z.y) < z.r: hurt_player(z.dmg)
 	G.zones = G.zones.filter(func(z): return z.life > 0)
+	for l in G.lights: l.life -= dt
+	G.lights = G.lights.filter(func(l): return l.life > 0)
 
 	# 아이템
 	for d in G.drops:
@@ -1585,7 +1619,7 @@ func update(dt: float) -> void:
 				if P.pot.get(d.kind, 0) < pot_max(d.kind):
 					P.pot[d.kind] = P.pot.get(d.kind, 0) + 1; float_text(P.x, P.y - 20, it.name, "#fff2c2"); ui.emit("belt")
 				else:
-					G.gold += 80; float_text(P.x, P.y - 20, "가득 참 · 금화 +80", "#ffd76a")
+					G.gold += 10; float_text(P.x, P.y - 20, "가득 참 · 금화 +10", "#ffd76a")
 				ring(d.x, d.y, 2, 16, .25, "#fff2c2")
 			elif d.kind == "item":
 				if P.bag.size() >= P.bagMax:
@@ -1619,7 +1653,14 @@ func update(dt: float) -> void:
 	G.debris = G.debris.filter(func(d): return d.life > 0)
 	if G.portal != null: G.portalT += dt
 	for f in G.fx:
-		f.life -= dt; f.x += f.vx * dt; f.y += f.vy * dt
+		f.life -= dt
+		if f.has("rel"):
+			f.d += f.dv * dt; f.dv *= 1 - 1.5 * dt
+			var ca: float = G.cone.ang if G.cone != null else P.face
+			f.x = P.x + cos(ca + f.a) * f.d; f.y = P.y + sin(ca + f.a) * f.d
+			if f.d > f.lim: f.life = 0.0
+			continue
+		f.x += f.vx * dt; f.y += f.vy * dt
 		if not f.has("rain") and not f.has("smoke"):
 			f.vx *= 1 - 3 * dt; f.vy *= 1 - 3 * dt
 		if f.has("wall") and mg.solid_at(f.x, f.y): f.life = 0.0

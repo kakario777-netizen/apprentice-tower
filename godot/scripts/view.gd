@@ -36,6 +36,11 @@ var tip_light: OmniLight3D
 var tip_a := 0.0
 var tip3 := Vector3()
 var shot_h := 1.3          # 내 탄이 나는 높이 = 스태프 끝 높이
+var cam_fwd := Vector3(0, -.8, -.6)
+var cone_node: MeshInstance3D
+var cone_inner: MeshInstance3D
+var cone_half := -1.0
+var cone_a := 0.0
 
 static var _dot_tex: Texture2D
 static func dot_tex() -> Texture2D:
@@ -75,7 +80,7 @@ func _ready() -> void:
 	for q in [tip_glow, tip_core]:
 		var mm: StandardMaterial3D = q.material_override; mm.no_depth_test = true; mm.render_priority = 4
 	tip_light = OmniLight3D.new(); tip_light.omni_range = 3.0; tip_light.light_energy = 0.0; add_child(tip_light)
-	for i in 4:
+	for i in 6:
 		var L = OmniLight3D.new(); L.omni_range = 4.0; L.light_energy = 0.0; L.visible = false
 		add_child(L); shot_lights.append(L)
 
@@ -522,6 +527,24 @@ func _sync_fx(G, P) -> void:
 		if f.has("dust") or f.has("smoke"):
 			var c = Color(f.color); c.a = a * (.38 if f.has("smoke") else .6)
 			mix.append([f.x, f.y, f.size * ((2.2 - a * 1.2) if f.has("smoke") else 1.0), c])
+		elif f.has("rel"):
+			# 냉기 고깔 안의 입자(내 몸 기준): 서리 안개는 크게 흐리게, 얼음 알갱이는 작게 반짝
+			var hh: float = shot_h * .78 + f.hv * (f.d / 160.0)
+			if f.mist:
+				var c = Color(f.color); c.a = a * .22; glow.append([f.x, f.y, f.size * (3.6 - a * 2.0), c, hh])
+			else:
+				var c = Color(1, 1, 1, a * .95 * (.6 + .4 * sin(f.d * .4))); dot.append([f.x, f.y, f.size, c, hh])
+		elif f.has("flame"):
+			# 불꽃: 흰노랑 → 주황 → 검붉게 식으며 부풀어 오른다
+			var c: Color
+			if a > .65: c = Color("#fff1c4").lerp(Color("#ffb347"), (1 - a) / .35)
+			elif a > .3: c = Color("#ffb347").lerp(Color("#ff5a1f"), (.65 - a) / .35)
+			else: c = Color("#ff5a1f").lerp(Color("#7a1a10"), (.3 - a) / .3)
+			c.a = min(1.0, a * 1.6) * (.75 if f.has("big") else .62)
+			glow.append([f.x, f.y, f.size * (1.9 - a * .9), c, f.get("h", .06) + (1 - a) * .25])
+		elif f.has("flash"):
+			var c = Color(f.color); c.a = a; glow.append([f.x, f.y, f.size * (1.6 - a * .6), c, f.get("h", .06)])
+			glow.append([f.x, f.y, f.size * .45, Color(1, 1, 1, a), f.get("h", .06)])
 		elif f.has("cone"):
 			var c = Color(f.color); c.a = a * .42; glow.append([f.x, f.y, f.size * (4.5 - a * 2.5), c, .55])
 		elif f.size > 2.6:
@@ -541,8 +564,24 @@ func _sync_fx(G, P) -> void:
 			glow.append([z.x, z.y - 3, 20 * fl, Color(Color("#ff7a2a"), .7 * a)]); dot.append([z.x, z.y - 2, 2.4 * fl, Color(1, .86, .55, .8 * a)])
 		elif z.kind == "acid": glow.append([z.x, z.y - 34, z.r * .9, Color(Color("#5a7a4a"), .35 * a)])
 		elif z.kind == "stasis": glow.append([z.x, z.y, z.r * .9, Color(Color("#9a70ff"), .18 * a)])
+		elif z.kind == "scorch":
+			var k: float = z.life / z.max
+			mix.append([z.x, z.y, z.r * 1.3, Color(.05, .03, .02, .4 * min(1.0, k * 2)), .03])
+			glow.append([z.x, z.y, z.r * .8, Color(1, .4, .1, .3 * k * k), .04])
 	# 탄 빛
-	for s in G.shots: glow.append([s.x, s.y, s.r * 4, Color(Color(s.color), .5), shot_h])
+	for s in G.shots:
+		if s.els.has("fire"):
+			# 불덩이 본체: 넓은 주황 불빛 + 단단한 노란 몸통 + 하얀 심
+			var fl: float = .9 + .1 * sin(G.time * 40 + s.x)
+			glow.append([s.x, s.y, s.r * 5.2 * fl, Color(1, .45, .12, .55), shot_h])
+			glow.append([s.x, s.y, s.r * 3.3 * fl, Color(1, .75, .3, .95), shot_h])
+			dot.append([s.x, s.y, s.r * 1.25, Color(1, .97, .85, 1), shot_h + .01])
+		else: glow.append([s.x, s.y, s.r * 4, Color(Color(s.color), .5), shot_h])
+	# 번개가 닿은 곳: 은은한 빛 번짐
+	for b in G.bolts:
+		if not b.has("elec"): continue
+		var e: Vector2 = b.pts[-1]
+		glow.append([e.x, e.y, randf_range(9, 13), Color(Color(b.color), .28), shot_h]); dot.append([e.x, e.y, 2.2, Color(1, 1, 1, .7), shot_h])
 	for s in G.eshots:
 		if s.kind == "arrow": continue
 		var col = Color({ice = "#9fd0ff", poison = "#8fd14f", fire = "#ff6a2a", skull = "#b77bff", spit = "#d98a9a"}.get(s.kind, "#ffffff"))
@@ -556,9 +595,13 @@ func _sync_fx(G, P) -> void:
 	_sync_lines(G, P)
 	# 탄에 빛 몇 개
 	var li = 0
+	for l in G.lights:
+		if li >= shot_lights.size(): break
+		var L: OmniLight3D = shot_lights[li]; var k: float = l.life / l.max
+		L.visible = true; L.light_color = Color(l.color); L.light_energy = l.en * k * k; L.omni_range = 6.0; L.position = w3(l.x, l.y, 1.2); li += 1
 	for s in G.shots:
 		if li >= shot_lights.size(): break
-		var L: OmniLight3D = shot_lights[li]; L.visible = true; L.light_color = Color(s.color); L.light_energy = 1.2; L.position = w3(s.x, s.y, shot_h); li += 1
+		var L: OmniLight3D = shot_lights[li]; L.visible = true; L.light_color = Color(s.color); L.light_energy = 1.8 if s.els.has("fire") else 1.2; L.omni_range = 4.0; L.position = w3(s.x, s.y, shot_h); li += 1
 	while li < shot_lights.size():
 		shot_lights[li].visible = false; li += 1
 
@@ -581,6 +624,7 @@ func _sync_sprite_fx(G) -> void:
 			var fr = int(G.time * 1000 / A.dur * A.frames) % int(A.frames); var k: float = z.r * 2.1 / m.ch
 			addf.call("fx_runes", z.x, z.y + z.r * .4, m.cw * k, m.ch * k, 0, fr, A.frames, min(1.0, z.life) * .8, (m.cw / 2.0 - m.anchor[0]) * k, (m.ch / 2.0 - m.anchor[1]) * k)
 	for s in G.shots:
+		if s.els.has("fire"): continue
 		var sn = "fx_fireball" if s.els.has("fire") else ("fx_icicle" if s.els.has("frost") else ("fx_spark_blue" if s.els.has("storm") else "fx_plasma"))
 		if not M.has(sn): continue
 		var m: Dictionary = M[sn]; var A: Dictionary = m.anims.idle
@@ -631,7 +675,8 @@ func _line3(im: ImmediateMesh, pts: Array, w: float, c: Color) -> void:
 	for i in pts.size():
 		var p: Vector3 = pts[i]
 		var dv: Vector3 = pts[min(i + 1, pts.size() - 1)] - pts[max(i - 1, 0)]
-		var nrm := Vector3(-dv.z, 0, dv.x)
+		var nrm := dv.cross(cam_fwd)
+		if nrm.length() < .0001: nrm = Vector3(-dv.z, 0, dv.x)
 		if nrm.length() < .0001: nrm = Vector3(0, 1, 0)
 		nrm = nrm.normalized() * w * .5 * S
 		im.surface_set_color(c); im.surface_add_vertex(p + nrm)
@@ -667,6 +712,9 @@ func _disc(im: ImmediateMesh, x: float, y: float, r: float, c: Color, h := .05) 
 
 func _sync_lines(G, P) -> void:
 	lines_add.clear_surfaces(); lines_mix.clear_surfaces()
+	var cam := get_viewport().get_camera_3d()
+	if cam: cam_fwd = -cam.global_transform.basis.z
+	_sync_cone(G, P)
 	for b in G.bolts:
 		var c = Color(b.color)
 		var p3: Array = []
@@ -677,16 +725,15 @@ func _sync_lines(G, P) -> void:
 		elif b.has("elec"):
 			# 전기: 매 프레임 새로 꺾이는 두 가닥 + 잔가지 + 넓은 푸른 번짐
 			var a3: Vector3 = p3[0]; var b3: Vector3 = p3[-1]
-			for strand in 2:
-				var z := _zigzag(a3, b3, 9.0 if strand == 0 else 6.0)
-				if strand == 0:
-					_line3(lines_add, z, 16, Color(c, .18)); _line3(lines_add, z, 5, Color(c, .75)); _line3(lines_add, z, 1.8, Color(1, 1, 1, 1))
-				else:
-					_line3(lines_add, z, 2.2, Color(c.lightened(.3), .55))
-				for f in 2:
-					var k: int = randi_range(1, z.size() - 2)
-					var dir: Vector3 = (b3 - a3).normalized().rotated(Vector3.UP, randf_range(-1.1, 1.1)) * randf_range(.5, 1.2)
-					_line3(lines_add, _zigzag(z[k], z[k] + dir, 4.0, 4), 1.6, Color(c.lightened(.4), .7))
+			var fl: float = randf_range(.65, 1.0)          # 매 프레임 밝기가 미세하게 떨림
+			var main := _zigzag(a3, b3, 7.0)
+			_line3(lines_add, main, 11, Color(c, .07 * fl)); _line3(lines_add, main, 3.2, Color(c, .3 * fl)); _line3(lines_add, main, 1.1, Color(.92, .98, 1, .72 * fl))
+			_line3(lines_add, _zigzag(a3, b3, 4.5), .9, Color(c.lightened(.35), .38 * fl))
+			if randf() < .6: _line3(lines_add, _zigzag(a3, b3, 10.0), .7, Color(c.lightened(.2), .22 * fl))
+			for f in 2:
+				var k: int = randi_range(1, main.size() - 2)
+				var dir: Vector3 = (b3 - a3).normalized().rotated(Vector3.UP, randf_range(-1.1, 1.1)) * randf_range(.4, 1.0)
+				_line3(lines_add, _zigzag(main[k], main[k] + dir, 3.0, 4), .8, Color(c.lightened(.4), .4 * fl))
 		else:
 			_line3(lines_add, p3, 9, Color(c, .3)); _line3(lines_add, p3, 3, Color(c, .85)); _line3(lines_add, p3, 1.4, Color(1, 1, 1, 1))
 	for r in G.rings:
@@ -702,6 +749,9 @@ func _sync_lines(G, P) -> void:
 				var a0: float = G.time * .6 + k * TAU / 10
 				_line(lines_mix, _circle_pts(z.x, z.y, z.r * .8, a0, a0 + TAU / 10 * .55, 6), 2.5, Color(.78, .67, 1, .6 * a))
 		elif z.kind == "acid": _disc(lines_mix, z.x, z.y, z.r, Color(.47, .75, .24, .18 * a))
+		elif z.kind == "scorch":
+			var k: float = z.life / z.max
+			pass   # 그을음은 _sync_fx 에서 부드러운 점으로
 		elif z.kind == "warn":
 			var t: float = 1 - z.life / z.max
 			_line(lines_mix, _circle_pts(z.x, z.y, z.r), 2.5, Color(.9, .35, .27, .85)); _disc(lines_mix, z.x, z.y, z.r * t, Color(.9, .35, .27, .22))
@@ -725,3 +775,67 @@ func _sync_lines(G, P) -> void:
 	if game.mg.stairs != null and G.floor > 0 and not game.mg.stairs.get("alcove", false) and game.mg.is_seen(game.mg.stairs.x, game.mg.stairs.y):
 		var st = game.mg.stairs; var t: float = G.time
 		_line(lines_add, _circle_pts(st.x, st.y + 4, 40, t * .8, t * .8 + TAU * .8), 2, Color(.89, .69, .29, .45 + .25 * sin(t * 3)))
+
+# ---------------- 냉기 고깔 ----------------
+# 스태프 끝에서 앞으로 퍼지는 반투명 고깔. 내 몸에 붙어 같이 움직이고, 안쪽에 흐르는 서리 무늬.
+const CONE_SH := """
+shader_type spatial;
+render_mode unshaded, blend_add, depth_test_disabled, cull_disabled, depth_draw_never;
+uniform vec4 col : source_color = vec4(.8, .95, 1., 1.);
+uniform float amt = 1.0;
+uniform float speed = 2.4;
+uniform sampler2D noise : repeat_enable, filter_linear;
+void fragment() {
+	float u = UV.x; float v = UV.y;
+	float n1 = texture(noise, vec2(u * 1.3 - TIME * speed, v * 2.0)).r;
+	float n2 = texture(noise, vec2(u * 2.7 - TIME * speed * 1.6, v * 3.0 + .37)).r;
+	float n = n1 * .6 + n2 * .4;
+	float m = smoothstep(.35, .8, n);                       // 안개 덩어리만 남기고 사이는 비게
+	float a = smoothstep(0.0, .12, u) * (1.0 - smoothstep(.55, 1.0, u)) * (.08 + .9 * m);
+	vec3 c = mix(vec3(.95, .99, 1.0), col.rgb * vec3(.85, .95, 1.0), smoothstep(.0, .4, u));
+	ALBEDO = c; ALPHA = clamp(a * amt * col.a, 0.0, 1.0);
+}
+"""
+static var _noise_tex: Texture2D
+func _cone_mesh(half: float, squash: float) -> ArrayMesh:
+	var st := SurfaceTool.new(); st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var nu := 10; var nv := 24; var tn := tan(half)
+	var P := func(u: float, v: float) -> Vector3:
+		var r: float = tn * u * (1.0 + .25 * u)          # 끝으로 갈수록 살짝 더 벌어짐
+		return Vector3(u, sin(TAU * v) * r * squash, cos(TAU * v) * r)
+	for i in nu:
+		for j in nv:
+			var u0 := float(i) / nu; var u1 := float(i + 1) / nu; var v0 := float(j) / nv; var v1 := float(j + 1) / nv
+			for q in [[u0, v0], [u1, v0], [u1, v1], [u0, v0], [u1, v1], [u0, v1]]:
+				st.set_uv(Vector2(q[0], q[1])); st.add_vertex(P.call(q[0], q[1]))
+	return st.commit()
+
+func _make_cone(alpha: float) -> MeshInstance3D:
+	if _noise_tex == null:
+		var fn := FastNoiseLite.new(); fn.frequency = .035; fn.fractal_octaves = 3
+		_noise_tex = ImageTexture.create_from_image(fn.get_seamless_image(128, 128))   # 바로 만들어지게(비동기 X)
+	var m := ShaderMaterial.new(); var sh := Shader.new(); sh.code = CONE_SH; m.shader = sh
+	m.set_shader_parameter("noise", _noise_tex); m.set_shader_parameter("amt", alpha); m.render_priority = 2
+	var mi := MeshInstance3D.new(); mi.material_override = m; mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mi.visible = false; add_child(mi); return mi
+
+func _sync_cone(G, P) -> void:
+	if cone_node == null:
+		cone_node = _make_cone(.3); cone_inner = _make_cone(.34)
+		(cone_inner.material_override as ShaderMaterial).set_shader_parameter("speed", 3.4)
+	var c = G.get("cone")
+	var on: bool = c != null and G.time - c.t < .08 and G.state == "play"
+	cone_a = move_toward(cone_a, 1.0 if on else 0.0, get_process_delta_time() * (12.0 if on else 6.0))
+	cone_node.visible = cone_a > .01 and c != null; cone_inner.visible = cone_node.visible
+	if not cone_node.visible: return
+	if absf(c.half - cone_half) > .01:
+		cone_half = c.half
+		cone_node.mesh = _cone_mesh(c.half, .42); cone_inner.mesh = _cone_mesh(c.half * .5, .5)
+	var L: float = c.len * S
+	var b := Basis(Vector3.UP, -c.ang)
+	var apex := Vector3(player.position.x, tip3.y - .08, player.position.z) + b * Vector3(.3, 0, 0)
+	cone_node.transform = Transform3D(b.scaled(Vector3(L, L, L)), apex)
+	cone_inner.transform = Transform3D(b.scaled(Vector3(L * .85, L * .85, L * .85)), apex)
+	for n in [cone_node, cone_inner]:
+		var m: ShaderMaterial = n.material_override
+		m.set_shader_parameter("col", Color(Color(c.color), cone_a))

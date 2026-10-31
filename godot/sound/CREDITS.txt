@@ -4,3 +4,6 @@
   Choir Chords, Exploration, Juhani Junkala - Epic Boss Battle, Victory)
 효과음: Kenney(50 RPG Sound Effects, Interface Sounds), rubberduck(80 CC0 RPG SFX, 100 CC0 SFX), JaggedStone(Magic Spell SFX), HaelDB(Spell sounds),
   bart(Ice spells), artisticdude(Freeze Spell), qubodup(Swish)
+
+직접 만든 소리(tools/sfx_synth.py, 합성): arcane(보잉), fire(묵직한 발사), boom(폭발), frost(냉기 반복), creak(가벼운 나무 끼익)
+  — fire·boom 에는 rubberduck(80 CC0 RPG SFX, 100 CC0 SFX)의 CC0 소리를 낮춰 섞음

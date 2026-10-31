@@ -37,6 +37,7 @@ var test_floor := 0
 var test_inp = null
 var samples_dir := ""
 var lvtest := false
+var fxtest := false
 
 func _ready() -> void:
 	Ui.init_fonts()
@@ -57,6 +58,7 @@ func _ready() -> void:
 		elif a == "--bench": bench = true
 		elif a.begins_with("--samples="): samples_dir = a.substr(10)
 		elif a == "--lvtest": lvtest = true
+		elif a == "--fxtest": fxtest = true
 		elif a.begins_with("--seed="): seed(int(a.substr(7)))
 	add_child(game)
 	World.set_fog(PackedByteArray())
@@ -78,8 +80,9 @@ func _ready() -> void:
 	_title_scene()
 	ui.open_title()
 	if test_floor > 0 or shot_mode != "": _test_setup()
-	if samples_dir != "": _run_samples()
+	if samples_dir != "" and not fxtest: _run_samples()
 	if lvtest: _run_lvtest()
+	if fxtest: _run_fxtest()
 
 func _setup_env(town: bool) -> void:
 	var mg := game.mg
@@ -630,3 +633,37 @@ func _run_lvtest() -> void:
 		print("LVTEST round ", round, " state=", game.G.state, " pending=", game.G.pendingLv)
 		await _frames(20)
 	get_tree().quit()
+
+# 마법 효과·판매 창 빠른 확인(개발용): --samples=DIR --fxtest
+func _run_fxtest() -> void:
+	DirAccess.make_dir_recursive_absolute(samples_dir)
+	hud.touch_ui = true
+	await _frames(10)
+	ui.hide_all(); game.new_game("norm"); game.G.sb = {god = true, mana = true, nocd = true, still = true}
+	var P = game.P
+	P.prim.fire = 3; P.prim.arcane = 2; P.prim.storm = 3; P.prim.frost = 3; P.active = "fire"; P.lv = 6; game.recalc()
+	for r in ["rare", "unique", "set", "magic", "normal"]: P.bag.append(game.make_item(r, 3))
+	game.G.resume = 1; game.enter_tower(); hud.build_buttons(); await _frames(3)
+	var r0: Dictionary = game.mg.rooms[0]; P.x = r0.cx; P.y = r0.cy
+	var n := 0
+	for e in game.G.enemies:
+		if n < 5:
+			e.x = P.x + 260 + (n % 2) * 30; e.y = P.y - 60 + n * 30; n += 1
+		else: e.x = -9999.0; e.y = -9999.0
+	game.mg.reveal(P.x, P.y); game.mg.dirty = true; await _frames(6)
+	test_inp = {mx = 0.0, my = 0.0, firing = true, ang = 0.0}
+	await _frames(7); await _snap("f1_fireball")
+	test_inp = null
+	game.fire_explode(P.x + 90, P.y + 10); game.sfx.emit("boom"); await _frames(1); await _snap("f2_explode")
+	await _frames(10); await _snap("f3_explode_late")
+	P.active = "frost"; test_inp = {mx = 0.0, my = .8, firing = true, ang = 0.0}
+	await _frames(24); await _snap("f4_frost_move")
+	test_inp = {mx = 0.0, my = 0.0, firing = true, ang = -.5}; await _frames(14); await _snap("f4b_frost_turn")
+	P.active = "storm"; test_inp = {mx = 0.0, my = 0.0, firing = true, ang = 0.0}
+	await _frames(12); await _snap("f5_storm")
+	test_inp = null; await _frames(4)
+	game.go_town(false); await _frames(6)
+	ui.open_bag(true); await _frames(4); await _snap("f6_sell")
+	ui.bag_sel = {from = "bag", i = 1}; ui._render_bag(); await _frames(4); await _snap("f7_sell_sel")
+	ui._sell_ask(1); await _frames(16); await _snap("f8_sell_ask")
+	print("FXTEST done"); get_tree().quit()
