@@ -227,12 +227,30 @@ func gen_town() -> void:
 	for jj in range(cy - 4, cy + 6):
 		for ii in range(cx - 4, cx + 5):
 			if Vector2(ii + .5, jj + .5).distance_to(fountain / T) < 4.2: path[jj * MW + ii] = 1
-	town = {x0 = x0, y0 = y0, w = w, h = h, path = path, cx = cx, cy = cy, guide = guide, shop = shop, smith = smith}
-	obst.append({x = fountain.x, y = fountain.y, r = 44.0})
-	obst.append({x = shop.x, y = shop.y + 10, r = 26.0})
+	# 상인 미라는 매대 왼쪽 앞에 선다(매대에 가려 허리가 잘리지 않게)
+	var merchant := shop + Vector2(-64, 34)
+	town = {x0 = x0, y0 = y0, w = w, h = h, path = path, cx = cx, cy = cy, guide = guide, shop = merchant, stall = shop, smith = smith, fountain = fountain}
+	obst.append({x = fountain.x, y = fountain.y, r = 46.0})
+	obst.append({x = shop.x - 18, y = shop.y + 8, r = 22.0}); obst.append({x = shop.x + 18, y = shop.y + 8, r = 22.0})
 	decor.append({kind = "fountain", pos = fountain})
 	decor.append({kind = "stall", pos = shop + Vector2(0, 10)})
 	decor.append({kind = "circle", pos = smith + Vector2(0, 14)})
+	# 교수·상인 주변 소품(3D 모델) — 부딪힘 판정도 함께
+	var mdl := func(name: String, pos: Vector2, rot: float, sc: float, r: float):
+		decor.append({kind = "model", name = name, pos = pos, rot = rot, s = sc})
+		if r > 0: obst.append({x = pos.x, y = pos.y, r = r})
+	mdl.call("Anvil", smith + Vector2(66, 4), -.4, 1.0, 16.0)
+	mdl.call("WeaponStand", smith + Vector2(-70, -12), .5, .9, 18.0)
+	mdl.call("Workbench", smith + Vector2(4, -66), 0.0, .85, 24.0)
+	mdl.call("CandleStick_Stand", smith + Vector2(-46, -46), 0.0, .9, 8.0)
+	mdl.call("CandleStick_Stand", smith + Vector2(50, -46), 0.0, .9, 8.0)
+	mdl.call("Bench", guide + Vector2(58, 18), -1.3, .8, 16.0)
+	mdl.call("BookStand", guide + Vector2(-44, -14), .6, .8, 10.0)
+	mdl.call("Book_Stack_1", guide + Vector2(-30, 22), .3, 1.6, 0.0)
+	mdl.call("Barrel_Apples", shop + Vector2(52, 20), 0.0, .85, 13.0)
+	mdl.call("Crate_Wooden", shop + Vector2(78, 6), .3, .75, 13.0)
+	mdl.call("Bag", merchant + Vector2(-26, 8), .8, .9, 0.0)
+	mdl.call("Vase_2", shop + Vector2(40, 46), 0.0, .8, 9.0)
 	# 나무·덤불·꽃: 길이 아닌 곳에 자연스럽게
 	const TREES := ["oak1", "oak2", "oak3", "oak4", "birch1", "birch3", "pine1", "pine2"]
 	var placed := 0; var tries := 0
@@ -241,7 +259,7 @@ func gen_town() -> void:
 		var ti := ri(x0 + 2, x0 + w - 3); var tj := ri(y0 + 3, y0 + h - 3)
 		if at(ti, tj) != 0 or path[tj * MW + ti] or at(ti, tj + 1) != 0: continue
 		var p := Vector2((ti + .5) * T, (tj + .5) * T)
-		if p.distance_to(fountain) < 150 or p.distance_to(shop) < 90 or p.distance_to(guide) < 90 or p.distance_to(smith) < 110 or p.distance_to(start) < 80 or p.distance_to(gate) < 260: continue
+		if p.distance_to(fountain) < 150 or p.distance_to(shop) < 90 or p.distance_to(guide) < 90 or p.distance_to(smith) < 120 or p.distance_to(merchant) < 80 or p.distance_to(start) < 80 or p.distance_to(gate) < 260: continue
 		var far := true
 		for o in obst:
 			if Vector2(o.x, o.y).distance_to(p) < 70: far = false
@@ -423,6 +441,16 @@ func near_alcove(p: Vector2, r := 80.0) -> bool:
 		if absf(p.x - m.x) < 48 and p.y <= m.y and p.y > a.ty0 * T - 4: return true
 	return false
 
+# 방 가장자리 근처에 통로(방 밖의 바닥)가 이어지면 true — 통로 입구는 비워 둔다
+func near_opening(r: Dictionary, p: Vector2, rad := 2) -> bool:
+	var ti := int(p.x / T); var tj := int(p.y / T)
+	for dj in range(-rad, rad + 1):
+		for di in range(-rad, rad + 1):
+			var i := ti + di; var j := tj + dj
+			if at(i, j) != 0: continue
+			if i < r.x or i >= r.x + r.w or j < r.y or j >= r.y + r.h: return true
+	return false
+
 func _decorate() -> void:
 	const PROPS := ["barrel1", "barrel2", "dcrate1", "dcrate2", "barrel1", "lectern1", "statue1", "statue2", "chain1", "dcrate2"]
 	const BONES := ["bones1", "bones2", "bones3", "bones4", "bones5", "skulls", "skeleton1", "skeleton2"]
@@ -439,13 +467,13 @@ func _decorate() -> void:
 				var close = false
 				for d in decor:
 					if d.kind == "prop" and absf(d.pos.x - p.x) < 40 and absf(d.pos.y - p.y) < 40: close = true
-				if close or near_alcove(p): continue
+				if close or near_alcove(p) or near_opening(r, p): continue
 				decor.append({kind = "prop", p = pn, pos = p, s = .85 if pn.begins_with("statue") else .8})
-				if not pn.begins_with("chain"): obst.append({x = p.x, y = p.y, r = 10.0})
+				if not pn.begins_with("chain"): obst.append({x = p.x, y = p.y, r = 14.0})
 		for k in ri(2, 6):
 			if randf() < .55:
 				var p = Vector2((r.x + rnd(1, r.w - 1)) * T, (r.y + rnd(1, r.h - 1)) * T)
-				if near_alcove(p): continue
+				if near_alcove(p) or near_opening(r, p): continue
 				decor.append({kind = "prop", p = BONES[hash2(int(p.x), int(p.y)) % BONES.size()], pos = p, s = .75})
 
 # 벽 칸의 테두리 비트: 1=북쪽이 바닥, 2=동, 4=남, 8=서. 바닥과 닿지 않은 벽은 -1

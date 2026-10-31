@@ -75,7 +75,7 @@ const MODEL_MAP := [
 	["anvil", ["Anvil"], 1.0, "prop"],
 	["stall", ["Stall_Empty"], 1.15, "prop"],
 ]
-const GRADE := {leaf = Color(.72, .8, .7), dead = Color(.75, .72, .78), stone = Color(.8, .8, .85), prop = Color(.9, .86, .82)}
+const GRADE := {leaf = Color(.42, .5, .42), dead = Color(.6, .58, .64), stone = Color(.7, .7, .76), prop = Color(.85, .8, .76)}   # 밤이라 잎은 어둡게(빛에 비칠 때만 살짝 보이게)
 static var GRADED := {}
 
 static func _model_spec(n: String) -> Array:
@@ -90,7 +90,8 @@ static func _graded(mat: Material, kind: String) -> Material:
 	var g: BaseMaterial3D = mat.duplicate()
 	g.albedo_color = g.albedo_color * GRADE[kind]
 	g.rim_enabled = true; g.rim = .15 if kind == "leaf" else .25; g.rim_tint = .6
-	if kind == "leaf": g.roughness = max(g.roughness, .85)
+	if kind == "leaf":
+		g.roughness = 1.0; g.metallic_specular = .15; g.rim = .05
 	# 잎 그림의 투명 부분은 '잘라내기'로(반투명 섞기보다 훨씬 가볍다)
 	if g.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED:
 		g.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR; g.alpha_scissor_threshold = .5
@@ -121,10 +122,9 @@ static func make(n: String, sc: float, h: int) -> Node3D:
 		if n.begins_with("stall") or n.begins_with("chest"): root.rotation.y = 0
 		var md := model(nm, kind, spec[2] * (sc if kind != "prop" else 1.0) * R.randf_range(.92, 1.08))
 		root.add_child(md)
-		if n.begins_with("chest") and n.contains("_o"):
-			var lid = md.find_child("Chest_Wood_Lid", true, false)
-			if lid == null: lid = md.find_child("Chest_Top", true, false)
-			if lid: lid.rotation.x = -1.1
+		if n.begins_with("chest"):
+			var ap: AnimationPlayer = md.find_child("AnimationPlayer", true, false)
+			if ap and n.contains("_o") and ap.has_animation("Chest_Opened"): ap.play("Chest_Opened")
 		if kind == "prop" or kind == "stone": shadow(root, .9 * spec[2], .55 * spec[2], .4)
 		return root
 	if n.begins_with("barrel"): _barrel(root, sc)
@@ -274,17 +274,79 @@ static func _anvil(r: Node3D) -> void:
 	_mesh(r, box(.3, .4, .3), m("wood", Color(.6, .5, .4)), Vector3(0, .2, 0))
 	_mesh(r, box(.6, .18, .26), iron, Vector3(0, .49, 0))
 
+# 유럽 마을 광장의 작은 분수: 팔각 돌 수반 + 두 단 접시 + 꼭대기 장식, 흘러내리는 물줄기와 잔물결
+static var WATER_SH: Shader
+static func water_mat(deep := Color(.06, .2, .3), shallow := Color(.25, .55, .65)) -> ShaderMaterial:
+	if WATER_SH == null:
+		WATER_SH = Shader.new(); WATER_SH.code = """
+shader_type spatial;
+render_mode blend_mix, depth_draw_opaque, cull_back, specular_schlick_ggx;
+uniform vec3 deep : source_color = vec3(.06, .2, .3);
+uniform vec3 shallow : source_color = vec3(.25, .55, .65);
+uniform sampler2D noise : hint_normal, repeat_enable, filter_linear_mipmap;
+varying vec3 wp;
+void vertex() { wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; }
+void fragment() {
+	vec2 uv = wp.xz * .9;
+	vec3 n1 = texture(noise, uv + vec2(TIME * .05, TIME * .03)).rgb;
+	vec3 n2 = texture(noise, uv * 1.7 - vec2(TIME * .04, -TIME * .06)).rgb;
+	NORMAL_MAP = normalize(n1 + n2 - 1.0);
+	NORMAL_MAP_DEPTH = 1.2;
+	float r = length(UV - .5) * 2.0;
+	ALBEDO = mix(deep, shallow, smoothstep(.0, 1.0, r));
+	ROUGHNESS = .06; METALLIC = .0; SPECULAR = .9;
+	float fres = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 3.0);
+	EMISSION = shallow * .12 + vec3(.5, .7, .8) * fres * .25;
+	ALPHA = .86;
+}
+"""
+	var mt := ShaderMaterial.new(); mt.shader = WATER_SH
+	var nt := NoiseTexture2D.new(); nt.seamless = true; nt.as_normal_map = true; nt.bump_strength = 6.0; nt.width = 256; nt.height = 256
+	var fn := FastNoiseLite.new(); fn.frequency = .03; nt.noise = fn
+	mt.set_shader_parameter("noise", nt); mt.set_shader_parameter("deep", deep); mt.set_shader_parameter("shallow", shallow)
+	return mt
+
+static func _water_drop(r: Node3D, pos: Vector3, ring: float, amount: int, fall: float) -> void:
+	# 접시 가장자리에서 아래로 떨어지는 물줄기(작은 물방울 입자)
+	var pt := CPUParticles3D.new(); var q := QuadMesh.new(); q.size = Vector2(.05, .14)
+	var pm := StandardMaterial3D.new(); pm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; pm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	pm.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED; pm.albedo_texture = World.glow_tex(); pm.albedo_color = Color(.75, .9, 1, .55); pm.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	q.material = pm; pt.mesh = q; pt.amount = amount; pt.lifetime = sqrt(2 * fall / 9.8) + .05; pt.preprocess = 1.0
+	pt.emission_shape = CPUParticles3D.EMISSION_SHAPE_RING; pt.emission_ring_axis = Vector3.UP; pt.emission_ring_radius = ring; pt.emission_ring_inner_radius = ring * .96; pt.emission_ring_height = .01
+	pt.direction = Vector3(0, -1, 0); pt.spread = 4.0; pt.initial_velocity_min = .1; pt.initial_velocity_max = .3; pt.gravity = Vector3(0, -9.8, 0)
+	pt.position = pos; r.add_child(pt)
+
 static func _fountain(r: Node3D) -> void:
-	var st := m("stone", Color(.85, .85, .92))
-	shadow(r, 3.4, 2.4, .35)
-	_mesh(r, cyl(1.35, 1.45, .45, 24), st, Vector3(0, .22, 0))
-	var water := StandardMaterial3D.new(); water.albedo_color = Color(.25, .45, .7, .85); water.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	water.roughness = .1; water.metallic_specular = 1.0; water.emission_enabled = true; water.emission = Color(.05, .12, .25)
-	_mesh(r, cyl(1.2, 1.2, .05, 24), water, Vector3(0, .42, 0))
-	_mesh(r, cyl(.2, .28, 1.2, 12), st, Vector3(0, .9, 0))
-	_mesh(r, cyl(.55, .25, .2, 16), st, Vector3(0, 1.5, 0))
-	_mesh(r, cyl(.45, .45, .03, 16), water, Vector3(0, 1.6, 0))
-	_mesh(r, ball(.14, 8), st, Vector3(0, 1.75, 0))
+	var st: Material = World.pbr("large_sandstone_blocks", .9)
+	var st2: Material = m("stone", Color(.62, .6, .66), .9)
+	shadow(r, 3.6, 2.6, .35)
+	# 팔각 수반: 바깥 벽 + 테두리 돌
+	_mesh(r, cyl(1.4, 1.5, .5, 8), st, Vector3(0, .25, 0))
+	_mesh(r, cyl(1.5, 1.5, .08, 8), st2, Vector3(0, .52, 0))
+	var wm := water_mat()
+	var pool := MeshInstance3D.new(); var pd := CylinderMesh.new(); pd.top_radius = 1.3; pd.bottom_radius = 1.3; pd.height = .02; pd.radial_segments = 32; pool.mesh = pd
+	pool.material_override = wm; pool.position = Vector3(0, .47, 0); r.add_child(pool)
+	# 가운데 기둥 → 아래 접시 → 위 작은 접시 → 꼭대기 장식
+	_mesh(r, cyl(.16, .24, 1.1, 10), st2, Vector3(0, 1.0, 0))
+	_mesh(r, cyl(.7, .2, .22, 16), st2, Vector3(0, 1.5, 0))
+	var b1 := MeshInstance3D.new(); var d1 := CylinderMesh.new(); d1.top_radius = .62; d1.bottom_radius = .62; d1.height = .02; d1.radial_segments = 24; b1.mesh = d1; b1.material_override = wm; b1.position = Vector3(0, 1.6, 0); r.add_child(b1)
+	_mesh(r, cyl(.08, .12, .5, 8), st2, Vector3(0, 1.85, 0))
+	_mesh(r, cyl(.32, .1, .12, 12), st2, Vector3(0, 2.1, 0))
+	var b2 := MeshInstance3D.new(); var d2 := CylinderMesh.new(); d2.top_radius = .27; d2.bottom_radius = .27; d2.height = .02; d2.radial_segments = 16; b2.mesh = d2; b2.material_override = wm; b2.position = Vector3(0, 2.16, 0); r.add_child(b2)
+	_mesh(r, ball(.1, 10), st2, Vector3(0, 2.3, 0))
+	# 꼭대기에서 솟는 물 + 접시 가장자리에서 떨어지는 물줄기 + 수면 물보라
+	var up := CPUParticles3D.new(); var uq := QuadMesh.new(); uq.size = Vector2(.06, .06)
+	var um := StandardMaterial3D.new(); um.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; um.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA; um.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	um.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED; um.albedo_texture = World.glow_tex(); um.albedo_color = Color(.8, .95, 1, .6); uq.material = um
+	up.mesh = uq; up.amount = 40; up.lifetime = .8; up.preprocess = 1.0; up.direction = Vector3(0, 1, 0); up.spread = 14.0
+	up.initial_velocity_min = 1.4; up.initial_velocity_max = 1.8; up.gravity = Vector3(0, -6.0, 0); up.position = Vector3(0, 2.4, 0); r.add_child(up)
+	_water_drop(r, Vector3(0, 2.15, 0), .3, 30, .5)
+	_water_drop(r, Vector3(0, 1.58, 0), .66, 70, 1.1)
+	var sp := CPUParticles3D.new(); var sq := QuadMesh.new(); sq.size = Vector2(.08, .08); sq.material = um
+	sp.mesh = sq; sp.amount = 36; sp.lifetime = .5; sp.preprocess = .5
+	sp.emission_shape = CPUParticles3D.EMISSION_SHAPE_RING; sp.emission_ring_axis = Vector3.UP; sp.emission_ring_radius = .7; sp.emission_ring_inner_radius = .6; sp.emission_ring_height = .01
+	sp.direction = Vector3(0, 1, 0); sp.spread = 50.0; sp.initial_velocity_min = .3; sp.initial_velocity_max = .7; sp.gravity = Vector3(0, -4, 0); sp.position = Vector3(0, .5, 0); r.add_child(sp)
+	var L := OmniLight3D.new(); L.light_color = Color(.55, .8, 1); L.light_energy = .7; L.omni_range = 3.0; L.position = Vector3(0, .9, .9); r.add_child(L)
 
 static func _stall(r: Node3D) -> void:
 	var w := m("wood", Color(.85, .7, .55))

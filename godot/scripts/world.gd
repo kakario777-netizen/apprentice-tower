@@ -320,7 +320,9 @@ func _build_props() -> void:
 		elif d.kind == "fountain":
 			add_prop("fountain", d.pos, 1.0)
 		elif d.kind == "stall":
-			add_prop("stall", d.pos, 1.0); add_prop("barrel1", d.pos + Vector2(44, 10), .8); add_prop("crate2", d.pos + Vector2(-46, 8), .7)
+			add_prop("stall", d.pos, 1.0)
+		elif d.kind == "model":
+			var md := Props3D.model(d.name, "prop", d.s); md.position = Vector3(d.pos.x / 32.0, 0, d.pos.y / 32.0); md.rotation.y = d.rot; add_child(md)
 		elif d.kind == "circle": _magic_circle(d.pos)
 
 # 강화 교수가 서 있는 바닥 마법진(천천히 도는 푸른 룬 고리)

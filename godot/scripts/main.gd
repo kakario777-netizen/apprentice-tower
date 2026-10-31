@@ -477,6 +477,8 @@ func _run_samples() -> void:
 	await _frames(10)
 	P.x = game.G.npcs[0].x + 40; P.y = game.G.npcs[0].y + 30
 	await _frames(12); await _snap("2_town")
+	var fo = game.mg.town.fountain
+	var kp := Vector2(P.x, P.y); P.x = fo.x; P.y = fo.y + 120; await _frames(8); await _snap("2c_fountain"); P.x = kp.x; P.y = kp.y
 	var gx = game.mg.gate
 	if gx != null:
 		var keep_p := Vector2(P.x, P.y); P.x = gx.x; P.y = gx.y + 170; await _frames(10); await _snap("2b_gate"); P.x = keep_p.x; P.y = keep_p.y
@@ -513,9 +515,18 @@ func _run_samples() -> void:
 	ui.open_bag(); ui.bag_sel = {from = "bag", i = 2}; ui._render_bag(); await _frames(4); await _snap("7_bag"); ui.close_bag()
 	ui.open_bag(); ui.bag_sel = {from = "eq", slot = "weapon"}; ui._render_bag(); await _frames(4); await _snap("7a_bag_unique"); ui.close_bag()
 	# 포탈: 그 자리에 열고 → 마을 → 마을 포탈로 다시 그 자리
-	game.G.enemies = []; game.use_pot("scroll"); await _frames(8); await _snap("8a_portal")
-	P.x = game.G.portal.x; P.y = game.G.portal.y; await _frames(6); await _snap("8b_town_portal")
-	P.x = game.G.portal.x; P.y = game.G.portal.y; await _frames(6); await _snap("8c_back")
+	game.G.enemies = []; game.use_pot("scroll"); await _frames(3); await _snap("8a0_portal_open")
+	await _frames(14); await _snap("8a_portal")
+	P.x = game.G.portal.x; P.y = game.G.portal.y + 30
+	for k in 80:
+		if game.G.floor == 0: break
+		await _frames(1)
+	await _frames(14); await _snap("8b_town_portal")
+	P.x = game.G.portal.x; P.y = game.G.portal.y + 30
+	for k in 80:
+		if game.G.floor > 0: break
+		await _frames(1)
+	await _frames(3); await _snap("8c_back")
 	game.G.killsBy = {skel = 12, zombie = 5, archer = 3}
 	ui.open_tab("stats"); await _frames(4); await _snap("7b_stats")
 	ui.open_tab("record"); await _frames(4); await _snap("7c_record")

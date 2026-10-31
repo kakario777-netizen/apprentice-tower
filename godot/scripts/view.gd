@@ -173,6 +173,42 @@ func _light(parent: Node3D, pos: Vector3, col: Color, rng: float, en: float) -> 
 	var L = OmniLight3D.new(); L.position = pos; L.light_color = col; L.omni_range = rng; L.light_energy = en; L.omni_attenuation = 1.2
 	parent.add_child(L); return L
 
+# 디아블로식 포탈: 세워진 타원 속 푸른 소용돌이 + 가장자리 빛 + 빛 알갱이
+static var PORTAL_SH: Shader
+func _make_portal() -> Node3D:
+	var n := Node3D.new()
+	if PORTAL_SH == null:
+		PORTAL_SH = Shader.new(); PORTAL_SH.code = """
+shader_type spatial;
+render_mode unshaded, blend_add, cull_disabled, depth_draw_never;
+uniform vec3 c1 : source_color = vec3(.25, .55, 1.0);
+uniform vec3 c2 : source_color = vec3(.75, .95, 1.0);
+float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float noise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+	return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y); }
+void fragment() {
+	vec2 p = (UV - .5) * vec2(2.0, 2.0);
+	float r = length(p * vec2(1.0, .62));
+	if (r > 1.0) discard;
+	float a = atan(p.y, p.x);
+	float sw = a + r * 5.0 - TIME * 2.6;
+	float n = noise(vec2(sw * 1.6, r * 6.0 - TIME * 1.5)) * .6 + noise(vec2(sw * 3.5, r * 12.0)) * .4;
+	float rim = smoothstep(.72, .97, r) * (1.0 - smoothstep(.97, 1.0, r));
+	float core = 1.0 - smoothstep(.0, .6, r);
+	vec3 col = mix(c1, c2, n) * (.45 + n * .9) + c2 * rim * 1.6 + vec3(.9, .97, 1.0) * core * .35;
+	ALBEDO = col;
+	ALPHA = clamp(.55 * n + rim + core * .3, 0.0, 1.0) * (1.0 - smoothstep(.96, 1.0, r));
+}
+"""
+	var q := QuadMesh.new(); q.size = Vector2(1.5, 2.3)
+	var sm := ShaderMaterial.new(); sm.shader = PORTAL_SH
+	var mi := MeshInstance3D.new(); mi.mesh = q; mi.material_override = sm; mi.position = Vector3(0, 1.2, 0)
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF; n.add_child(mi)
+	_glow(n, Color(.4, .65, 1, .55), 3.2, Vector3(0, 1.2, .1))
+	_glow(n, Color(.5, .75, 1, .35), 2.2, Vector3(0, .1, .3))
+	_light(n, Vector3(0, 1.3, .7), Color(.5, .7, 1), 6.0, 1.8)
+	return n
+
 func _build_gate(g: Vector2) -> void:
 	# 마을 북쪽 탑 입구(디아블로1 대성당 입구처럼): 돌 계단 → 큰 고딕 아치 → 반쯤 열린 나무 문 → 어둠 속 으스스한 빛
 	gate_node = Node3D.new(); gate_node.position = w3(g.x, g.y); add_child(gate_node)
@@ -183,7 +219,10 @@ func _build_gate(g: Vector2) -> void:
 		var mi = MeshInstance3D.new(); var bm = BoxMesh.new(); bm.size = size; mi.mesh = bm; mi.material_override = m
 		mi.position = pos; mi.rotation = rot; gate_node.add_child(mi); return mi
 	# 정면 벽(두껍게) + 위쪽 톱니 + 양옆 부벽
-	box.call(Vector3(11.0, 4.4, 1.6), Vector3(0, 2.2, -1.25), stone)
+	# 정면 벽은 문 자리를 비우고 세 덩어리로(왼쪽·오른쪽·문 위) — 문 안이 뚫려 보인다
+	box.call(Vector3(4.3, 4.4, 1.6), Vector3(-3.35, 2.2, -1.25), stone)
+	box.call(Vector3(4.3, 4.4, 1.6), Vector3(3.35, 2.2, -1.25), stone)
+	box.call(Vector3(2.4, 1.4, 1.6), Vector3(0, 3.7, -1.25), stone)
 	for k in 13: box.call(Vector3(.52, .5, 1.6), Vector3(-5.5 + .26 + k * .895, 4.65, -1.25), stone)
 	for sx in [-1, 1]:
 		box.call(Vector3(1.1, 5.2, 2.2), Vector3(sx * 2.25, 2.6, -1.0), dark_stone)       # 문 양옆 큰 기둥
@@ -241,10 +280,10 @@ func sync(dt: float) -> void:
 	# 플레이어
 	player.position = w3(P.x, P.y + 2)
 	# 계단을 오르내리는 동안: 발이 계단 높이를 따라가고, 벽에 가려 잘리지 않게 맨 앞에 그린다
-	var climbing: bool = G.pull != null and G.pull.what in ["stairs", "down"]
+	var climbing: bool = G.pull != null and G.pull.what in ["stairs", "down", "gate", "portal"]
 	if climbing:
 		var fr: float = clamp((G.pull.ty + 58 - P.y) / 58.0, 0.0, 1.0)
-		player.position.y = fr * World.WALLZ * .95 * (1.0 if G.pull.what == "stairs" else -1.0)
+		if G.pull.what in ["stairs", "down"]: player.position.y = fr * World.WALLZ * .95 * (1.0 if G.pull.what == "stairs" else -1.0)
 	player.spr.no_depth_test = climbing
 	player.face = P.face
 	player.set_anim(P.anim); player.at = P.at; player.tick(0)
@@ -307,25 +346,30 @@ func sync(dt: float) -> void:
 	for k in corpses.keys():
 		if not live.has(k):
 			corpses[k].queue_free(); corpses.erase(k)
-	# 상자
+	# 상자: 닿으면 0.5초 뒤 끼이익 열리는 애니메이션(모델에 든 열림 동작)
 	for c in G.chests:
 		if not chests.has(c.id):
 			var n = Node3D.new(); n.position = w3(c.x, c.y + 4); add_child(n); chests[c.id] = n
-			n.set_meta("open", -1)
-		var n: Node3D = chests[c.id]
-		n.visible = mg.is_seen(c.x, c.y)
-		var o = 1 if c.open else 0
-		if n.get_meta("open") != o:
-			for ch in n.get_children(): ch.queue_free()
 			var ch3 = Props3D.make("chest_o" if c.open else "chest_c", 1.0, c.id)
 			ch3.rotation.y = 0; n.add_child(ch3)
+			n.set_meta("anim", ch3.find_child("AnimationPlayer", true, false))
+			n.set_meta("state", 2 if c.open else 0)
 			if not c.open:
-				# 보물이 든 상자: 금빛 반짝임과 은은한 빛(장애물 소품과 구별)
 				var g := _glow(n, Color(1, .8, .35, .55), 1.6, Vector3(0, .55, .15)); g.name = "aura"
 				var L := _light(n, Vector3(0, 1.0, .5), Color(1, .8, .4), 3.0, .9); L.name = "auraL"
-			n.set_meta("open", o)
+		var n: Node3D = chests[c.id]
+		n.visible = mg.is_seen(c.x, c.y)
+		var stt: int = 2 if c.open else (1 if c.get("opening", -1.0) >= 0 else 0)
+		if stt > int(n.get_meta("state")):
+			if int(n.get_meta("state")) == 0:
+				var ap = n.get_meta("anim")
+				if ap and ap.has_animation("Chest_Open"): ap.play("Chest_Open")
+				for nm in ["aura", "auraL"]:
+					var x = n.get_node_or_null(nm)
+					if x: x.queue_free()
+			n.set_meta("state", stt)
 		var au = n.get_node_or_null("aura")
-		if au:
+		if au and stt == 0:
 			var pul: float = .5 + .5 * sin(G.time * 3.0 + c.x)
 			(au.material_override as StandardMaterial3D).albedo_color = Color(1, .8, .35, .3 + .35 * pul)
 			if randf() < .05 and n.visible: G.fx.append({x = c.x + Game.rnd(-14, 14), y = c.y + Game.rnd(-6, 6), vx = 0.0, vy = -25.0, life = .7, max = .7, color = "#ffe08a", size = 1.6, h = .5})
@@ -345,15 +389,17 @@ func sync(dt: float) -> void:
 	if stairs_node and mg.stairs != null: stairs_node.visible = mg.is_seen(mg.stairs.x, mg.stairs.y)
 	# 귀환문
 	if G.portal != null and portal_node == null:
-		portal_node = Node3D.new(); add_child(portal_node)
-		_prop(portal_node, "waystone_on", .7, Vector2(0, 22))
-		_glow(portal_node, Color(.44, .61, 1, .7), 2.5, Vector3(0, .9, .3))
-		_light(portal_node, Vector3(0, 1.2, .6), Color(.5, .66, 1), 5.0, 1.4)
+		portal_node = _make_portal(); add_child(portal_node)
 	elif G.portal == null and portal_node != null:
 		portal_node.queue_free(); portal_node = null
 	if portal_node:
 		portal_node.position = w3(G.portal.x, G.portal.y)
-		if randf() < .3: G.fx.append({x = G.portal.x + Game.rnd(-12, 12), y = G.portal.y + Game.rnd(-18, 18), vx = 0.0, vy = -30.0, life = .6, max = .6, color = "#9fd0ff", size = 1.6})
+		# 생길 때 작은 점에서 커지고, 닫힐 때 작아지며 사라진다
+		var age: float = G.time - G.portal.get("born", -9.0)
+		var k: float = ease(clamp(age / .5, 0.0, 1.0), .4)
+		if G.portal.has("close_at"): k *= 1.0 - clamp((G.time - G.portal.close_at) / .5, 0.0, 1.0)
+		portal_node.scale = Vector3.ONE * max(k, .001)
+		if randf() < .4 * k: G.fx.append({x = G.portal.x + Game.rnd(-16, 16), y = G.portal.y + Game.rnd(-4, 6), vx = 0.0, vy = -20.0, life = .7, max = .7, color = "#a8d8ff", size = 1.8, h = Game.rnd(.3, 1.8)})
 	_sync_fx(G, P)
 
 # 스태프 끝: 시전하는 동안 스킬 색으로 반짝임

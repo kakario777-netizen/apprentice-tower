@@ -581,11 +581,11 @@ func _render_talk() -> void:
 			var r = HBoxContainer.new(); r.add_theme_constant_override("separation", 10); p.add_child(r)
 			var ic = TextureRect.new(); ic.texture = load("res://ui/item_%s.png" % it.id); ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; ic.custom_minimum_size = Vector2(34, 34); r.add_child(ic)
 			var nv = VBoxContainer.new(); nv.size_flags_horizontal = Control.SIZE_EXPAND_FILL; nv.add_theme_constant_override("separation", 0); r.add_child(nv)
-			nv.add_child(label(it.name, 14)); nv.add_child(label("%s · %d/%d개" % [it.desc, game.P.pot.get(it.id, 0), it.max], 12, MUTED))
+			nv.add_child(label(it.name, 14)); nv.add_child(label("%s · %d/%d개" % [it.desc, game.P.pot.get(it.id, 0), game.pot_max(it.id)], 12, MUTED))
 			var b = btn("금화 %d" % it.price, func():
 				game.buy(it.id); _render_talk())
 			b.add_theme_font_size_override("font_size", 13); b.add_theme_stylebox_override("normal", _small(btn_sb(false)))
-			b.disabled = game.G.gold < it.price or game.P.pot.get(it.id, 0) >= it.max
+			b.disabled = game.G.gold < it.price or game.P.pot.get(it.id, 0) >= game.pot_max(it.id)
 			b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 			r.add_child(b); g.add_child(p)
 		v.add_child(g)
@@ -604,14 +604,14 @@ func _render_talk() -> void:
 	box.add_child(tb)
 	_focus_first()
 
-# ---------------- 거래창(미라 교수) ----------------
+# ---------------- 거래창(상인 미라) ----------------
 func _render_trade() -> void:
 	_begin("talk", .72, BoxContainer.ALIGNMENT_CENTER)
 	var G = game.G; var P = game.P
 	var vs = get_viewport().get_visible_rect().size
 	var W: float = min(880.0, vs.x - 24)
 	var head = HBoxContainer.new(); _center(head, W)
-	var t = label("미라 교수의 가게", 22, GOLD, display); t.size_flags_horizontal = Control.SIZE_EXPAND_FILL; head.add_child(t)
+	var t = label("상인 미라의 가게", 22, GOLD, display); t.size_flags_horizontal = Control.SIZE_EXPAND_FILL; head.add_child(t)
 	var gl = label("가진 금화  %d" % G.gold, 17, Color("#ffd76a"), bold); head.add_child(gl)
 	box.add_child(head)
 	var cols = HBoxContainer.new(); cols.add_theme_constant_override("separation", 12); _center(cols, W)
@@ -625,12 +625,12 @@ func _render_trade() -> void:
 		var ic = TextureRect.new(); ic.texture = load("res://ui/item_%s.png" % it.id); ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; ic.custom_minimum_size = Vector2(46, 46); r.add_child(ic)
 		var nv = VBoxContainer.new(); nv.size_flags_horizontal = Control.SIZE_EXPAND_FILL; nv.add_theme_constant_override("separation", 0); r.add_child(nv)
 		nv.add_child(label(it.name, 15))
-		var dl = label("%s · %d/%d개" % [it.desc, P.pot.get(it.id, 0), it.max], 12, MUTED); dl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; nv.add_child(dl)
+		var dl = label("%s · %d/%d개" % [it.desc, P.pot.get(it.id, 0), game.pot_max(it.id)], 12, MUTED); dl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; nv.add_child(dl)
 		var bf = func():
 			game.buy(it.id); _render_trade()
 		var b = btn("금화 %d" % it.price, bf); b.add_theme_font_size_override("font_size", 14)
 		for st in ["normal", "hover", "pressed", "disabled"]: b.add_theme_stylebox_override(st, _small(btn_sb(false, -.3 if st == "disabled" else 0.0)))
-		b.disabled = G.gold < it.price or P.pot.get(it.id, 0) >= it.max; b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		b.disabled = G.gold < it.price or P.pot.get(it.id, 0) >= game.pot_max(it.id); b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		r.add_child(b); lv.add_child(r)
 	# 가방 늘리기
 	lv.add_child(HSeparator.new())
@@ -644,6 +644,18 @@ func _render_trade() -> void:
 	for st in ["normal", "hover", "pressed", "disabled"]: bb.add_theme_stylebox_override(st, _small(btn_sb(false, -.3 if st == "disabled" else 0.0)))
 	bb.disabled = P.bagMax >= D.BAG_LIMIT or G.gold < D.bag_price(P.bagMax); bb.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	br.add_child(bb); lv.add_child(br)
+	# 물약 주머니 늘리기(물약 최대 소지 수 +1, 10개까지 · 비쌈)
+	var pr_ = HBoxContainer.new(); pr_.add_theme_constant_override("separation", 10)
+	var pi_ = TextureRect.new(); pi_.texture = load("res://ui/item_pothp.png"); pi_.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; pi_.custom_minimum_size = Vector2(46, 46); pr_.add_child(pi_)
+	var pv_ = VBoxContainer.new(); pv_.size_flags_horizontal = Control.SIZE_EXPAND_FILL; pv_.add_theme_constant_override("separation", 0); pr_.add_child(pv_)
+	var pmx: int = int(P.get("potMax", 5))
+	pv_.add_child(label("물약 주머니 늘리기 (+1개)", 15)); pv_.add_child(label("생명·마나 물약 각각 지금 %d개 · 최대 10개" % pmx, 12, MUTED))
+	var pouchf = func():
+		game.buy_pouch(); _render_trade()
+	var pb = btn("금화 %d" % game.pouch_price() if pmx < 10 else "최대", pouchf); pb.add_theme_font_size_override("font_size", 14)
+	for st in ["normal", "hover", "pressed", "disabled"]: pb.add_theme_stylebox_override(st, _small(btn_sb(false, -.3 if st == "disabled" else 0.0)))
+	pb.disabled = pmx >= 10 or G.gold < game.pouch_price(); pb.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	pr_.add_child(pb); lv.add_child(pr_)
 	cols.add_child(left)
 	# 오른쪽: 오늘의 장비(마을에 올 때마다 바뀜)
 	var right = PanelContainer.new(); right.add_theme_stylebox_override("panel", sb(Color(.09, .07, .12, .92), 10, LINE, 1, Vector4(12, 12, 12, 12)))
@@ -668,9 +680,9 @@ func _render_trade() -> void:
 		r.add_child(b); rv.add_child(r)
 	cols.add_child(right)
 	box.add_child(cols)
-	var tip = label("안 쓰는 장비는 마을에서 가방을 열면 팔 수 있어요.", 12, MUTED); tip.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER; box.add_child(tip)
+	var tip = label("안 쓰는 장비는 아래 '가방 열기'로 상인 미라에게 팔 수 있어요.", 12, MUTED); tip.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER; box.add_child(tip)
 	var obf = func():
-		talk_npc = null; open_bag()
+		talk_npc = null; open_bag(true)
 	box.add_child(row([btn("가방 열기", obf, true), btn("닫기", close_talk)]))
 	_focus_first()
 
@@ -782,8 +794,10 @@ func close_talk() -> void:
 	talk_npc = null; hide_all(); game.set_state("play"); game.save()
 
 # ================= 가방 =================
-func open_bag() -> void:
+var trade_bag := false     # 상인 미라와 거래 중에 연 가방이면 팔기 가능
+func open_bag(trading := false) -> void:
 	if game.G == null: return
+	trade_bag = trading
 	bag_sel = null; open_tab("bag")
 
 func _sel_item():
@@ -850,7 +864,11 @@ func _render_bag() -> void:
 	var hh = HBoxContainer.new(); c2.add_child(hh)
 	var bt = label("가방 %d/%d" % [P.bag.size(), P.bagMax], 17, GOLD, display); bt.size_flags_horizontal = Control.SIZE_EXPAND_FILL; hh.add_child(bt)
 	hh.add_child(label("금화 %d · 강화석 %d" % [G.gold, int(P.get("stones", 0))], 13, Color("#ffd76a")))
-	var gsc = ScrollContainer.new(); gsc.custom_minimum_size = Vector2(IW - 24, EH - 50); gsc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	var ph_ = HBoxContainer.new(); ph_.add_theme_constant_override("separation", 10); c2.add_child(ph_)
+	for pid in ["pothp", "potmp", "scroll"]:
+		var ic_ = TextureRect.new(); ic_.texture = load("res://ui/item_%s.png" % pid); ic_.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; ic_.custom_minimum_size = Vector2(22, 22); ph_.add_child(ic_)
+		ph_.add_child(label("%d/%d" % [P.pot.get(pid, 0), game.pot_max(pid)], 13, INK))
+	var gsc = ScrollContainer.new(); gsc.custom_minimum_size = Vector2(IW - 24, EH - 78); gsc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	var bg_ = GridContainer.new(); bg_.columns = cols; bg_.add_theme_constant_override("h_separation", 5); bg_.add_theme_constant_override("v_separation", 5)
 	for i in P.bagMax:
 		var it = P.bag[i] if i < P.bag.size() else null
@@ -882,6 +900,7 @@ func _render_bag() -> void:
 		for k in tot.keys(): es.add_child(label(D.mod_text({k = k, v = snappedf(tot[k], .01)}), 13, INK))
 		dv.add_child(es)
 		var p = label("아이템을 누르면 자세히, 두 번 누르면 바로 착용·벗기", 12, MUTED); dv.add_child(p)
+		if not trade_bag: dv.add_child(label("장비 판매는 마을의 상인 미라와 거래할 때만 돼요.", 12, MUTED))
 	else:
 		dv.add_child(label(iname(it), 16, Color(D.RAR[it.rar].color), display))
 		var bname: String = String(it.get("bname", D.base(it.base).names[D.tier(int(it.lvl))]))
@@ -939,7 +958,7 @@ func _render_bag() -> void:
 				game.sell(bag_sel.i); bag_sel = null; _render_bag()
 			var dropf = func():
 				game.discard(bag_sel.i); bag_sel = null; _render_bag()
-			if G.floor == 0: sbtn.call("팔기 · 금화 %d" % it.value, sellf, true)
+			if trade_bag and G.floor == 0: sbtn.call("상인에게 팔기 · 금화 %d" % it.value, sellf, true)
 			else: sbtn.call("버리기", dropf, true)
 		else:
 			var unf = func():
@@ -1263,6 +1282,12 @@ func close_map() -> void:
 func close_bag() -> void:
 	var c = root.get_node_or_null("bagclose")
 	if c: c.queue_free()
+	if trade_bag:
+		# 거래 중 연 가방이면 다시 가게로
+		trade_bag = false
+		for n in game.G.npcs:
+			if n.id == "shop":
+				open_talk(n); return
 	hide_all(); game.set_state("play"); game.save()
 
 # ================= 샌드박스 =================
