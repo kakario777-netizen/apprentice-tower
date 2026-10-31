@@ -195,18 +195,23 @@ func _build_gate(g: Vector2) -> void:
 		var ang: float = lerp(-1.15, 1.15, t)
 		box.call(Vector3(.62, .5, 1.9), Vector3(sin(ang) * 1.45, 2.9 + cos(ang) * 1.05, -.95), stone, Vector3(0, 0, -ang))
 	box.call(Vector3(.55, .7, 2.0), Vector3(0, 4.05, -.9), dark_stone)                    # 쐐기돌
-	# 문 안쪽: 어두운 통로(깊은 상자) + 안에서 새어 나오는 붉은 보랏빛
-	var dm = StandardMaterial3D.new(); dm.albedo_color = Color(.02, .015, .03); dm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	box.call(Vector3(2.5, 3.1, .1), Vector3(0, 1.55, -2.1), dm)
-	for sx in [-1, 1]: box.call(Vector3(.1, 3.1, 1.7), Vector3(sx * 1.25, 1.55, -1.25), dm)
-	var ig = world.glow_quad(Color(.9, .25, .45, .55), 3.0); ig.position = Vector3(0, 1.0, -1.9); gate_node.add_child(ig)
-	(ig.material_override as StandardMaterial3D).billboard_mode = BaseMaterial3D.BILLBOARD_DISABLED
-	_light(gate_node, Vector3(0, 1.2, -1.2), Color(1, .3, .45), 4.0, 2.0)
+	# 활짝 열린 아치: 안쪽은 막힌 벽이 아니라 보랏빛이 쏟아져 나오는 통로
+	var pg := Gradient.new(); pg.set_color(0, Color(.95, .7, 1.0)); pg.add_point(.45, Color(.55, .25, .95)); pg.set_color(pg.get_point_count() - 1, Color(.12, .04, .22))
+	var pt2 := GradientTexture2D.new(); pt2.gradient = pg; pt2.fill = GradientTexture2D.FILL_RADIAL; pt2.fill_from = Vector2(.5, .75); pt2.fill_to = Vector2(1.0, .2); pt2.width = 128; pt2.height = 128
+	var vm := StandardMaterial3D.new(); vm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; vm.albedo_texture = pt2
+	vm.emission_enabled = true; vm.emission_texture = pt2; vm.emission = Color.WHITE; vm.emission_energy_multiplier = 1.6
+	box.call(Vector3(2.45, 3.05, .08), Vector3(0, 1.52, -2.05), vm)                 # 빛나는 안쪽
+	var side_m: Material = World.pbr("stone_brick_wall_001", .5)
+	for sx in [-1, 1]: box.call(Vector3(.1, 3.1, 1.7), Vector3(sx * 1.25, 1.55, -1.25), side_m)
+	for gq in [[3.6, .75, -1.6], [5.2, .45, -.4], [3.0, .5, .6]]:
+		var ig = world.glow_quad(Color(.7, .4, 1.0, gq[1]), gq[0]); ig.position = Vector3(0, 1.3, gq[2]); gate_node.add_child(ig)
+	_light(gate_node, Vector3(0, 1.4, -.6), Color(.7, .45, 1.0), 9.0, 2.6)
+	_light(gate_node, Vector3(0, .6, 1.6), Color(.6, .4, 1.0), 6.0, 1.2)
 	# 반쯤 열린 무거운 나무 문 두 짝
 	var wood: Material = Props3D.m("wood", Color(.42, .3, .22), .8)
 	var iron: Material = Props3D.metal(Color(.25, .24, .26), .45)
 	for sx in [-1, 1]:
-		var dn := Node3D.new(); dn.position = Vector3(sx * 1.2, 0, -.45); dn.rotation.y = sx * -1.2; gate_node.add_child(dn)
+		var dn := Node3D.new(); dn.position = Vector3(sx * 1.2, 0, -.45); dn.rotation.y = sx * -1.5; gate_node.add_child(dn)   # 안쪽 벽에 붙도록 활짝
 		var dmi = MeshInstance3D.new(); var db = BoxMesh.new(); db.size = Vector3(1.2, 3.0, .12); dmi.mesh = db; dmi.material_override = wood
 		dmi.position = Vector3(-sx * .6, 1.5, 0); dn.add_child(dmi)
 		for y in [.6, 1.6, 2.5]:
@@ -223,8 +228,8 @@ func _build_gate(g: Vector2) -> void:
 	# 입구에서 새어 나오는 빛 알갱이·안개
 	var pt := CPUParticles3D.new(); var pq := QuadMesh.new(); pq.size = Vector2(.08, .08)
 	var pm := StandardMaterial3D.new(); pm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; pm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	pm.blend_mode = BaseMaterial3D.BLEND_MODE_ADD; pm.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED; pm.albedo_texture = World.glow_tex(); pm.albedo_color = Color(1, .4, .6, .8); pm.vertex_color_use_as_albedo = true
-	pq.material = pm; pt.mesh = pq; pt.amount = 30; pt.lifetime = 2.6; pt.preprocess = 2.0
+	pm.blend_mode = BaseMaterial3D.BLEND_MODE_ADD; pm.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED; pm.albedo_texture = World.glow_tex(); pm.albedo_color = Color(.8, .55, 1, .9); pm.vertex_color_use_as_albedo = true
+	pq.material = pm; pt.mesh = pq; pt.amount = 46; pt.lifetime = 2.8; pt.preprocess = 2.0
 	pt.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX; pt.emission_box_extents = Vector3(1.0, .6, .2)
 	pt.direction = Vector3(0, .6, 1); pt.spread = 30.0; pt.initial_velocity_min = .2; pt.initial_velocity_max = .5; pt.gravity = Vector3.ZERO
 	var cg := Gradient.new(); cg.set_color(0, Color(1, 1, 1, 0)); cg.add_point(.3, Color(1, 1, 1, 1)); cg.set_color(cg.get_point_count() - 1, Color(1, 1, 1, 0)); pt.color_ramp = cg

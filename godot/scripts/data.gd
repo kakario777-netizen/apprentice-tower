@@ -208,22 +208,22 @@ const RARENOUN := {weapon = ["가지", "송곳", "지휘봉", "뿔", "홀"], rin
 	gloves = ["손아귀", "손길", "발톱", "주먹"], belt = ["허리끈", "사슬", "띠", "매듭"], boots = ["걸음", "발굽", "질주", "발자국"]}
 # 유니크: 이름·옵션 고정(수치는 범위 안에서) · 강화 가능
 const UNIQUES := [
-	{name = "벼락 삼킨 가지", base = "staff", mods = [["prim:storm", 2, 2], ["dmg", .15, .25], ["cast", .1, .15], ["sub:chain", 1, 1]]},
-	{name = "첫 불씨", base = "staff", mods = [["prim:fire", 2, 2], ["sub:burn", 1, 2], ["dmg", .15, .22], ["mp", 20, 35]]},
-	{name = "대현자의 지팡이", base = "staff", mods = [["prim:arcane", 2, 2], ["sub:multi", 1, 1], ["mp", 30, 50], ["regen", .2, .3]]},
-	{name = "겨울 왕의 홀", base = "sceptre", mods = [["prim:frost", 2, 2], ["sub:widen", 1, 1], ["cdr", .1, .15], ["res", .05, .08]]},
-	{name = "속삭이는 완드", base = "wand", mods = [["prim:mine", 1, 1], ["cast", .15, .22], ["mp", 15, 30], ["gold", .2, .35]]},
-	{name = "시간 매듭", base = "ring", mods = [["cdr", .12, .18], ["sec:stasis", 1, 1], ["cast", .05, .08]]},
-	{name = "일곱 번째 별", base = "ring", mods = [["dmg", .08, .12], ["mp", 15, 25], ["gold", .2, .4]]},
-	{name = "별의 심장", base = "amulet", mods = [["prim:mine", 1, 1], ["hp", 25, 40], ["regen", .15, .25]]},
-	{name = "마녀의 눈물", base = "amulet", mods = [["mp", 30, 50], ["sec:freeze", 1, 1], ["dmg", .08, .12]]},
-	{name = "밤의 장막", base = "cloak", mods = [["res", .1, .15], ["regen", .12, .2], ["sec:blink", 1, 1]]},
-	{name = "불사조의 깃", base = "robe", mods = [["hp", 30, 50], ["prim:fire", 1, 1], ["res", .06, .1]]},
-	{name = "마법사의 손길", base = "gloves", mods = [["cast", .1, .15], ["dmg", .06, .1], ["mp", 15, 25]]},
-	{name = "얼음 손아귀", base = "gloves", mods = [["prim:frost", 1, 1], ["sub:harden", 1, 1], ["res", .05, .08]]},
-	{name = "거신의 띠", base = "belt", mods = [["hp", 40, 70], ["res", .05, .08]]},
-	{name = "바람 걸음", base = "boots", mods = [["spd", .05, .07], ["cast", .05, .08]]},
-	{name = "그림자 발자국", base = "boots", mods = [["spd", .03, .05], ["sec:blink", 1, 1], ["res", .04, .06]]},
+	{name = "벼락 삼킨 가지", lv = 55, base = "staff", mods = [["prim:storm", 2, 2], ["dmg", .15, .25], ["cast", .1, .15], ["sub:chain", 1, 1]]},
+	{name = "첫 불씨", lv = 50, base = "staff", mods = [["prim:fire", 2, 2], ["sub:burn", 1, 2], ["dmg", .15, .22], ["mp", 20, 35]]},
+	{name = "대현자의 지팡이", lv = 65, base = "staff", mods = [["prim:arcane", 2, 2], ["sub:multi", 1, 1], ["mp", 30, 50], ["regen", .2, .3]]},
+	{name = "겨울 왕의 홀", lv = 55, base = "sceptre", mods = [["prim:frost", 2, 2], ["sub:widen", 1, 1], ["cdr", .1, .15], ["res", .05, .08]]},
+	{name = "속삭이는 완드", lv = 30, base = "wand", mods = [["prim:mine", 1, 1], ["cast", .15, .22], ["mp", 15, 30], ["gold", .2, .35]]},
+	{name = "시간 매듭", lv = 45, base = "ring", mods = [["cdr", .12, .18], ["sec:stasis", 1, 1], ["cast", .05, .08]]},
+	{name = "일곱 번째 별", lv = 1, base = "ring", mods = [["dmg", .08, .12], ["mp", 15, 25], ["gold", .2, .4]]},
+	{name = "별의 심장", lv = 40, base = "amulet", mods = [["prim:mine", 1, 1], ["hp", 25, 40], ["regen", .15, .25]]},
+	{name = "마녀의 눈물", lv = 35, base = "amulet", mods = [["mp", 30, 50], ["sec:freeze", 1, 1], ["dmg", .08, .12]]},
+	{name = "밤의 장막", lv = 30, base = "cloak", mods = [["res", .1, .15], ["regen", .12, .2], ["sec:blink", 1, 1]]},
+	{name = "불사조의 깃", lv = 45, base = "robe", mods = [["hp", 30, 50], ["prim:fire", 1, 1], ["res", .06, .1]]},
+	{name = "마법사의 손길", lv = 1, base = "gloves", mods = [["cast", .1, .15], ["dmg", .06, .1], ["mp", 15, 25]]},
+	{name = "얼음 손아귀", lv = 35, base = "gloves", mods = [["prim:frost", 1, 1], ["sub:harden", 1, 1], ["res", .05, .08]]},
+	{name = "거신의 띠", lv = 1, base = "belt", mods = [["hp", 40, 70], ["res", .05, .08]]},
+	{name = "바람 걸음", lv = 25, base = "boots", mods = [["spd", .05, .07], ["cast", .05, .08]]},
+	{name = "그림자 발자국", lv = 1, base = "boots", mods = [["spd", .03, .05], ["sec:blink", 1, 1], ["res", .04, .06]]},
 ]
 # 세트: 같은 세트를 여러 개 끼면 추가 효과(초록색)
 const SETS := {

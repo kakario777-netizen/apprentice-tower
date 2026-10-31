@@ -57,7 +57,7 @@ func fresh_g(diff: String) -> Dictionary:
 		fx = [], rings = [], bolts = [], drops = [], texts = [], chests = [], npcs = [], portal = null,
 		gold = 0, kills = 0, banner = {text = "", t = 0.0}, pendingLv = 0, flowT = 0.0, bossMax = 0.0, time = 0.0, coneT = 0.0, talkSeen = {},
 		sb = null, shake = 0.0, lvDelay = 0.0, revT = 0.0, goldPulse = 0.0, bagNew = false, nearItem = null, portalT = 0.0,
-		runSeed = randi() % 1000000, waypoints = [1], killsBy = {}, shop = [], stash = null, pull = null, townRet = null, cleared = []}
+		runSeed = randi() % 1000000, waypoints = [1], killsBy = {}, shop = [], stash = null, pull = null, townRet = null, cleared = [], fcache = {}, fcacheOrder = []}
 
 func diff_d() -> Dictionary:
 	for d in D.DIFFICULTIES:
@@ -254,7 +254,31 @@ func floor_name(f: int) -> String:
 	var th: Dictionary = D.THEMES[D.theme(f)]
 	return "%d층 · %s" % [f, th.name] if f % 20 == 1 else "%d층" % f
 
+# 층 상태 기억: 다녀온 층은 몬스터·상자·떨어진 물건·밝힌 지도가 그대로(껐다 켜야 새로 생김)
+func stash_floor() -> void:
+	if G.floor <= 0 or G.sb != null: return
+	var main_mg = mg; var en = G.enemies; var ch = G.chests; var dr = G.drops; var co = G.corpses
+	if G.stash != null:      # 테라스에 있었으면 본층 상태를 기억
+		main_mg = G.stash.mg; en = G.stash.enemies; ch = G.stash.chests; dr = G.stash.drops; co = G.stash.corpses
+	G.fcache[G.floor] = {mg = main_mg, enemies = en, chests = ch, drops = dr, corpses = co, portal = G.portal if G.stash == null else G.stash.portal}
+	G.fcacheOrder.erase(G.floor); G.fcacheOrder.append(G.floor)
+	while G.fcacheOrder.size() > 8: G.fcache.erase(G.fcacheOrder.pop_front())
+
+func restore_floor() -> bool:
+	if not G.fcache.has(G.floor): return false
+	var c: Dictionary = G.fcache[G.floor]
+	clear_level(); P.vx = 0.0; P.vy = 0.0; G.npcs = []; G.stash = null; G.pull = null
+	mg = c.mg; G.enemies = c.enemies; G.chests = c.chests; G.drops = c.drops; G.corpses = c.corpses; G.portal = c.portal
+	G.bossMax = 0.0
+	for e in G.enemies:
+		if e.isBoss and not e.dead: G.bossMax += e.max
+	P.x = mg.start.x; P.y = mg.start.y
+	mg.dirty = true; mg.reveal(P.x, P.y); mg.build_flow(P.x, P.y); level_changed = true
+	G.banner = {text = floor_name(G.floor), t = 1.8}
+	return true
+
 func gen_floor() -> void:
+	if restore_floor(): return
 	clear_level(); P.vx = 0.0; P.vy = 0.0; G.npcs = []; G.portal = null; G.stash = null; G.pull = null
 	var kind := D.boss_kind(G.floor)
 	seed(G.runSeed * 131 + G.floor * 7919)
@@ -481,17 +505,18 @@ func kill_enemy(e: Dictionary) -> void:
 	elif roll < .25: G.drops.append({x = e.x, y = e.y, kind = "mp", t = 0.0, id = nid()})
 	if randf() < .5 or e.isBoss:
 		G.drops.append({x = e.x + rnd(-8, 8), y = e.y + rnd(-8, 8), kind = "gold", v = int(round((300 + G.floor * 30 if e.isBoss else (ri(2, 6) + G.floor) * 4) * diff_d().reward * (1 + P.st.gold))), t = 0.0, vx = rnd(-90, 90), vy = rnd(-90, 90), h = 0.0, vh = rnd(70, 120), id = nid()})
-	if not e.isBoss and e.xp > 1 and randf() < (.1 if (e.type == "demon" or e.type == "mage") else .06): drop_item(e.x, e.y)
+	# 한 층을 다 돌아야 3~4개 주울까 말까
+	if not e.isBoss and not e.get("elite", false) and e.xp > 1 and randf() < (.035 if (e.type == "demon" or e.type == "mage") else .022): drop_item(e.x, e.y)
 	if e.get("elite", false):
 		# 유니크 몬스터: 장비 1~2개(좋은 등급 쪽으로) + 낮은 확률로 강화석
-		drop_item(e.x - 8, e.y, roll_rarity(G.floor * .003 + .12, "magic"))
-		if randf() < .3: drop_item(e.x + 8, e.y)
+		drop_item(e.x - 8, e.y, roll_rarity(3.0, "magic"))
+		if randf() < .2: drop_item(e.x + 8, e.y, "", 2.0)
 		if randf() < .12: drop_stone(e.x, e.y, 1)
 	var boss_loot: bool = e.isBoss and (not e.split or not _other_boss_alive(e))
 	if boss_loot:
 		var fin: bool = G.floor == D.ROOF
-		drop_item(e.x - 10, e.y, "unique" if fin else roll_rarity(G.floor * .003 + .25, "rare"))
-		drop_item(e.x + 10, e.y, roll_rarity(G.floor * .003 + .1, "magic"))
+		drop_item(e.x - 10, e.y, "unique" if fin else roll_rarity(5.0, "magic"))
+		if randf() < .5: drop_item(e.x + 10, e.y, "", 2.5)
 		if randf() < .35: drop_stone(e.x, e.y + 10, ri(1, 2))
 	if e.isBoss and not _other_boss_alive(null): boss_cleared()
 
@@ -1037,7 +1062,9 @@ func make_item(rar: String, lvl: int, base_id := "") -> Dictionary:
 	if rar == "epic": rar = "unique"
 	var spec = null; var set_id := ""
 	if rar == "unique":
-		var c: Array = D.UNIQUES.filter(func(u): return base_id == "" or u.base == base_id or D.base(u.base).slot == D.base(base_id).slot)
+		# 저층에서는 약한 유니크만(층 + 10 이하 요구 레벨)
+		var c: Array = D.UNIQUES.filter(func(u): return (base_id == "" or u.base == base_id or D.base(u.base).slot == D.base(base_id).slot) and int(u.get("lv", 1)) <= lvl + 10)
+		if c.is_empty(): c = D.UNIQUES.filter(func(u): return int(u.get("lv", 1)) <= lvl + 10)
 		if c.is_empty(): c = D.UNIQUES
 		spec = pick(c); base_id = spec.base
 	elif rar == "set":
@@ -1095,16 +1122,24 @@ func make_item(rar: String, lvl: int, base_id := "") -> Dictionary:
 	it.value = item_value(it)
 	return it
 
-# 등급 굴리기: 노말 > 매직 > 레어 > 세트 > 유니크 (층이 높을수록 좋은 게 잘 나온다)
-func roll_rarity(bonus := 0.0, min_rar := "normal") -> String:
-	var r = randf()
-	var u = .012 + bonus * .2; var s_ = u + .02 + bonus * .3; var rr = s_ + .1 + bonus; var m = rr + .42
-	var out := "unique" if r < u else ("set" if r < s_ else ("rare" if r < rr else ("magic" if r < m else "normal")))
+# 등급 굴리기(디아블로식): 저층은 노말·매직이 대부분, 레어는 가끔, 세트·유니크는 50~60층쯤부터 보일 듯 말 듯
+# luck: 보스·유니크 몬스터·상자는 좋은 등급 확률을 몇 배로
+func roll_rarity(luck := 1.0, min_rar := "normal") -> String:
+	var f: float = max(1, G.floor)
+	var pu: float = (.0006 if f < 20 else (.002 if f < 50 else min(.03, .008 + (f - 50) * .0004))) * luck
+	var ps: float = (.001 if f < 15 else (.005 if f < 40 else min(.035, .012 + (f - 40) * .0004))) * luck
+	var pr: float = min(.22, .03 + f * .0016) * luck
+	var pm: float = min(.5, .26 + f * .0025) * sqrt(luck)
+	var r := randf(); var out := "normal"
+	if r < pu: out = "unique"
+	elif r < pu + ps: out = "set"
+	elif r < pu + ps + pr: out = "rare"
+	elif r < pu + ps + pr + pm: out = "magic"
 	if D.RAR_ORDER.find(out) < D.RAR_ORDER.find(min_rar): out = min_rar
 	return out
 
-func drop_item(x: float, y: float, rar := "", bonus := 0.0) -> Dictionary:
-	var it = make_item(rar if rar != "" else roll_rarity(G.floor * .003 + bonus), G.floor)
+func drop_item(x: float, y: float, rar := "", luck := 1.0) -> Dictionary:
+	var it = make_item(rar if rar != "" else roll_rarity(luck), G.floor)
 	G.drops.append({id = nid(), x = x, y = y, kind = "item", it = it, t = 0.0, vx = rnd(-80, 80), vy = rnd(-80, 80), h = 0.0, vh = rnd(100, 150)})
 	if it.rar in ["set", "unique"]: toast.emit("%s 아이템이 떨어졌다!" % D.RAR[it.rar].name)
 	return it
@@ -1161,7 +1196,7 @@ func open_chest(c: Dictionary) -> void:
 	c.open = true; sfx.emit("chest"); ring(c.x, c.y, 4, 34, .35, "#ffd76a"); burst(c.x, c.y - 6, "#ffd76a", 18, 140, .5, 2.5)
 	var n = ri(5, 9); var v: int = max(1, int(round((6 + G.floor * 3) * diff_d().reward)))
 	for i in n: G.drops.append({id = nid(), x = c.x, y = c.y, kind = "gold", v = v, t = 0.0, vx = rnd(-130, 130), vy = rnd(-130, 130), h = 0.0, vh = rnd(90, 160)})
-	if randf() < .35: drop_item(c.x, c.y, "", .05)
+	if randf() < .18: drop_item(c.x, c.y, "", 1.5)
 	var r = randf()
 	if r < .45: G.drops.append({id = nid(), x = c.x, y = c.y, kind = pick(["pothp", "pothp", "potmp"]), t = 0.0, vx = rnd(-60, 60), vy = rnd(40, 90), h = 0.0, vh = 110.0})
 	elif r < .55: G.drops.append({id = nid(), x = c.x, y = c.y, kind = "scroll", t = 0.0, vx = rnd(-60, 60), vy = rnd(40, 90), h = 0.0, vh = 110.0})
@@ -1208,6 +1243,7 @@ func portal_back() -> void:
 
 # 내려가기: 아래층의 올라가는 계단 앞에 선다(1층에서는 마을 탑 문 앞)
 func prev_floor() -> void:
+	stash_floor()
 	if G.floor <= 1:
 		G.resume = max(G.resume, 1); go_town(false)
 		if mg.gate != null:
@@ -1224,6 +1260,7 @@ func prev_floor() -> void:
 func next_floor() -> void:
 	if G.floor >= D.ROOF:
 		game_over(true); return
+	stash_floor()
 	G.floor += 1; G.resume = G.floor; P.hp = min(P.maxhp, P.hp + P.maxhp * .3); P.mp = P.maxmp; P.ward = 0.0; gen_floor(); save()
 
 var end_win := false
@@ -1325,6 +1362,7 @@ func update(dt: float) -> void:
 			portal_back(); return
 		if G.portal.get("tp", false):
 			G.townRet = {floor = G.floor, live = true, mg = mg, enemies = G.enemies, chests = G.chests, drops = G.drops, corpses = G.corpses, stash = G.stash, px = G.portal.ox, py = G.portal.oy}
+		if not G.portal.get("tp", false): stash_floor()
 		G.resume = max(G.resume, G.portal.resume); go_town(false); return
 	for k in P.secCd.keys(): P.secCd[k] = max(0.0, P.secCd[k] - dt)
 	var stas = in_stasis(P)
@@ -1350,6 +1388,7 @@ func update(dt: float) -> void:
 		var dur: float = G.pull.get("dur", 1.0)
 		var k: float = min(1.0, G.pull.t / (dur * .92))
 		P.x = lerp(G.pull.fx, G.pull.tx, k); P.y = lerp(G.pull.fy, G.pull.ty, k); P.vx = 0.0; P.vy = -40.0; P.face = -PI / 2
+		_set_anim(P, "run"); P.at += dt * .85     # 실제로 한 걸음씩 걷는 동작
 		if G.pull.t >= dur:
 			var what: String = G.pull.what; G.pull = null
 			match what:
@@ -1489,7 +1528,9 @@ func update(dt: float) -> void:
 		if d.get("noPick", 0):
 			if dd > 70: d.noPick = 0
 			else: continue
-		if dd < 95 and d.t > .35:
+		var full_item: bool = d.kind == "item" and P.bag.size() >= P.bagMax
+		if full_item and dd < 40: d.noPick = 1          # 가방이 꽉 찼으면 한 번 끌려왔다가 그 자리에 멈춘다
+		if dd < 95 and d.t > .35 and not full_item:
 			var k: float = min(1.0, (95 - dd) / 95 * 8 * dt + .02); d.x += (P.x - d.x) * k * 3; d.y += (P.y - d.y) * k * 3
 		if dd < 16:
 			d.got = true
@@ -1591,9 +1632,9 @@ func roll_shop() -> void:
 	G.shop = []
 	var lv: int = max(1, G.resume - 3)
 	for i in 4:
-		var it := make_item("magic" if i < 3 else pick(["magic", "rare"]), lv)
+		var it := make_item("magic" if i < 3 else pick(["magic", "magic", "rare"]), lv)
 		it.value = item_value(it)
-		it.price = int(round(it.value * 2.5 / 10.0)) * 10
+		it.price = int(round(it.value * 3 / 10.0)) * 10        # 파는 값 = 사는 값의 1/3
 		G.shop.append(it)
 
 func buy_item(i: int) -> bool:
