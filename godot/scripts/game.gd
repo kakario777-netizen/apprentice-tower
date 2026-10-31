@@ -51,7 +51,7 @@ func fresh_g(diff: String) -> Dictionary:
 		fx = [], rings = [], bolts = [], drops = [], texts = [], chests = [], npcs = [], portal = null,
 		gold = 0, kills = 0, banner = {text = "", t = 0.0}, pendingLv = 0, flowT = 0.0, bossMax = 0.0, time = 0.0, coneT = 0.0, talkSeen = {},
 		sb = null, shake = 0.0, lvDelay = 0.0, revT = 0.0, goldPulse = 0.0, bagNew = false, nearItem = null, portalT = 0.0,
-		runSeed = randi() % 1000000, waypoints = [1], shop = [], stash = null, pull = null}
+		runSeed = randi() % 1000000, waypoints = [1], killsBy = {}, shop = [], stash = null, pull = null}
 
 func diff_d() -> Dictionary:
 	for d in D.DIFFICULTIES:
@@ -108,7 +108,7 @@ func save() -> void:
 	var pd = {}
 	for k in ["lv", "xp", "next", "prim", "subs", "sec", "secOrder", "pass", "fusion", "active", "pot", "bag", "bagMax", "eq"]: pd[k] = P[k]
 	var f = FileAccess.open(SAVE_PATH, FileAccess.WRITE)
-	if f: f.store_string(JSON.stringify({v = 1, diff = G.diff, gold = G.gold, kills = G.kills, resume = G.resume, talkSeen = G.talkSeen, P = pd, floor = G.floor, runSeed = G.runSeed, waypoints = G.waypoints, at = Time.get_unix_time_from_system()}))
+	if f: f.store_string(JSON.stringify({v = 1, diff = G.diff, gold = G.gold, kills = G.kills, resume = G.resume, talkSeen = G.talkSeen, P = pd, floor = G.floor, runSeed = G.runSeed, waypoints = G.waypoints, killsBy = G.killsBy, at = Time.get_unix_time_from_system()}))
 
 static func read_save():
 	if not FileAccess.file_exists(SAVE_PATH): return null
@@ -137,6 +137,7 @@ func load_game(sv: Dictionary) -> void:
 	P.bagMax = int(P.get("bagMax", D.BAG_START))
 	G.gold = int(sv.get("gold", 0)); G.kills = int(sv.get("kills", 0)); G.resume = int(sv.get("resume", 1)); G.talkSeen = sv.get("talkSeen", {})
 	G.runSeed = int(sv.get("runSeed", G.runSeed))
+	G.killsBy = sv.get("killsBy", {})
 	G.waypoints = []
 	for w in sv.get("waypoints", [1]): G.waypoints.append(int(w))
 	recalc(); P.hp = P.maxhp; P.mp = P.maxmp
@@ -159,8 +160,8 @@ func go_town(first: bool) -> void:
 	P.vx = 0.0; P.vy = 0.0; P.ward = 0.0
 	var t = mg.town
 	G.npcs = [
-		{id = "guide", name = "루멘 교수", x = (t.x0 + 11) * T, y = (t.y0 + t.h - 5) * T, trim = "#e3b04b"},
-		{id = "shop", name = "미라 교수", x = (t.x0 + 26) * T, y = (t.y0 + 6) * T, trim = "#ffd27a"},
+		{id = "guide", name = "루멘 교수", x = t.guide.x, y = t.guide.y, trim = "#e3b04b"},
+		{id = "shop", name = "미라 교수", x = t.shop.x, y = t.shop.y, trim = "#ffd27a"},
 	]
 	P.x = mg.start.x; P.y = mg.start.y
 	G.banner = {text = "마법학교 앞마당" if first else "마을로 돌아왔다", t = 2.4}
@@ -300,12 +301,13 @@ func spawn_boss(bd: Dictionary, x: float, y: float, hp_override := 0.0, r := 0.0
 	G.enemies.append(e); G.bossMax += e.max; return e
 
 static func spr_name(e: Dictionary) -> String:
-	return D.BOSSMAP[e.boss] if (e.isBoss and e.boss != "") else D.SPRMAP[e.type]
+	if e.isBoss and e.boss != "": return D.BOSSMAP[e.boss]
+	return e.d.get("spr", D.SPRMAP.get(e.type, "skel"))
 
 static func enemy_h(e: Dictionary) -> float:
 	if e.boss == "flesh": return e.r * 1.9
-	if e.get("named", false): return float(D.SPRH.get(e.type, 46)) * 1.5
-	return float(D.SPRH.get(e.boss if e.isBoss else e.type, 46))
+	var base: float = float(e.d.get("h", D.SPRH.get(e.type, 46))) if not (e.isBoss and e.boss != "") else float(D.SPRH.get(e.boss, 46))
+	return base * 1.5 if e.get("named", false) else base
 
 static func anim_dur(name: String, anim: String) -> float:
 	var m: Dictionary = Actor.meta().get(name, {})
@@ -354,6 +356,8 @@ func smoke(x: float, y: float, n: int, c := "#2a2430") -> void:
 func kill_enemy(e: Dictionary) -> void:
 	if e.dead: return
 	e.dead = true; G.kills += 1
+	var kk: String = e.name if e.isBoss else e.type
+	G.killsBy[kk] = G.killsBy.get(kk, 0) + 1
 	var nm = spr_name(e)
 	var corpse = false
 	if Actor.meta().has(nm) and Actor.meta()[nm].anims.has("die"):
@@ -422,8 +426,9 @@ func enemy_fire(e: Dictionary) -> void:
 	var a = atan2(P.y - e.y, P.x - e.x); e.atkT = anim_dur(spr_name(e), "attack")
 	match e.d.atk:
 		"arrow": enemy_shot(e, "arrow", a + rnd(-.05, .05), 270, {r = 4.0, life = 2.0})
-		"orb": enemy_shot(e, e.orb, a, 130, {r = 7.0, homing = 1.6, life = 5.0})
-		"fireball": enemy_shot(e, "fire", a, 190, {r = 9.0, life = 3.0, blast = 45.0})
+		"orb": enemy_shot(e, e.d.get("orb", e.get("orb", "ice")), a, 130, {r = 7.0, homing = 1.6, life = 5.0})
+		"fireball": enemy_shot(e, "fire", a, 190, {r = 9.0, life = 3.0, blast = float(e.d.get("blast", 45))})
+		"skull": enemy_shot(e, "skull", a, 150, {r = 8.0, homing = 2.0, life = 5.0})
 
 func boss_ai(e: Dictionary, dt: float, d: float) -> void:
 	e.t1 -= dt; e.t2 -= dt; e.t3 -= dt
@@ -519,6 +524,10 @@ func upd_enemy(e: Dictionary, dt: float) -> void:
 	e.vx += (tvx - e.vx) * ka; e.vy += (tvy - e.vy) * ka; mg.move(e, e.vx * dt, e.vy * dt)
 	if d < e.r + P.r + 4 and e.atkCd <= 0 and e.fearT <= 0:
 		hurt_player(e.dmg); e.atkCd = 1.0; e.atkT = anim_dur(spr_name(e), "attack")
+		match e.d.get("onhit", ""):
+			"poison":
+				P.poisonT = 4.0; P.poisonDps = max(P.poisonDps, e.dmg * .4)
+			"slow": P.slowT = 1.2
 
 func in_stasis(o: Dictionary) -> bool:
 	for z in G.zones:
@@ -590,12 +599,19 @@ func fire(dt: float, ang: float) -> void:
 			if dd < bd and mg.los(P.x, P.y, e.x, e.y):
 				bd = dd; target = e
 		if target == null:
-			G.bolts.append({pts = jag(P.x, P.y, P.x + cos(ang) * 60, P.y + sin(ang) * 60, 4), color = a.color, life = .05}); return
+			# 적이 없어도 조준한 방향 끝(사거리 또는 벽)까지 전기가 뻗는다
+			var ln := 0.0
+			while ln < range and not mg.solid_at(P.x + cos(ang) * ln, P.y + sin(ang) * ln): ln += 8
+			var ex: float = P.x + cos(ang) * ln; var ey: float = P.y + sin(ang) * ln
+			G.bolts.append({pts = [Vector2(P.x, P.y), Vector2(ex, ey)], color = a.color, life = .06, elec = 1, from_p = 1})
+			if randf() < .5: G.fx.append({x = ex, y = ey, vx = rnd(-60, 60), vy = rnd(-60, 60), life = .2, max = .2, color = "#e8fbff", size = 2.0, h = .9})
+			return
 		var from = Vector2(P.x, P.y); var cur = target; var hit = {}; var mult = 1.0
 		var links: int = 1 + P.es.get("chain", 0) + (1 if a.els.size() > 1 else 0)
 		for i in links:
 			if cur == null: break
-			G.bolts.append({pts = jag(from.x, from.y, cur.x, cur.y, 7), color = a.color, life = .06})
+			G.bolts.append({pts = [from, Vector2(cur.x, cur.y)], color = a.color, life = .06, elec = 1, from_p = 1 if i == 0 else 0})
+			if randf() < .6: G.fx.append({x = cur.x, y = cur.y, vx = rnd(-70, 70), vy = rnd(-70, 70), life = .22, max = .22, color = "#e8fbff", size = 2.2, h = .9})
 			damage_enemy(cur, a.dps * dt * mult, a.els, true); hit[cur.id] = true
 			from = Vector2(cur.x, cur.y); mult *= .75
 			var nx = null; var nd = 150.0
@@ -1149,7 +1165,7 @@ func update(dt: float) -> void:
 			s.life = 0.0
 			if s.els.has("fire"): burst(s.x, s.y, "#ff8a3a", 6, 100, .3, 3)
 			continue
-		if randf() < .5: G.fx.append({x = s.x, y = s.y, vx = rnd(-20, 20), vy = rnd(-20, 20), life = .25, max = .25, color = s.color, size = s.r * .6})
+		if randf() < .5: G.fx.append({x = s.x, y = s.y, vx = rnd(-20, 20), vy = rnd(-20, 20), life = .25, max = .25, color = s.color, size = s.r * .6, h = .9})
 		for e in G.enemies:
 			if e.dead or s.hitSet.has(e.id): continue
 			if hyp(e.x - s.x, e.y - s.y) < e.r + s.r:

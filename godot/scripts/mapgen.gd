@@ -175,34 +175,77 @@ func fog_bytes() -> PackedByteArray:
 
 # ---------------- 마을 ----------------
 func gen_town() -> void:
+	# 디아블로 마을처럼: 둥글고 울퉁불퉁한 공터 + 굽은 흙길
 	_reset(); floor_no = 0
-	var x0 = 24; var y0 = 20; var w = 34; var h = 20
-	carve(x0, y0, w, h); carve(x0 + 16, y0 - 2, 2, 2)
+	var cx := 41; var cy := 31; var rx := 19.0; var ry := 12.0
+	var ph := [randf() * TAU, randf() * TAU, randf() * TAU]
+	for j in MH:
+		for i in MW:
+			var dx := (i + .5 - cx) / rx; var dy := (j + .5 - cy) / ry
+			var a := atan2(dy, dx)
+			var wob := 1.0 + .13 * sin(a * 3 + ph[0]) + .08 * sin(a * 5 + ph[1]) + .05 * sin(a * 9 + ph[2])
+			if dx * dx + dy * dy < wob * wob: map[j * MW + i] = 0
+	# 북쪽 탑 문까지 올라가는 길목
+	var top := cy - int(ry) - 3
+	carve(cx - 2, top, 4, cy - top)
+	var x0 := cx - int(rx) - 2; var y0 := top; var w := int(rx) * 2 + 4; var h := cy + int(ry) + 3 - top
 	rooms.append(_room(x0, y0, w, h, true))
-	for j in range(y0 - 6, y0 + h + 2):
-		for i in range(x0 - 2, x0 + w + 2):
-			if i >= 0 and j >= 0 and i < MW and j < MH: seen[j * MW + i] = 1
 	seen.fill(1)
-	town = {x0 = x0, y0 = y0, w = w, h = h, pathX = x0 + 15, pathW = 4, crossY = y0 + 9}
-	gate = Vector2((x0 + 17) * T, (y0 - 1) * T)
-	var cx = (x0 + 17) * T
-	obst.append({x = cx, y = (y0 + 10) * T, r = 44.0})
-	obst.append({x = (x0 + 26) * T, y = (y0 + 7.3) * T, r = 26.0})
-	decor.append({kind = "fountain", pos = Vector2(cx, (y0 + 10) * T)})
-	decor.append({kind = "stall", pos = Vector2((x0 + 26) * T, (y0 + 7.3) * T)})
+	gate = Vector2(cx * T, (top + .5) * T)
+	var fountain := Vector2(cx * T, (cy + 1) * T)
+	var shop := Vector2((cx + 11) * T, (cy - 4) * T)
+	var guide := Vector2((cx - 10) * T, (cy + 5) * T)
+	start = Vector2(cx * T, (cy + 9) * T)
+	# 흙길: 문→분수, 분수→상점, 분수→루멘 교수, 분수→남쪽 시작점, 상점↔루멘 교수 바깥 고리
+	var path := PackedByteArray(); path.resize(MW * MH); path.fill(0)
+	var curve := func(a: Vector2, b: Vector2, bend: float, wd: float):
+		var mid := (a + b) / 2 + (b - a).orthogonal().normalized() * bend * T
+		for k in 60:
+			var t := k / 59.0
+			var p: Vector2 = a.lerp(mid, t).lerp(mid.lerp(b, t), t)
+			var r: float = wd * (1.0 + .25 * sin(t * 7.0 + bend))
+			for jj in range(int(p.y / T - r) - 1, int(p.y / T + r) + 2):
+				for ii in range(int(p.x / T - r) - 1, int(p.x / T + r) + 2):
+					if ii < 0 or jj < 0 or ii >= MW or jj >= MH: continue
+					if Vector2(ii + .5, jj + .5).distance_to(p / T) < r: path[jj * MW + ii] = 1
+	curve.call(gate, fountain, rnd(-2.5, 2.5), 1.6)
+	curve.call(fountain, shop + Vector2(-24, 30), rnd(-4, 4), 1.3)
+	curve.call(fountain, guide + Vector2(20, -10), rnd(-4, 4), 1.3)
+	curve.call(fountain, start + Vector2(0, 40), rnd(-3, 3), 1.4)
+	curve.call(shop + Vector2(0, 40), guide + Vector2(40, 30), rnd(5, 8), 1.0)
+	# 분수 둘레 광장
+	for jj in range(cy - 4, cy + 6):
+		for ii in range(cx - 4, cx + 5):
+			if Vector2(ii + .5, jj + .5).distance_to(fountain / T) < 4.2: path[jj * MW + ii] = 1
+	town = {x0 = x0, y0 = y0, w = w, h = h, path = path, cx = cx, cy = cy, guide = guide, shop = shop}
+	obst.append({x = fountain.x, y = fountain.y, r = 44.0})
+	obst.append({x = shop.x, y = shop.y + 10, r = 26.0})
+	decor.append({kind = "fountain", pos = fountain})
+	decor.append({kind = "stall", pos = shop + Vector2(0, 10)})
+	# 나무·덤불·꽃: 길이 아닌 곳에 자연스럽게
 	const TREES := ["oak1", "oak2", "oak3", "oak4", "birch1", "birch3", "pine1", "pine2"]
-	for t in [[x0+3,y0+3],[x0+6,y0+15],[x0+30,y0+16],[x0+31,y0+3],[x0+3,y0+10],[x0+21,y0+17],[x0+9,y0+2]]:
-		var p = Vector2(t[0] * T, t[1] * T)
-		decor.append({kind = "prop", p = TREES[hash2(t[0], t[1]) % TREES.size()], pos = p + Vector2(0, 8), s = rnd(.85, 1.2) * .95})
-		obst.append({x = p.x, y = p.y + 6, r = 12.0})
-	const PL := ["flower1", "flower2", "fern1", "leaf1", "grass1", "grass3"]
-	for k in 26:
-		decor.append({kind = "prop", p = pick(PL), pos = Vector2((x0 + rnd(1, w - 1)) * T, (y0 + rnd(1, h - 1)) * T), s = .8})
-	for t in [[x0+13,y0+4],[x0+21,y0+4],[x0+13,y0+16],[x0+21,y0+16]]:
-		torches.append({pos = Vector2(t[0] * T, t[1] * T + 16), wall = false, lamp = true})
-	for k in 4:
-		torches.append({pos = Vector2((x0 + 4 + k * 9) * T, y0 * T), wall = true, lamp = false})
-	start = Vector2(cx, (y0 + h - 3) * T)
+	var placed := 0; var tries := 0
+	while placed < 11 and tries < 400:
+		tries += 1
+		var ti := ri(x0 + 2, x0 + w - 3); var tj := ri(y0 + 3, y0 + h - 3)
+		if at(ti, tj) != 0 or path[tj * MW + ti] or at(ti, tj + 1) != 0: continue
+		var p := Vector2((ti + .5) * T, (tj + .5) * T)
+		if p.distance_to(fountain) < 150 or p.distance_to(shop) < 90 or p.distance_to(guide) < 90 or p.distance_to(start) < 80 or p.distance_to(gate) < 120: continue
+		var far := true
+		for o in obst:
+			if Vector2(o.x, o.y).distance_to(p) < 70: far = false
+		if not far: continue
+		decor.append({kind = "prop", p = TREES[hash2(ti, tj) % TREES.size()], pos = p + Vector2(0, 8), s = rnd(.85, 1.2) * .95})
+		obst.append({x = p.x, y = p.y + 6, r = 12.0}); placed += 1
+	const PL := ["flower1", "flower2", "fern1", "leaf1", "grass1", "grass3", "rock1", "shrub1"]
+	for k in 40:
+		var ti := ri(x0, x0 + w); var tj := ri(y0, y0 + h)
+		if at(ti, tj) != 0 or path[tj * MW + ti]: continue
+		decor.append({kind = "prop", p = pick(PL), pos = Vector2((ti + rnd(.1, .9)) * T, (tj + rnd(.1, .9)) * T), s = .8})
+	# 등불: 길가를 따라
+	for q in [[gate + Vector2(-70, 60), 0], [gate + Vector2(70, 60), 0], [fountain + Vector2(-110, -40), 0], [fountain + Vector2(110, 60), 0], [shop + Vector2(-60, 50), 0], [guide + Vector2(60, -40), 0]]:
+		var p: Vector2 = q[0]
+		if not solid_at(p.x, p.y): torches.append({pos = p, wall = false, lamp = true})
 	build_flow(start.x, start.y)
 
 # ---------------- 탑의 층(몬스터·상자는 game.gd 에서) ----------------

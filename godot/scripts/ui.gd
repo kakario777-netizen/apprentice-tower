@@ -320,6 +320,9 @@ func open_pause() -> void:
 	var r = HFlowContainer.new(); r.alignment = FlowContainer.ALIGNMENT_CENTER; r.add_theme_constant_override("h_separation", 28); _center(r)
 	r.add_child(stats([["층", "%d / %d" % [G.floor, D.LAST_FLOOR] if G.floor else "마을 (다음 %d층)" % G.resume], ["난이도", game.diff_d().name], ["레벨", P.lv],
 		["생명", "%d / %d" % [ceili(P.hp), P.maxhp]], ["마나", "%d / %d" % [floori(P.mp), P.maxmp]], ["처치", G.kills], ["금화", G.gold]]))
+	var kd = btn("처치 자세히", func(): open_tab("record"), true); kd.add_theme_font_size_override("font_size", 13)
+	for k in ["normal", "hover", "pressed"]: kd.add_theme_stylebox_override(k, _small(btn_sb(true)))
+	r.add_child(kd)
 	var li = VBoxContainer.new(); li.add_theme_constant_override("separation", 4); li.custom_minimum_size.x = 280
 	var bx = func(v): return " (+%s 장비)" % str(v) if v else ""
 	var add = func(n: String, l: String):
@@ -386,7 +389,7 @@ func open_talk(n) -> void:
 	_no_title_grad(); talk_npc = n; talk_page = 0; game.set_state("talk"); _render_talk()
 
 func _render_talk() -> void:
-	_begin("talk", .45, BoxContainer.ALIGNMENT_END)
+	_begin("talk", .45, BoxContainer.ALIGNMENT_CENTER)
 	var n = talk_npc; var lines: Array = D.TALK[n.id]
 	var tb = PanelContainer.new(); var st = sb(Color("#1b1526"), 10, LINE, 1, Vector4(14, 14, 14, 14)); st.border_color = Color(.89, .69, .29, .5); st.border_width_top = 1
 	tb.add_theme_stylebox_override("panel", st); _center(tb)
@@ -525,8 +528,7 @@ func close_talk() -> void:
 # ================= 가방 =================
 func open_bag() -> void:
 	if game.G == null: return
-	_no_title_grad()
-	game.set_state("bag"); game.G.bagNew = false; bag_sel = null; _render_bag()
+	bag_sel = null; open_tab("bag")
 
 func _sel_item():
 	if bag_sel == null: return null
@@ -534,7 +536,7 @@ func _sel_item():
 
 func _slot(it, lb: String, sel: bool, sz: float, fn: Callable) -> Button:
 	var b = Button.new(); b.custom_minimum_size = Vector2(sz, sz); b.focus_mode = Control.FOCUS_ALL
-	var s = sb(PANEL, 7, Color(D.RAR[it.rar].color) if it != null else LINE, 2)
+	var s = sb(Color(.17, .14, .23), 7, Color(D.RAR[it.rar].color) if it != null else Color(.42, .36, .5), 2)
 	if sel:
 		s.border_color = INK
 	b.add_theme_stylebox_override("normal", s); b.add_theme_stylebox_override("hover", s); b.add_theme_stylebox_override("pressed", s)
@@ -550,12 +552,13 @@ func _render_bag() -> void:
 	var keep_focus = ""
 	var fo = get_viewport().gui_get_focus_owner()
 	if fo and fo.has_meta("key"): keep_focus = fo.get_meta("key")
-	_begin("bag", .88, BoxContainer.ALIGNMENT_BEGIN)
+	_begin("bag", .9, BoxContainer.ALIGNMENT_BEGIN)
 	game.recalc()
 	var P = game.P; var G = game.G
+	box.add_child(_tabbar("bag"))
 	# 화면 크기에 맞춰: 장비창 | 가방창 을 나란히, 자세히 보기는 밑(세로 여유가 있으면) 또는 옆
 	var vs = get_viewport().get_visible_rect().size; var ins: Dictionary = main.hud.inset()
-	var AW: float = vs.x - 32 - ins.l - ins.r; var AH: float = vs.y - 40 - ins.t - ins.b
+	var AW: float = vs.x - 32 - ins.l - ins.r; var AH: float = vs.y - 40 - ins.t - ins.b - 48
 	var EH: float = clamp(AH - 6, 250.0, 340.0); var EW: float = clamp(EH * .84, 230.0, 290.0)
 	var SL: float = clamp((EH - 70) / 5.2, 40.0, 54.0)          # 가방 칸 크기
 	var below: bool = AH >= EH + 200                             # 세로가 넉넉하면(폴드 펼침 등) 자세히 보기는 아래로
@@ -565,7 +568,7 @@ func _render_bag() -> void:
 	var wrap = HBoxContainer.new(); wrap.add_theme_constant_override("separation", 10); wrap.alignment = BoxContainer.ALIGNMENT_CENTER
 	wrap.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	# 왼쪽: 큰 장비창 — 뒤에 마법사 윤곽을 아주 옅게, 그 위에 7칸
-	var ep = PanelContainer.new(); ep.add_theme_stylebox_override("panel", sb(Color(.07, .055, .1, .95), 12, LINE, 1, Vector4(0, 0, 0, 0)))
+	var ep = PanelContainer.new(); ep.add_theme_stylebox_override("panel", _pnl(Vector4(0, 0, 0, 0)))
 	ep.custom_minimum_size = Vector2(EW, EH)
 	var lay = Control.new(); lay.custom_minimum_size = Vector2(EW, EH); ep.add_child(lay)
 	lay.add_child(_silhouette(EW, EH))
@@ -581,7 +584,7 @@ func _render_bag() -> void:
 		b.position = Vector2(POS[k].x * EW - sz / 2, POS[k].y * EH - sz / 2); b.set_meta("key", "eq:" + k); lay.add_child(b)
 	wrap.add_child(ep)
 	# 오른쪽: 가방창(칸은 상점에서 금화로 늘릴 수 있음)
-	var ip = PanelContainer.new(); ip.add_theme_stylebox_override("panel", sb(Color(.07, .055, .1, .95), 12, LINE, 1, Vector4(12, 8, 12, 10)))
+	var ip = PanelContainer.new(); ip.add_theme_stylebox_override("panel", _pnl(Vector4(12, 8, 12, 10)))
 	ip.custom_minimum_size = Vector2(IW, EH)
 	var c2 = VBoxContainer.new(); c2.add_theme_constant_override("separation", 6); ip.add_child(c2)
 	var hh = HBoxContainer.new(); c2.add_child(hh)
@@ -657,7 +660,7 @@ func _render_bag() -> void:
 					bag_sel = null
 				_render_bag()
 			sbtn.call("벗기", unf, false)
-		dv.add_child(rr)
+		dv.add_child(rr); dv.move_child(rr, 2)   # 착용·팔기 버튼은 이름 바로 아래(스크롤 없이 보이게)
 	box.add_child(wrap)
 	if below:
 		dt.custom_minimum_size = Vector2(EW + IW + 10, 80); dt.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
@@ -670,12 +673,6 @@ func _render_bag() -> void:
 		for ch in dv.get_children():
 			if ch is Label: ch.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		dsc.add_child(dt); wrap.add_child(dsc)
-	# 닫기: 오른쪽 위 고정
-	var cb = btn("닫기", func(): close_bag())
-	cb.position = Vector2(vs.x - ins.r - 92, ins.t + 8)
-	var oldc = root.get_node_or_null("bagclose")
-	if oldc: oldc.queue_free()
-	cb.name = "bagclose"; root.add_child(cb)
 	main.hud.build_buttons()
 	if keep_focus != "":
 		await get_tree().process_frame
@@ -702,6 +699,221 @@ func _silhouette(w: float, h: float) -> Control:
 
 func _equip(slot: String) -> void:
 	game.equip(bag_sel.i, slot); bag_sel = {from = "eq", slot = slot}; _render_bag()
+
+# ================= 탭 창(디아블로식): 능력치 · 가방 · 마법 · 기록 · 설정 =================
+const TABS := [["stats", "능력치"], ["bag", "가방"], ["magic", "마법"], ["record", "기록"], ["settings", "설정"]]
+var tab := "bag"
+
+func _pnl(pad := Vector4(14, 12, 14, 12)) -> StyleBoxFlat:
+	var st = sb(Color(.13, .105, .18, .97), 12, Color(.62, .5, .3, .7), 1, pad)
+	st.border_width_top = 2
+	return st
+
+func _tabbar(active: String) -> Control:
+	var vs = get_viewport().get_visible_rect().size
+	var bar = HBoxContainer.new(); bar.add_theme_constant_override("separation", 4); _center(bar, 1040)
+	for t in TABS:
+		var on: bool = t[0] == active
+		var b = Button.new(); b.text = t[1]; b.focus_mode = Control.FOCUS_ALL; b.custom_minimum_size = Vector2(min(110.0, (vs.x - 140) / 5.0), 38)
+		var st = sb(Color("#e3b04b") if on else Color(.2, .16, .26), 8, Color("#e3b04b") if on else Color(.45, .38, .52), 1, Vector4(10, 6, 10, 6))
+		for k in ["normal", "hover", "pressed"]: b.add_theme_stylebox_override(k, st)
+		b.add_theme_font_override("font", bold); b.add_theme_font_size_override("font_size", 15)
+		for k in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]: b.add_theme_color_override(k, Color("#1b1206") if on else INK)
+		var id: String = t[0]
+		b.pressed.connect(func(): open_tab(id))
+		b.set_meta("key", "tab:" + id)
+		bar.add_child(b)
+	var sp = Control.new(); sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL; bar.add_child(sp)
+	var cb = btn("닫기", func(): close_bag()); bar.add_child(cb)
+	return bar
+
+func open_tab(id: String) -> void:
+	if game.G == null: return
+	_no_title_grad()
+	game.set_state("bag"); tab = id
+	if id == "bag":
+		game.G.bagNew = false; _render_bag(); return
+	_begin("bag", .9, BoxContainer.ALIGNMENT_BEGIN)
+	box.add_child(_tabbar(id))
+	var body = PanelContainer.new(); body.add_theme_stylebox_override("panel", _pnl()); _center(body, 900)
+	box.add_child(body)
+	match id:
+		"stats": _tab_stats(body)
+		"magic": _tab_magic(body)
+		"record": _tab_record(body)
+		"settings": _tab_settings(body)
+	await get_tree().process_frame
+	var all: Array = []; _collect_focus(box, all)
+	for c in all:
+		if c.has_meta("key") and c.get_meta("key") == "tab:" + id:
+			c.grab_focus(); return
+
+const GREEN := Color("#7fe07f")
+
+# 이름 | 값 (+장비 보너스는 초록)
+func _statrow(g: GridContainer, name: String, val: String, bonus := "") -> void:
+	g.add_child(label(name, 14, MUTED))
+	var h = HBoxContainer.new(); h.add_theme_constant_override("separation", 8)
+	h.add_child(label(val, 15, INK, bold))
+	if bonus != "": h.add_child(label(bonus, 14, GREEN))
+	g.add_child(h)
+
+func _tab_stats(body: Control) -> void:
+	var P = game.P; var G = game.G; game.recalc()
+	var st: Dictionary = P.st; var pv: Dictionary = P["pass"]
+	var cols = HFlowContainer.new(); cols.add_theme_constant_override("h_separation", 30); cols.add_theme_constant_override("v_separation", 10); body.add_child(cols)
+	var mk = func(title: String) -> GridContainer:
+		var v = VBoxContainer.new(); v.add_theme_constant_override("separation", 6); v.custom_minimum_size.x = 250; cols.add_child(v)
+		v.add_child(label(title, 17, GOLD, display))
+		var g = GridContainer.new(); g.columns = 2; g.add_theme_constant_override("h_separation", 16); g.add_theme_constant_override("v_separation", 5); v.add_child(g)
+		return g
+	var pct = func(v: float) -> String: return "+%d%%" % int(round(v * 100)) if v > 0.0001 else ""
+	var g1: GridContainer = mk.call("기본")
+	_statrow(g1, "레벨", str(P.lv))
+	_statrow(g1, "경험치", "%d / %d" % [P.xp, P.next])
+	_statrow(g1, "생명", "%d / %d" % [ceili(P.hp), P.maxhp], "+%d" % int(st.hp) if st.hp > 0 else "")
+	_statrow(g1, "마나", "%d / %d" % [floori(P.mp), P.maxmp], "+%d" % int(st.mp) if st.mp > 0 else "")
+	var regen: float = 8 * (1 + .25 * pv.get("calm", 0) + st.regen) + .3 * P.lv
+	_statrow(g1, "마나 회복", "%.1f / 초" % regen, "(%s)" % pct.call(st.regen) if st.regen > 0 else "")
+	_statrow(g1, "생명 회복", "0.4 / 초")
+	_statrow(g1, "이동 속도", "%d" % int(P.speed), "(%s)" % pct.call(st.spd) if st.spd > 0 else "")
+	var g2: GridContainer = mk.call("전투")
+	var might: float = (1 + .12 * pv.get("might", 0)) * (1 + st.dmg)
+	_statrow(g2, "마법 피해", "×%.2f" % might, "(%s)" % pct.call(st.dmg) if st.dmg > 0 else "")
+	_statrow(g2, "시전 속도", "×%.2f" % ((1 + .12 * pv.get("quick", 0)) * (1 + st.cast)), "(%s)" % pct.call(st.cast) if st.cast > 0 else "")
+	_statrow(g2, "보조 마법 대기", "-%d%%" % int(round((1 - (1 - .12 * pv.get("focus", 0)) * (1 - st.cdr)) * 100)), "(-%d%%)" % int(round(st.cdr * 100)) if st.cdr > 0 else "")
+	_statrow(g2, "받는 피해", "-%d%%" % int(round(min(.5, st.res) * 100)), "(장비)" if st.res > 0 else "")
+	_statrow(g2, "금화 획득", "+%d%%" % int(round(st.gold * 100)), "(장비)" if st.gold > 0 else "")
+	if P.active != null:
+		var a: Dictionary = game.attack_of(P.active)
+		if a.kind == "shot": _statrow(g2, a.name, "피해 %d~%d · 마나 %.1f" % [int(a.dmg[0]), int(a.dmg[1]), a.mana])
+		else: _statrow(g2, a.name, "초당 %d · 마나 %.1f/초" % [int(a.dps), a.manaps])
+	var g3: GridContainer = mk.call("마법 단계 (장비 포함)")
+	for id in D.PRIM_ORDER:
+		if P.ep.get(id, 0) > 0:
+			var b: int = int(P.bonus.prim.get(id, 0))
+			_statrow(g3, D.PRIMARIES[id].name, "%d단계" % P.ep[id], "+%d" % b if b > 0 else "")
+	for sd in D.SUBS:
+		if P.es.get(sd.id, 0):
+			var b: int = int(P.bonus.sub.get(sd.id, 0))
+			_statrow(g3, sd.name, "%d단계" % P.es[sd.id], "+%d" % b if b > 0 else "")
+	for id in P.secOrder:
+		var b: int = int(P.bonus.sec.get(id, 0))
+		_statrow(g3, D.sec(id).name, "%d단계" % P.esec.get(id, P.sec[id]), "+%d" % b if b > 0 else "")
+	var note = label("초록색 숫자는 장비로 늘어난 만큼이에요.", 12, GREEN); body.get_child(0).add_child(note)
+
+func _tab_magic(body: Control) -> void:
+	var P = game.P
+	var v = VBoxContainer.new(); v.add_theme_constant_override("separation", 6); body.add_child(v)
+	var row_ = func(icon: Dictionary, name: String, lv: String, desc: String):
+		var h = HBoxContainer.new(); h.add_theme_constant_override("separation", 10)
+		var t = TextureRect.new(); t.texture = load(icon_path(icon)); t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; t.custom_minimum_size = Vector2(40, 40); h.add_child(t)
+		var nv = VBoxContainer.new(); nv.size_flags_horizontal = Control.SIZE_EXPAND_FILL; nv.add_theme_constant_override("separation", 0); h.add_child(nv)
+		var top = HBoxContainer.new(); nv.add_child(top)
+		var nl = label(name, 15, INK, bold); nl.size_flags_horizontal = Control.SIZE_EXPAND_FILL; top.add_child(nl); top.add_child(label(lv, 14, GOLD))
+		var dl = label(desc, 12, MUTED); dl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; nv.add_child(dl)
+		v.add_child(h)
+	var any := false
+	for id in D.PRIM_ORDER:
+		if P.prim[id]:
+			any = true; row_.call({t = "el", el = id}, D.PRIMARIES[id].name, "%d단계" % P.prim[id], D.PRIMARIES[id].desc)
+	if P.fusion != null:
+		var ks: PackedStringArray = String(P.fusion).split("+")
+		row_.call({t = "fusion", a = ks[0], b = ks[1]}, D.FUSIONS[P.fusion].name, "융합", D.FUSIONS[P.fusion].desc)
+	for sd in D.SUBS:
+		if P.subs.get(sd.id, 0): row_.call({t = "sub", el = sd.of, id = sd.id}, sd.name, "%d단계" % P.subs[sd.id], sd.desc)
+	for id in P.secOrder: row_.call({t = "sec", id = id}, D.sec(id).name, "%d단계" % P.sec[id], D.sec(id).desc)
+	for sd in D.PASSIVES:
+		if P["pass"].get(sd.id, 0): row_.call({t = "pass", id = sd.id}, sd.name, "%d단계" % P["pass"][sd.id], sd.desc)
+	if not any: v.add_child(label("아직 익힌 마법이 없어요.", 14, MUTED))
+
+func _tab_record(body: Control) -> void:
+	var G = game.G; var P = game.P
+	var v = VBoxContainer.new(); v.add_theme_constant_override("separation", 8); body.add_child(v)
+	var g0 = GridContainer.new(); g0.columns = 2; g0.add_theme_constant_override("h_separation", 16); v.add_child(g0)
+	_statrow(g0, "최고 도달", "%d층" % max(G.resume, G.floor))
+	_statrow(g0, "총 처치", "%d마리" % G.kills)
+	_statrow(g0, "가진 금화", "%d" % G.gold)
+	_statrow(g0, "웨이포인트", ", ".join(G.waypoints.map(func(w): return "%d층" % w)))
+	v.add_child(label("몬스터별 처치 수", 17, GOLD, display))
+	var ks: Array = G.killsBy.keys()
+	ks.sort_custom(func(a, b): return G.killsBy[a] > G.killsBy[b])
+	var g = GridContainer.new(); g.columns = 4; g.add_theme_constant_override("h_separation", 18); g.add_theme_constant_override("v_separation", 4); v.add_child(g)
+	if ks.is_empty(): v.add_child(label("아직 쓰러뜨린 몬스터가 없어요.", 13, MUTED))
+	for k in ks:
+		var nm: String = D.MONSTERS[k].name if D.MONSTERS.has(k) else String(k)
+		g.add_child(label(nm, 14, Color("#ffd0c0") if not D.MONSTERS.has(k) else INK)); g.add_child(label("%d" % G.killsBy[k], 14, GOLD, bold))
+
+func _tab_settings(body: Control) -> void:
+	var v = VBoxContainer.new(); v.add_theme_constant_override("separation", 10); body.add_child(v)
+	var swf = func():
+		main.pad_swap = not main.pad_swap; main.save_settings(); open_tab("settings")
+	v.add_child(label("컨트롤러", 17, GOLD, display))
+	v.add_child(row([btn("버튼 배치: %s" % ("닌텐도식 (A·B 바꿈)" if main.pad_swap else "엑스박스식"), swf, true)], false))
+	var pi = label("연결됨: %s" % main.pad_name() if main.pad_connected() else "컨트롤러를 연결하면 바로 쓸 수 있어요 (유선·블루투스).", 12, MUTED); v.add_child(pi)
+	v.add_child(label("화면", 17, GOLD, display))
+	var qf = func(q):
+		main.set_quality(q); open_tab("settings")
+	var qr: Array = []
+	for q in [[1.0, "선명하게"], [.85, "보통"], [.7, "가볍게"]]:
+		var b = _chip(HBoxContainer.new(), q[1], qf.bind(q[0]), absf(main.quality - q[0]) < .01)
+		b.get_parent().remove_child(b); qr.append(b)
+	v.add_child(row(qr, false))
+	v.add_child(label("가볍게를 고르면 화면 해상도를 낮춰서 덜 뜨겁고 더 부드러워져요.", 12, MUTED))
+	var fpsf = func():
+		main.show_fps = not main.show_fps; main.save_settings(); open_tab("settings")
+	v.add_child(row([btn("FPS 표시: %s" % ("켜짐" if main.show_fps else "꺼짐"), fpsf, true)], false))
+	v.add_child(label("게임", 17, GOLD, display))
+	v.add_child(row([btn("처음 화면으로", func(): main.to_title(), true)], false))
+	var ver := "개발판"
+	if FileAccess.file_exists("res://version.txt"): ver = FileAccess.get_file_as_string("res://version.txt").strip_edges()
+	v.add_child(label("버전 %s" % ver, 12, MUTED))
+
+# ================= 전체 지도(미니맵을 누르면) =================
+class MapView extends Control:
+	var ui
+	func _draw() -> void:
+		var game: Game = ui.game; var mg := game.mg
+		var vs := get_viewport_rect().size
+		draw_rect(Rect2(Vector2(), vs), Color(.02, .015, .04, .93))
+		var k: float = min((vs.x - 40) / MapGen.MW, (vs.y - 70) / MapGen.MH)
+		var o := Vector2((vs.x - MapGen.MW * k) / 2, 50 + (vs.y - 70 - MapGen.MH * k) / 2)
+		for j in MapGen.MH:
+			for i in MapGen.MW:
+				var kk := j * MapGen.MW + i
+				if not mg.seen[kk]: continue
+				var c := Color8(96, 82, 118) if mg.map[kk] == 0 else Color8(40, 32, 52)
+				draw_rect(Rect2(o + Vector2(i, j) * k, Vector2(k + .5, k + .5)), c)
+		var s: float = k / 32.0
+		var st = mg.stairs
+		if st != null and st.found: draw_circle(o + Vector2(st.x, st.y) * s, k * .9, Color("#ffd76a"))
+		if mg.door != null and mg.is_seen(mg.door.x, mg.door.y): draw_circle(o + Vector2(mg.door.x, mg.door.y) * s, k * .8, Color("#9fd0ff"))
+		if game.G.portal != null: draw_circle(o + Vector2(game.G.portal.x, game.G.portal.y) * s, k * .8, Color("#7fb2ff"))
+		for c in game.G.chests:
+			if not c.open and mg.is_seen(c.x, c.y): draw_rect(Rect2(o + Vector2(c.x, c.y) * s - Vector2(k * .4, k * .4), Vector2(k * .8, k * .8)), Color("#e3b04b"))
+		var P = game.P; var pp: Vector2 = o + Vector2(P.x, P.y) * s; var dl := Vector2(cos(P.face), sin(P.face))
+		draw_colored_polygon(PackedVector2Array([pp + dl * k * 2, pp + dl.rotated(2.4) * k * 1.3, pp + dl.rotated(-2.4) * k * 1.3]), Color.WHITE)
+		draw_circle(pp, k * .7, Color("#7fe0ff"))
+		var f: Font = Ui.display
+		var t: String = ("옥상" if game.G.floor == D.ROOF else "%d층" % game.G.floor) if game.G.floor else "마을"
+		draw_string(f, Vector2(20, 34), "%s 지도 · 화면을 누르면 돌아가요" % t, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color("#e3b04b"))
+	func _gui_input(ev: InputEvent) -> void:
+		if (ev is InputEventMouseButton and ev.pressed) or ev.is_action_pressed("ui_accept") or ev.is_action_pressed("ui_cancel"):
+			accept_event(); ui.close_map()
+
+func open_map() -> void:
+	if game.G == null or game.G.state != "play": return
+	_no_title_grad(); _begin("map", 0.0)
+	game.set_state("map")
+	var mv = MapView.new(); mv.ui = self; mv.set_anchors_preset(Control.PRESET_FULL_RECT); mv.name = "mapview"; mv.focus_mode = Control.FOCUS_ALL
+	var old = root.get_node_or_null("mapview")
+	if old: old.queue_free()
+	root.add_child(mv); mv.grab_focus()
+
+func close_map() -> void:
+	var old = root.get_node_or_null("mapview")
+	if old: old.queue_free()
+	hide_all(); game.set_state("play")
 
 func close_bag() -> void:
 	var c = root.get_node_or_null("bagclose")
@@ -823,5 +1035,7 @@ func back() -> bool:
 		"sand", "pause": main.resume(); return true
 		"gate":
 			hide_all(); game.set_state("play"); return true
+		"map":
+			close_map(); return true
 		"level", "end": return true
 	return false

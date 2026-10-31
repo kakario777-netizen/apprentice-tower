@@ -60,8 +60,8 @@ func _ready() -> void:
 	talk_b.add_theme_stylebox_override("normal", Ui.sb(Color("#e8b552"), 28, Color("#4a2e0c"), 2, Vector4(18, 8, 18, 8))); talk_b.add_theme_color_override("font_color", Color("#1b1206"))
 	talk_b.add_theme_font_size_override("font_size", 17); talk_b.add_theme_font_override("font", Ui.bold); talk_b.mouse_filter = Control.MOUSE_FILTER_IGNORE; talk_b.visible = false
 	root.add_child(talk_b)
-	toast_l.add_theme_stylebox_override("normal", Ui.sb(Color(.086, .07, .125, .9), 14, Color("#33293f"), 1, Vector4(14, 6, 14, 6)))
-	toast_l.add_theme_font_size_override("font_size", 13); toast_l.modulate.a = 0; toast_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	toast_l.add_theme_stylebox_override("normal", Ui.sb(Color(.1, .08, .14, .92), 16, Color("#e3b04b"), 1, Vector4(18, 8, 18, 8)))
+	toast_l.add_theme_font_size_override("font_size", 16); toast_l.add_theme_font_override("font", Ui.bold); toast_l.add_theme_color_override("font_color", Color("#fff3d6")); toast_l.modulate.a = 0; toast_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(toast_l)
 	fader.color = Color(0, 0, 0, 1); fader.set_anchors_preset(Control.PRESET_FULL_RECT); fader.mouse_filter = Control.MOUSE_FILTER_IGNORE; fader.modulate.a = 0
 	root.add_child(fader)
@@ -85,7 +85,7 @@ func _process(dt: float) -> void:
 	if game.G != null and game.G.get("pull") != null: fader.modulate.a = clamp(game.G.pull.t / .9, 0, 1)
 	else: fader.modulate.a = move_toward(fader.modulate.a, 0.0, dt * 2.4)
 	toast_l.modulate.a = clamp(toast_t * 4, 0, 1) if toast_t < .25 else min(1.0, toast_l.modulate.a + dt * 4)
-	toast_l.reset_size(); toast_l.position = Vector2((vs.x - toast_l.size.x) / 2, vs.y - ins.b - 28 - toast_l.size.y)
+	toast_l.reset_size(); toast_l.position = Vector2((vs.x - toast_l.size.x) / 2, ins.t + 58)
 	var on = playing()
 	for c in [pause_b, bag_b, belt, skills]: c.visible = on
 	if not on: talk_b.visible = false
@@ -194,7 +194,7 @@ func pad_pos(side: int) -> Vector2:
 
 func _hit_button(p: Vector2) -> bool:
 	if not playing(): return false
-	var fixed = [[pause_b, func(): main.open_pause()], [bag_b, func(): main.ui.open_bag()]]
+	var fixed = [[pause_b, func(): main.open_pause()], [bag_b, func(): main.ui.open_bag()], [mini, func(): main.ui.open_map()]]
 	if talk_b.visible: fixed.append([talk_b, func(): main.try_talk()])
 	for h in fixed + hot:
 		var c: Control = h[0]
@@ -231,7 +231,6 @@ func read_touch(P, PSX: Vector2) -> Dictionary:
 		var d = mc - mo; var l = d.length()
 		if l > 6:
 			var k: float = min(1.0, l / 48) / l; r.mx = d.x * k; r.my = d.y * k
-		if l > 70: mo = mc - d / l * 70
 	if aim_id >= 0:
 		r.aim = true; var d = ac - ao
 		if d.length() > 12: r.ang = atan2(d.y, d.x)
@@ -300,6 +299,7 @@ class HudDraw extends Control:
 		if G.goldPulse > 0: G.goldPulse -= 1.0 / 60
 		var gp: float = max(0.0, G.goldPulse)
 		var info = "%s · %s · 금화 %d%s" % [("옥상" if G.floor == D.ROOF else "%d층" % G.floor) if G.floor else "마을", game.act_name(), G.gold, " · 샌드박스" if G.sb != null else ""]
+		if hud.main.show_fps: text(Vector2(ins.l + 100, Tp + 12), "%d FPS" % Engine.get_frames_per_second(), 11, Color(1, 1, 1, .7), HORIZONTAL_ALIGNMENT_LEFT)
 		text(Vector2(cx, Tp + 34), info, 11 + int(round(gp * 5)), Color("#fff3c4") if gp > 0 else Color("#e8dcc6"))
 		# 미니맵 표시
 		var mm: TextureRect = hud.mini

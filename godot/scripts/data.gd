@@ -136,6 +136,16 @@ const MONSTERS := {
 	mage = {name = "해골 술사", hp = 16, spd = 45, r = 12, dmg = 7, atk = "orb", range = 290, cd = 2.8, shield = 30, xp = 12, color = "#9fd0ff", undead = 1, from = 4},
 	shade = {name = "모래 개미귀신", hp = 24, spd = 92, r = 13, dmg = 8, atk = "melee", xp = 10, color = "#6b5a8a", hidden = 1, from = 6},
 	demon = {name = "화염 비룡", hp = 60, spd = 52, r = 18, dmg = 12, atk = "fireball", range = 270, cd = 3, split = "imp", xp = 20, color = "#ff4a1c", from = 7},
+	# 9층부터 나오는 변종(같은 그림을 색·크기·성질만 바꿔서)
+	skel_knight = {name = "해골 기사", hp = 40, spd = 50, r = 14, dmg = 11, atk = "melee", xp = 14, color = "#aeb8e6", undead = 1, from = 9, spr = "skel", h = 56, tint = "#b4c0f0"},
+	ice_mage = {name = "서리 술사", hp = 22, spd = 45, r = 12, dmg = 9, atk = "orb", orb = "ice", range = 300, cd = 2.4, shield = 40, xp = 16, color = "#9fd0ff", undead = 1, from = 12, spr = "mage", h = 50, tint = "#a8d0ff"},
+	plague = {name = "역병 시체", hp = 46, spd = 40, r = 15, dmg = 10, atk = "melee", onhit = "poison", xp = 15, color = "#8fbf4a", undead = 1, from = 14, spr = "zombie", h = 50, tint = "#b0e070"},
+	ice_ant = {name = "얼음 개미", hp = 14, spd = 120, r = 9, dmg = 7, atk = "melee", onhit = "slow", xp = 6, color = "#bfe9ff", from = 16, spr = "fire_ant", h = 26, tint = "#a0dcff"},
+	goblin_chief = {name = "고블린 두목", hp = 40, spd = 110, r = 12, dmg = 12, atk = "melee", erratic = 1, xp = 18, color = "#ff9a80", from = 18, spr = "goblin", h = 44, tint = "#ffa890"},
+	fire_archer = {name = "불화살 사수", hp = 20, spd = 52, r = 12, dmg = 9, atk = "fireball", blast = 28, range = 320, cd = 2.0, xp = 14, color = "#ffb060", undead = 1, from = 20, spr = "archer", h = 48, tint = "#ffbe8a"},
+	ice_wyvern = {name = "서리 비룡", hp = 90, spd = 55, r = 18, dmg = 15, atk = "orb", orb = "ice", range = 280, cd = 2.6, xp = 30, color = "#9fd8ff", from = 25, spr = "wyvern_fire", h = 62, tint = "#90c8ff"},
+	dune_lord = {name = "모래 군주", hp = 70, spd = 85, r = 16, dmg = 14, atk = "melee", hidden = 1, xp = 26, color = "#e0c080", from = 30, spr = "antlion", h = 46, tint = "#ffe6b0"},
+	lich_adept = {name = "리치 견습생", hp = 50, spd = 60, r = 13, dmg = 14, atk = "skull", range = 320, cd = 3.0, shield = 60, xp = 30, color = "#b77bff", undead = 1, from = 35, spr = "lich", h = 54, tint = "#d8b8ff"},
 }
 const BOSSES := {
 	5: {id = "golem", name = "묘지기 미노타우로스", hp = 650, r = 30, spd = 42, color = "#9b927f", dmg = 16},

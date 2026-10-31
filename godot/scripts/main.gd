@@ -17,6 +17,8 @@ var hud: Hud
 var ui: Ui
 var title_t := 0.0
 var pad_swap := false
+var quality := 1.0
+var show_fps := false
 var pad_prev := {}
 var pad_was := false
 var last_town := false
@@ -37,7 +39,10 @@ func _ready() -> void:
 	get_tree().set_auto_accept_quit(false)
 	get_tree().set_quit_on_go_back(false)
 	var cfg = ConfigFile.new()
-	if cfg.load(SETTINGS) == OK: pad_swap = cfg.get_value("pad", "swap", false)
+	if cfg.load(SETTINGS) == OK:
+		pad_swap = cfg.get_value("pad", "swap", false)
+		quality = cfg.get_value("gfx", "quality", 1.0); show_fps = cfg.get_value("gfx", "fps", false)
+	get_viewport().scaling_3d_scale = quality
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--shot="): shot_path = a.substr(7)
 		elif a.begins_with("--floor="): test_floor = int(a.substr(8))
@@ -134,7 +139,11 @@ func try_talk() -> void:
 	var n = game.near_npc()
 	if n != null and game.G.state == "play": ui.open_talk(n)
 func save_settings() -> void:
-	var cfg = ConfigFile.new(); cfg.set_value("pad", "swap", pad_swap); cfg.save(SETTINGS)
+	var cfg = ConfigFile.new(); cfg.set_value("pad", "swap", pad_swap)
+	cfg.set_value("gfx", "quality", quality); cfg.set_value("gfx", "fps", show_fps); cfg.save(SETTINGS)
+
+func set_quality(q: float) -> void:
+	quality = q; get_viewport().scaling_3d_scale = q; save_settings()
 func pad_mode(on: bool) -> void: hud.set_pad(on)
 
 # ---------------- 시스템 ----------------
@@ -413,6 +422,11 @@ func _run_samples() -> void:
 	game.cast_sec("nova"); await _frames(6); await _snap("5_nova")
 	game.G.pendingLv = 1; game.set_state("levelup"); ui.open_level(); await _frames(4); await _snap("6_levelup"); ui.hide_all(); game.G.pendingLv = 0; game.set_state("play")
 	ui.open_bag(); ui.bag_sel = {from = "bag", i = 0}; ui._render_bag(); await _frames(4); await _snap("7_bag"); ui.close_bag()
+	game.G.killsBy = {skel = 12, zombie = 5, archer = 3}
+	ui.open_tab("stats"); await _frames(4); await _snap("7b_stats")
+	ui.open_tab("record"); await _frames(4); await _snap("7c_record")
+	ui.open_tab("settings"); await _frames(4); await _snap("7d_settings"); ui.close_bag()
+	ui.open_map(); await _frames(4); await _snap("7e_map"); ui.close_map()
 	# 계단(벽을 판 자리)
 	var st = game.mg.stairs
 	if st != null:

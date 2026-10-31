@@ -34,6 +34,7 @@ var tip_glow: MeshInstance3D
 var tip_core: MeshInstance3D
 var tip_light: OmniLight3D
 var tip_a := 0.0
+var tip3 := Vector3()
 
 static var _dot_tex: Texture2D
 static func dot_tex() -> Texture2D:
@@ -228,7 +229,7 @@ func sync(dt: float) -> void:
 		if e.d.has("hidden"):
 			var dp = Game.hyp(P.x - e.x, P.y - e.y)
 			alpha = 1.0 if dp < 110 else (.35 if dp < 170 else .06)
-		var c = Color.WHITE
+		var c = Color(e.d.tint) if e.d.has("tint") else Color.WHITE
 		if e.flash > 0: c = Color(2.4, 2.4, 2.4)
 		elif e.frozenT > 0: c = Color(.62, .86, 1.35)
 		elif e.shield > 0: c = Color(.85, .9, 1.2)
@@ -257,15 +258,25 @@ func sync(dt: float) -> void:
 	# 상자
 	for c in G.chests:
 		if not chests.has(c.id):
-			var n = Node3D.new(); n.position = w3(c.x, c.y + 8); add_child(n); chests[c.id] = n
+			var n = Node3D.new(); n.position = w3(c.x, c.y + 4); add_child(n); chests[c.id] = n
 			n.set_meta("open", -1)
 		var n: Node3D = chests[c.id]
 		n.visible = mg.is_seen(c.x, c.y)
 		var o = 1 if c.open else 0
 		if n.get_meta("open") != o:
 			for ch in n.get_children(): ch.queue_free()
-			_prop(n, "chest_o" if c.open else "chest_c", .62)
+			var ch3 = Props3D.make("chest_o" if c.open else "chest_c", 1.0, c.id)
+			ch3.rotation.y = 0; n.add_child(ch3)
+			if not c.open:
+				# 보물이 든 상자: 금빛 반짝임과 은은한 빛(장애물 소품과 구별)
+				var g := _glow(n, Color(1, .8, .35, .55), 1.6, Vector3(0, .55, .15)); g.name = "aura"
+				var L := _light(n, Vector3(0, 1.0, .5), Color(1, .8, .4), 3.0, .9); L.name = "auraL"
 			n.set_meta("open", o)
+		var au = n.get_node_or_null("aura")
+		if au:
+			var pul: float = .5 + .5 * sin(G.time * 3.0 + c.x)
+			(au.material_override as StandardMaterial3D).albedo_color = Color(1, .8, .35, .3 + .35 * pul)
+			if randf() < .05 and n.visible: G.fx.append({x = c.x + Game.rnd(-14, 14), y = c.y + Game.rnd(-6, 6), vx = 0.0, vy = -25.0, life = .7, max = .7, color = "#ffe08a", size = 1.6, h = .5})
 	# 떨어진 물건
 	_sync_drops(G, P)
 	# 계단
@@ -297,9 +308,10 @@ func sync(dt: float) -> void:
 func _staff_tip(P, G, dt: float) -> void:
 	var casting: bool = P.firing and P.active != null and G.floor > 0 and G.state == "play"
 	tip_a = move_toward(tip_a, 1.0 if casting else 0.0, dt * (10.0 if casting else 5.0))
+	tip3 = player.position + Vector3(0, .9, 0)
 	var vis := tip_a > .01 and tips.size() > 0
 	tip_glow.visible = vis; tip_core.visible = vis; tip_light.visible = vis
-	if not vis: return
+	if tips.is_empty(): return
 	var cf: Array = player.cur_frame()
 	var an: String = "run" if cf[0] == "run" else "stance"
 	var row: Array = tips[an][cf[1]]
@@ -308,6 +320,8 @@ func _staff_tip(P, G, dt: float) -> void:
 	if t == null: return
 	var ps: float = player.spr.pixel_size
 	var pos := player.position + Vector3(t[0] * ps, -t[1] * ps, .08)
+	tip3 = pos
+	if not vis: return
 	var col := Color(game.act_color())
 	var pulse := .8 + .2 * sin(G.time * 18.0) + .1 * sin(G.time * 31.0)
 	var gm: StandardMaterial3D = tip_glow.material_override; gm.albedo_color = Color(col, .75 * tip_a * pulse)
@@ -409,11 +423,11 @@ func _sync_fx(G, P) -> void:
 			var c = Color(f.color); c.a = a * (.38 if f.has("smoke") else .6)
 			mix.append([f.x, f.y, f.size * ((2.2 - a * 1.2) if f.has("smoke") else 1.0), c])
 		elif f.has("cone"):
-			var c = Color(f.color); c.a = a * .42; glow.append([f.x, f.y, f.size * (4.5 - a * 2.5), c])
+			var c = Color(f.color); c.a = a * .42; glow.append([f.x, f.y, f.size * (4.5 - a * 2.5), c, .55])
 		elif f.size > 2.6:
-			var c = Color(f.color); c.a = a * .8; glow.append([f.x, f.y, f.size * 2.6, c])
+			var c = Color(f.color); c.a = a * .8; glow.append([f.x, f.y, f.size * 2.6, c, f.get("h", .06)])
 		else:
-			var c = Color(f.color); c.a = a * .9; dot.append([f.x, f.y, f.size, c])
+			var c = Color(f.color); c.a = a * .9; dot.append([f.x, f.y, f.size, c, f.get("h", .06)])
 	for d in G.debris:
 		if not game.mg.is_seen(d.x, d.y): continue
 		var c = Color(d.color); c.a = min(1.0, d.life)
@@ -428,16 +442,16 @@ func _sync_fx(G, P) -> void:
 		elif z.kind == "acid": glow.append([z.x, z.y - 34, z.r * .9, Color(Color("#5a7a4a"), .35 * a)])
 		elif z.kind == "stasis": glow.append([z.x, z.y, z.r * .9, Color(Color("#9a70ff"), .18 * a)])
 	# 탄 빛
-	for s in G.shots: glow.append([s.x, s.y, s.r * 4, Color(Color(s.color), .5)])
+	for s in G.shots: glow.append([s.x, s.y, s.r * 4, Color(Color(s.color), .5), .9])
 	for s in G.eshots:
 		if s.kind == "arrow": continue
 		var col = Color({ice = "#9fd0ff", poison = "#8fd14f", fire = "#ff6a2a", skull = "#b77bff", spit = "#d98a9a"}.get(s.kind, "#ffffff"))
-		glow.append([s.x, s.y, s.r * 1.8, Color(col, .3)])
+		glow.append([s.x, s.y, s.r * 1.8, Color(col, .3), .9])
 	for pair in [[mm_add_glow, glow], [mm_add_dot, dot], [mm_mix_dot, mix]]:
 		var mm: MultiMesh = pair[0].multimesh; var L: Array = pair[1]
 		if mm.instance_count < L.size(): mm.instance_count = max(64, L.size() + 64)
 		mm.visible_instance_count = L.size()
-		for i in L.size(): _put(mm, i, L[i][0], L[i][1], L[i][2], L[i][3])
+		for i in L.size(): _put(mm, i, L[i][0], L[i][1], L[i][2], L[i][3], L[i][4] if L[i].size() > 4 else .06)
 	_sync_sprite_fx(G)
 	_sync_lines(G, P)
 	# 탄에 빛 몇 개
@@ -474,6 +488,7 @@ func _sync_sprite_fx(G) -> void:
 		var rot_ = (sn == "fx_fireball" or sn == "fx_icicle")
 		var ang: float = atan2(s.vy, s.vx) + PI if rot_ else 0.0
 		addf.call(sn, s.x, s.y, m.cw * k, m.ch * k, ang, fr, A.frames, 1.0, m.cw * k * (.25 if rot_ else 0.0), 0.0)
+		lists[sn][-1].append(.9)
 	for s in G.eshots:
 		var sn: String = {ice = "fx_spark_blue", poison = "fx_spark_green", skull = "fx_spark_red", fire = "fx_fireball", spit = "fx_spark_green"}.get(s.kind, "")
 		if sn == "" or not M.has(sn): continue
@@ -482,6 +497,7 @@ func _sync_sprite_fx(G) -> void:
 		var k: float = (s.r * 8 if sn == "fx_fireball" else s.r * 4.5) / max(m.cw, m.ch)
 		var ang: float = atan2(s.vy, s.vx) + PI if sn == "fx_fireball" else 0.0
 		addf.call(sn, s.x, s.y, m.cw * k, m.ch * k, ang, fr, A.frames, 1.0, m.cw * k * (.25 if sn == "fx_fireball" else 0.0), 0.0)
+		lists[sn][-1].append(.9)
 	for name in batches.keys():
 		if not lists.has(name): batches[name].multimesh.visible_instance_count = 0
 	for name in lists.keys():
@@ -492,10 +508,35 @@ func _sync_sprite_fx(G) -> void:
 			var e: Array = L[i]
 			var b = Basis(Vector3.UP, -e[4]) * Basis.from_scale(Vector3(e[2] * S, 1, e[3] * S))
 			var off = Vector2(e[8], e[9]).rotated(e[4])
-			mm.set_instance_transform(i, Transform3D(b, w3(e[0] + off.x, e[1] + off.y, .08)))
+			mm.set_instance_transform(i, Transform3D(b, w3(e[0] + off.x, e[1] + off.y, e[10] if e.size() > 10 else .08)))
 			mm.set_instance_custom_data(i, Color(e[5], e[6], e[7], 0))
 
 # 선(번개·고리·구역·화살)
+func _zigzag(a: Vector3, b: Vector3, amp_px: float, n := 0) -> Array:
+	var L := a.distance_to(b)
+	if n <= 0: n = max(3, int(L * 32 / 16))
+	var side := Vector3(-(b - a).z, 0, (b - a).x).normalized()
+	var out: Array = [a]
+	for i in range(1, n):
+		var t := float(i) / n
+		out.append(a.lerp(b, t) + side * randf_range(-amp_px, amp_px) * S + Vector3(0, randf_range(-amp_px, amp_px) * S * .5, 0))
+	out.append(b)
+	return out
+
+# 3D 점들을 따라 카메라를 향한 띠(폭은 웹 px)
+func _line3(im: ImmediateMesh, pts: Array, w: float, c: Color) -> void:
+	if pts.size() < 2: return
+	im.surface_begin(Mesh.PRIMITIVE_TRIANGLE_STRIP)
+	for i in pts.size():
+		var p: Vector3 = pts[i]
+		var dv: Vector3 = pts[min(i + 1, pts.size() - 1)] - pts[max(i - 1, 0)]
+		var nrm := Vector3(-dv.z, 0, dv.x)
+		if nrm.length() < .0001: nrm = Vector3(0, 1, 0)
+		nrm = nrm.normalized() * w * .5 * S
+		im.surface_set_color(c); im.surface_add_vertex(p + nrm)
+		im.surface_set_color(c); im.surface_add_vertex(p - nrm)
+	im.surface_end()
+
 func _line(im: ImmediateMesh, pts: Array, w: float, c: Color, h := .07) -> void:
 	if pts.size() < 2: return
 	im.surface_begin(Mesh.PRIMITIVE_TRIANGLE_STRIP)
@@ -527,10 +568,26 @@ func _sync_lines(G, P) -> void:
 	lines_add.clear_surfaces(); lines_mix.clear_surfaces()
 	for b in G.bolts:
 		var c = Color(b.color)
+		var p3: Array = []
+		for p in b.pts: p3.append(w3(p.x, p.y, .9))
+		if b.get("from_p", 0) or b.has("beam"): p3[0] = tip3
 		if b.has("beam"):
-			_line(lines_add, b.pts, 24, Color(c, .25)); _line(lines_add, b.pts, 11, Color(c, .6)); _line(lines_add, b.pts, 4, Color(1, 1, 1, .9))
+			_line3(lines_add, p3, 24, Color(c, .25)); _line3(lines_add, p3, 11, Color(c, .6)); _line3(lines_add, p3, 4, Color(1, 1, 1, .9))
+		elif b.has("elec"):
+			# 전기: 매 프레임 새로 꺾이는 두 가닥 + 잔가지 + 넓은 푸른 번짐
+			var a3: Vector3 = p3[0]; var b3: Vector3 = p3[-1]
+			for strand in 2:
+				var z := _zigzag(a3, b3, 9.0 if strand == 0 else 6.0)
+				if strand == 0:
+					_line3(lines_add, z, 16, Color(c, .18)); _line3(lines_add, z, 5, Color(c, .75)); _line3(lines_add, z, 1.8, Color(1, 1, 1, 1))
+				else:
+					_line3(lines_add, z, 2.2, Color(c.lightened(.3), .55))
+				for f in 2:
+					var k: int = randi_range(1, z.size() - 2)
+					var dir: Vector3 = (b3 - a3).normalized().rotated(Vector3.UP, randf_range(-1.1, 1.1)) * randf_range(.5, 1.2)
+					_line3(lines_add, _zigzag(z[k], z[k] + dir, 4.0, 4), 1.6, Color(c.lightened(.4), .7))
 		else:
-			_line(lines_add, b.pts, 9, Color(c, .3)); _line(lines_add, b.pts, 3, Color(c, .85)); _line(lines_add, b.pts, 1.4, Color(1, 1, 1, 1))
+			_line3(lines_add, p3, 9, Color(c, .3)); _line3(lines_add, p3, 3, Color(c, .85)); _line3(lines_add, p3, 1.4, Color(1, 1, 1, 1))
 	for r in G.rings:
 		var t: float = 1 - r.life / r.max; var rr: float = r.r0 + (r.r1 - r.r0) * t; var c = Color(r.color)
 		var pts = _circle_pts(r.x, r.y, rr)

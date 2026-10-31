@@ -126,7 +126,7 @@ func _build_ground() -> void:
 					var h = MapGen.hash2(i, j)
 					if mg.at(i, j) == 0:
 						if town != null:
-							var on_path: bool = (i >= town.pathX and i < town.pathX + town.pathW) or (j >= town.crossY and j < town.crossY + 3) or j < town.y0
+							var on_path: bool = town.path[j * MapGen.MW + i] == 1
 							if on_path:
 								_quad_floor(sp, i, j, _uv(h % 10, 16), _ao(i, j)); np += 1
 							else:
@@ -200,18 +200,26 @@ func _build_forest() -> void:
 	for j in range(t.y0 - 7, t.y0 + t.h + 4):
 		for i in range(t.x0 - 7, t.x0 + t.w + 7):
 			if mg.at(i, j) != 1: continue
+			if mg.gate != null and absf((i + .5) * 32 - mg.gate.x) < 170 and absf(j * 32 - mg.gate.y) < 48: continue
 			var h = MapGen.hash2(i, j); var edge = mg.wall_bits(i, j) >= 0
 			if not edge and h % 2 == 0: continue
 			var p = Vector2((i + .5) * 32 + ((h >> 3) % 9 - 4) * 2, (j + .85) * 32)
-			if j >= t.y0 + t.h or (edge and (mg.wall_bits(i, j) & 1)):
-				# 앞쪽(카메라 쪽)은 낮은 덤불만, 그것도 가장자리 한 줄과 드문드문
-				if j == t.y0 + t.h and h % 3 != 0: add_prop(PL[h % PL.size()], p, 1.0)
-				elif j > t.y0 + t.h and h % 7 == 0: add_prop(PL[h % PL.size()], p, .9)
+			var south := false   # 마을보다 아래(카메라 쪽)면 키 큰 나무가 캐릭터를 가리므로 덤불만
+			for k in range(1, 8):
+				if mg.at(i, j - k) == 0: south = true
+			if south:
+				if (edge and h % 3 != 0) or (not edge and h % 7 == 0): add_prop(PL[h % PL.size()], p, 1.0 if edge else .9)
 			else:
 				add_prop(FOREST[h % FOREST.size()], p, .8 + (h % 5) * .08)
 
 # ---------------- 소품 ----------------
-func add_prop(n: String, p: Vector2, sc := 1.0) -> Sprite3D:
+func add_prop(n: String, p: Vector2, sc := 1.0) -> Node3D:
+	if Props3D.supports(n):
+		# 입체 소품
+		var o := Props3D.make(n, sc, MapGen.hash2(int(p.x), int(p.y)) * 131 + int(p.x))
+		o.position = Vector3(p.x / 32.0, 0, p.y / 32.0)
+		if mg.town == null: fog_nodes.append([o, p.x, p.y])
+		add_child(o); return o
 	var M = props_meta()
 	if not M.has(n): return null
 	var m: Dictionary = M[n]
@@ -230,9 +238,9 @@ func _build_props() -> void:
 	for d in mg.decor:
 		if d.kind == "prop": add_prop(d.p, d.pos, d.get("s", 1.0))
 		elif d.kind == "fountain":
-			add_prop("statue2", d.pos, 1.1)
+			add_prop("fountain", d.pos, 1.0)
 		elif d.kind == "stall":
-			add_prop("crate2", d.pos + Vector2(-16, 0), .9); add_prop("barrel1", d.pos + Vector2(19, 3), .9)
+			add_prop("stall", d.pos, 1.0); add_prop("barrel1", d.pos + Vector2(44, 10), .8); add_prop("crate2", d.pos + Vector2(-46, 8), .7)
 
 # ---------------- 빛 ----------------
 static var _glow_tex: Texture2D
@@ -311,8 +319,8 @@ func _build_torches() -> void:
 		var p: Vector2 = t.pos / 32.0
 		if t.lamp:
 			add_prop("brazier", t.pos + Vector2(0, 2), .55)
-			var g = glow_quad(Color(1, .6, .25, .9), .9); g.position = Vector3(p.x, .75, p.y + .1); add_child(g)
-			add_light(Vector3(p.x, 1.1, p.y + .3), Color(1, .66, .38), 6.0, 1.4)
+			var g = glow_quad(Color(1, .6, .25, .9), .9); g.position = Vector3(p.x, 1.12, p.y + .06); add_child(g)
+			add_light(Vector3(p.x, 1.5, p.y + .3), Color(1, .66, .38), 6.0, 1.4)
 		else:
 			# 벽 횃불: 벽 남쪽 면에 붙임
 			var stick = MeshInstance3D.new(); var bm = BoxMesh.new(); bm.size = Vector3(.08, .3, .08)
