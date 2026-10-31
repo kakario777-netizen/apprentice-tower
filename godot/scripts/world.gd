@@ -275,7 +275,7 @@ func _build_forest() -> void:
 	for j in range(t.y0 - 7, t.y0 + t.h + 4):
 		for i in range(t.x0 - 7, t.x0 + t.w + 7):
 			if mg.at(i, j) != 1: continue
-			if mg.gate != null and absf((i + .5) * 32 - mg.gate.x) < 170 and absf(j * 32 - mg.gate.y) < 48: continue
+			if mg.gate != null and absf((i + .5) * 32 - mg.gate.x) < 230 and j * 32 - mg.gate.y > -110 and j * 32 - mg.gate.y < 140: continue
 			var h = MapGen.hash2(i, j); var edge = mg.wall_bits(i, j) >= 0
 			# 진짜 나무 모델은 크고 무거우니 둘레에 듬성듬성(가장자리는 한 칸 걸러, 안쪽은 더 드물게)
 			if edge and (i + j) % 2 == 1: continue
@@ -402,41 +402,73 @@ func add_light(pos: Vector3, col: Color, rng: float, energy: float) -> OmniLight
 
 func _stair_tile(i: int, j: int) -> bool:
 	for a in mg.alcoves:
-		if a.kind == "stairs" and i >= a.tx and i < a.tx + 2 and j >= a.ty0 and j < a.ty0 + a.depth: return true
+		if (a.kind == "stairs" or a.kind == "down") and i >= a.tx and i < a.tx + 2 and j >= a.ty0 and j < a.ty0 + a.depth: return true
 	return false
 
 # 벽을 판 자리: 계단(위로 올라가는 돌계단) / 테라스 문(바깥 빛)
 func _build_alcoves() -> void:
 	for a in mg.alcoves:
 		var x0: float = a.tx; var zf: float = a.ty0 + a.depth; var zb: float = a.ty0
-		if a.kind == "stairs":
+		if a.kind == "stairs" or a.kind == "down":
+			# 돌계단: 올라가는 계단은 벽 속으로 오르고, 내려가는 계단은 바닥 밑 어둠으로 내려간다
+			var up: bool = a.kind == "stairs"
 			var st = SurfaceTool.new(); st.begin(Mesh.PRIMITIVE_TRIANGLES)
 			var sr = SurfaceTool.new(); sr.begin(Mesh.PRIMITIVE_TRIANGLES)
-			var n := 7; var d: float = (zf - zb) / n; var hs: float = WALLZ * .95 / n
+			var n := 8; var d: float = (zf - zb) / n; var hs: float = WALLZ * .95 / n
 			for k in n:
-				var z1: float = zf - k * d; var z0: float = z1 - d; var y: float = (k + 1) * hs
-				var sh: float = 1.0 - .11 * k
-				var uv := _uv((k * 3 + a.tx) % 16, 16)
+				var z1: float = zf - k * d; var z0: float = z1 - d
+				var y: float = (k + 1) * hs if up else -(k + 1) * hs
+				var sh: float = (1.0 - .09 * k) if up else (.85 - .1 * k)
 				var p := [Vector3(x0, y, z0), Vector3(x0 + 2, y, z0), Vector3(x0 + 2, y, z1), Vector3(x0, y, z1)]
-				var t := [uv.position, Vector2(uv.end.x, uv.position.y), uv.end, Vector2(uv.position.x, uv.end.y)]
 				for q in [0, 1, 2, 0, 2, 3]:
-					st.set_color(Color(sh, sh, sh)); st.set_uv(t[q]); st.set_normal(Vector3.UP); st.add_vertex(p[q])
-				var uvw := Rect2(((k % 6) * 128 + 2) / 768.0, .55, 124 / 768.0, .12)
-				var rp := [Vector3(x0, y, z1), Vector3(x0 + 2, y, z1), Vector3(x0 + 2, y - hs, z1), Vector3(x0, y - hs, z1)]
-				var rt := [uvw.position, Vector2(uvw.end.x, uvw.position.y), uvw.end, Vector2(uvw.position.x, uvw.end.y)]
+					st.set_color(Color(sh, sh, sh)); st.set_uv(Vector2(p[q].x, p[q].z)); st.set_normal(Vector3.UP); st.add_vertex(p[q])
+				var ytop: float = y if up else y + hs
+				var rp := [Vector3(x0, ytop, z1), Vector3(x0 + 2, ytop, z1), Vector3(x0 + 2, ytop - hs, z1), Vector3(x0, ytop - hs, z1)]
 				for q in [0, 1, 2, 0, 2, 3]:
-					sr.set_color(Color(sh * .7, sh * .7, sh * .7)); sr.set_uv(rt[q]); sr.set_normal(Vector3.BACK); sr.add_vertex(rp[q])
-			_add_mesh(st, mat(tex("res://assets/tiles/floor2.png")))
-			_add_mesh(sr, mat(tex("res://assets/tiles/wall2.png")))
-			var g = glow_quad(Color(1, .85, .55, .45), 2.2); g.position = Vector3(x0 + 1, WALLZ * .95, zb + .3); add_child(g)
-			var L = add_light(Vector3(x0 + 1, WALLZ * 1.1, zb + .8), Color(1, .85, .6), 4.5, 1.2)
-			fog_nodes.append([g, (x0 + 1) * 32, zf * 32]); fog_nodes.append([L, (x0 + 1) * 32, zf * 32])
+					sr.set_color(Color(sh * .65, sh * .65, sh * .65)); sr.set_uv(Vector2(rp[q].x, rp[q].y)); sr.set_normal(Vector3.BACK); sr.add_vertex(rp[q])
+			if not up:
+				# 내려가는 구덩이의 양옆·안쪽 벽
+				var D2: float = -WALLZ * 1.1
+				for wq in [[Vector3(x0, 0, zf), Vector3(x0, 0, zb), Vector3.RIGHT], [Vector3(x0 + 2, 0, zb), Vector3(x0 + 2, 0, zf), Vector3.LEFT], [Vector3(x0, 0, zb), Vector3(x0 + 2, 0, zb), Vector3.BACK]]:
+					var A: Vector3 = wq[0]; var B: Vector3 = wq[1]
+					var qp := [A, B, B + Vector3(0, D2, 0), A + Vector3(0, D2, 0)]
+					for q in [0, 1, 2, 0, 2, 3]:
+						sr.set_color(Color(.35, .35, .4) if q < 2 else Color(.05, .05, .07)); sr.set_uv(Vector2(qp[q].x + qp[q].z, qp[q].y)); sr.set_normal(wq[2]); sr.add_vertex(qp[q])
+			var fm: Material = pbr(FLOOR_PBR, .6) if FLOOR_PBR != "" else mat(tex("res://assets/tiles/floor2.png"))
+			var wm: Material = pbr(WALL_PBR, .6) if WALL_PBR != "" else mat(tex("res://assets/tiles/wall2.png"))
+			_add_mesh(st, fm); _add_mesh(sr, wm)
+			_entrance_glow(x0, zb, zf, Color(1, .82, .5) if up else Color(.55, .75, 1), up)
 		else:
-			var col := Color(.55, .72, 1, .6) if a.kind == "door" else Color(1, .8, .5, .55)
-			var g = glow_quad(col, 2.0); g.position = Vector3(x0 + 1, .9, zb + .2); add_child(g)
-			var L = add_light(Vector3(x0 + 1, 1.2, zb + .7), Color(col.r, col.g, col.b), 4.0, 1.3)
-			if mg.town == null and not mg.terrace:
-				fog_nodes.append([g, (x0 + 1) * 32, zf * 32]); fog_nodes.append([L, (x0 + 1) * 32, zf * 32])
+			var col := Color(.55, .72, 1) if a.kind == "door" else Color(1, .8, .5)
+			_entrance_glow(x0, zb, zf, col, true, .75)
+
+# 디아블로3 던전 입구처럼: 입구에서 빛이 새어 나오고(빛줄기·번짐) 작은 빛 알갱이가 떠오른다
+func _entrance_glow(x0: float, zb: float, zf: float, col: Color, up: bool, k := 1.0) -> void:
+	var cx: float = x0 + 1
+	var nodes: Array = []
+	var g = glow_quad(Color(col, .55 * k), 2.6); g.position = Vector3(cx, (WALLZ * .9 if up else .2), zb + .3); add_child(g); nodes.append(g)
+	var g2 = glow_quad(Color(col, .35 * k), 4.2); g2.position = Vector3(cx, .6, zf + .2); add_child(g2); nodes.append(g2)
+	# 빛줄기(입구에서 바닥으로 쏟아지는 세로 판 두 장)
+	var gr := Gradient.new(); gr.set_color(0, Color(col, .0)); gr.add_point(.35, Color(col, .32 * k)); gr.set_color(gr.get_point_count() - 1, Color(col, 0))
+	var gt := GradientTexture2D.new(); gt.gradient = gr; gt.fill_from = Vector2(0, 0); gt.fill_to = Vector2(1, 0); gt.width = 64; gt.height = 4
+	var sm := StandardMaterial3D.new(); sm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; sm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	sm.blend_mode = BaseMaterial3D.BLEND_MODE_ADD; sm.albedo_texture = gt; sm.cull_mode = BaseMaterial3D.CULL_DISABLED; sm.no_depth_test = false
+	for side in [-.35, .35]:
+		var q := QuadMesh.new(); q.size = Vector2(2.6, 1.9)
+		var mi := MeshInstance3D.new(); mi.mesh = q; mi.material_override = sm
+		mi.position = Vector3(cx + side, .95, zf + .9); mi.rotation = Vector3(-.5, side * .6, 0); add_child(mi); nodes.append(mi)
+	# 떠오르는 빛 알갱이
+	var pt := CPUParticles3D.new(); var pq := QuadMesh.new(); pq.size = Vector2(.06, .06)
+	var pm := StandardMaterial3D.new(); pm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; pm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	pm.blend_mode = BaseMaterial3D.BLEND_MODE_ADD; pm.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED; pm.albedo_texture = glow_tex(); pm.albedo_color = Color(col, .9); pm.vertex_color_use_as_albedo = true
+	pq.material = pm; pt.mesh = pq; pt.amount = 24; pt.lifetime = 2.2; pt.preprocess = 2.0
+	pt.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX; pt.emission_box_extents = Vector3(.9, .1, .5)
+	pt.direction = Vector3(0, 1, .3); pt.spread = 25.0; pt.initial_velocity_min = .2; pt.initial_velocity_max = .5; pt.gravity = Vector3.ZERO
+	var cg := Gradient.new(); cg.set_color(0, Color(1, 1, 1, 0)); cg.add_point(.3, Color(1, 1, 1, 1)); cg.set_color(cg.get_point_count() - 1, Color(1, 1, 1, 0)); pt.color_ramp = cg
+	pt.position = Vector3(cx, .15, zf - .3); add_child(pt); nodes.append(pt)
+	var L = add_light(Vector3(cx, 1.3, zf + .4), col, 5.5, 1.6 * k); nodes.append(L)
+	if mg.town == null and not mg.terrace:
+		for nd in nodes: fog_nodes.append([nd, cx * 32, zf * 32])
 
 func _build_torches() -> void:
 	for t in mg.torches:

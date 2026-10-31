@@ -57,7 +57,7 @@ func fresh_g(diff: String) -> Dictionary:
 		fx = [], rings = [], bolts = [], drops = [], texts = [], chests = [], npcs = [], portal = null,
 		gold = 0, kills = 0, banner = {text = "", t = 0.0}, pendingLv = 0, flowT = 0.0, bossMax = 0.0, time = 0.0, coneT = 0.0, talkSeen = {},
 		sb = null, shake = 0.0, lvDelay = 0.0, revT = 0.0, goldPulse = 0.0, bagNew = false, nearItem = null, portalT = 0.0,
-		runSeed = randi() % 1000000, waypoints = [1], killsBy = {}, shop = [], stash = null, pull = null, townRet = null}
+		runSeed = randi() % 1000000, waypoints = [1], killsBy = {}, shop = [], stash = null, pull = null, townRet = null, cleared = []}
 
 func diff_d() -> Dictionary:
 	for d in D.DIFFICULTIES:
@@ -76,7 +76,9 @@ func recalc() -> void:
 	for k in D.SLOTS:
 		var it = P.eq.get(k)
 		if it == null: continue
-		all.append_array(D.eff_mods(it))
+		for m in D.eff_mods(it):
+			if m.k == "spd" and k != "boots": continue    # 예전 장비의 이동 속도 옵션은 장화가 아니면 무시
+			all.append(m)
 		if it.get("set", "") != "": sets[it.set] = sets.get(it.set, 0) + 1
 	for sid in sets.keys():
 		var bon: Dictionary = D.SETS[sid].bonus
@@ -106,7 +108,8 @@ func recalc() -> void:
 	P.maxhp = int(round(50 + 15 * pv.get("vigor", 0) + 3 * (P.lv - 1) + st.hp))
 	P.maxmp = int(round(60 + 15 * pv.get("well", 0) + 2 * (P.lv - 1) + st.mp))
 	P.hp = min(P.hp, P.maxhp); P.mp = min(P.mp, P.maxmp)
-	P.speed = 138 * (1 + .08 * pv.get("swift", 0) + st.spd)
+	# 이동 속도 상한: 수련(가벼운 발) 최대치보다 10 빠른 정도까지만
+	P.speed = min(138 * (1 + .08 * 3) + 10, 138 * (1 + .08 * pv.get("swift", 0) + st.spd))
 
 func set_state(s: String) -> void:
 	G.state = s
@@ -125,7 +128,7 @@ func save() -> void:
 	var ret: int = int(G.townRet.floor) if G.townRet != null else 0
 	var f = FileAccess.open(slot_path(slot), FileAccess.WRITE)
 	if f:
-		f.store_string(JSON.stringify({v = 2, diff = G.diff, gold = G.gold, kills = G.kills, resume = G.resume, talkSeen = G.talkSeen, P = pd, floor = G.floor, runSeed = G.runSeed, waypoints = G.waypoints, killsBy = G.killsBy, retFloor = ret, at = Time.get_unix_time_from_system()}))
+		f.store_string(JSON.stringify({v = 2, diff = G.diff, gold = G.gold, kills = G.kills, resume = G.resume, talkSeen = G.talkSeen, P = pd, floor = G.floor, runSeed = G.runSeed, waypoints = G.waypoints, killsBy = G.killsBy, retFloor = ret, cleared = G.cleared, at = Time.get_unix_time_from_system()}))
 		f.close(); saved.emit()
 
 static func migrate_old() -> void:
@@ -187,6 +190,11 @@ func load_game(sv: Dictionary, slot_i := -1) -> void:
 	G.gold = int(sv.get("gold", 0)); G.kills = int(sv.get("kills", 0)); G.resume = int(sv.get("resume", 1)); G.talkSeen = sv.get("talkSeen", {})
 	G.runSeed = int(sv.get("runSeed", G.runSeed))
 	G.killsBy = sv.get("killsBy", {})
+	G.cleared = []
+	for c in sv.get("cleared", []): G.cleared.append(int(c))
+	if not sv.has("cleared"):
+		for f in range(1, int(sv.get("resume", 1))):
+			if D.boss_kind(f) != "": G.cleared.append(f)
 	G.waypoints = []
 	for w in sv.get("waypoints", [1]): G.waypoints.append(int(w))
 	recalc(); P.hp = P.maxhp; P.mp = P.maxmp
@@ -264,8 +272,11 @@ func gen_floor() -> void:
 	if kind != "":
 		var r: Dictionary = mg.rooms[0]
 		P.x = mg.start.x; P.y = mg.start.y
-		var b := spawn_floor_boss(kind, r.cx, (r.y + 5) * T)
-		G.banner = {text = "%d층 · %s" % [G.floor, b.name], t = 3.0}
+		if G.floor in G.cleared:
+			mg.open_boss_stairs(); G.banner = {text = floor_name(G.floor), t = 2.0}
+		else:
+			var b := spawn_floor_boss(kind, r.cx, (r.y + 5) * T)
+			G.banner = {text = "%d층 · %s" % [G.floor, b.name], t = 3.0}
 	else:
 		P.x = mg.start.x; P.y = mg.start.y
 		for i in range(1, mg.rooms.size()):
@@ -289,7 +300,7 @@ func gen_floor() -> void:
 			var r: Dictionary = mg.rooms[i]
 			if randf() > .4: continue
 			var cx: float = (r.x + pick([1.6, r.w - 1.6])) * T; var cy: float = (r.y + pick([1.6, r.h - 1.6])) * T
-			if hyp(cx - mg.stairs.x, cy - mg.stairs.y) < 60: continue
+			if hyp(cx - mg.stairs.x, cy - mg.stairs.y) < 70 or mg.near_alcove(Vector2(cx, cy)): continue
 			G.chests.append({x = cx, y = cy, open = false, t = 0.0, id = nid()})
 		G.banner = {text = floor_name(G.floor), t = 2.2}
 	randomize()
@@ -498,6 +509,7 @@ func boss_cleared() -> void:
 		G.banner = {text = "흑마법사를 쓰러뜨렸다!", t = 3.0}
 		get_tree().create_timer(3.0).timeout.connect(func(): game_over(true))
 		return
+	if not G.floor in G.cleared: G.cleared.append(G.floor)
 	mg.open_boss_stairs(); level_changed = true
 	if G.floor < D.LAST_FLOOR and G.floor % 10 == 0: G.portal = {x = r.cx - 70, y = r.cy, resume = G.floor + 1}
 	G.eshots = []
@@ -868,9 +880,28 @@ func hurt_player(d: float) -> void:
 
 func gain_xp(n: float) -> void:
 	var v = int(round(n * diff_d().reward)); P.xp += v
+	var up := false
 	while P.xp >= P.next:
-		sfx.emit("levelup"); P.xp -= P.next; P.lv += 1; P.next = xp_need(P.lv); G.pendingLv += 1; G.lvDelay = .75; lv_fx(); recalc()
-		P.hp = min(P.maxhp, P.hp + P.maxhp * .2); P.mp = min(P.maxmp, P.mp + P.maxmp * .3)
+		sfx.emit("levelup"); P.xp -= P.next; P.lv += 1; P.next = xp_need(P.lv); G.pendingLv += 1; G.lvDelay = .45; lv_fx(); recalc()
+		P.hp = min(P.maxhp, P.hp + P.maxhp * .2); P.mp = min(P.maxmp, P.mp + P.maxmp * .3); up = true
+	if up: levelup_blast()
+
+# 레벨업 충격파(원작처럼): 주변 적 모두에게 한 번에 큰 피해 + 밀쳐내기
+func levelup_blast() -> void:
+	var R := 230.0; var dmg: float = (30 + 8 * P.lv + 5 * G.floor) * (1 + P.st.dmg)
+	sfx.emit("boom"); rumble.emit(200, .8); G.shake = .3
+	ring(P.x, P.y, 10, R, .55, "#ffe49a"); ring(P.x, P.y, 6, R * .7, .4, "#fff6d8"); ring(P.x, P.y, 20, R * 1.1, .7, "#e3b04b")
+	fx_anim("fx_blast", P.x, P.y + 10, 150, .6)
+	for i in 60:
+		var a = rnd(0, TAU); var sp = rnd(200, 420)
+		G.fx.append({x = P.x, y = P.y, vx = cos(a) * sp, vy = sin(a) * sp, life = .6, max = .6, color = pick(["#ffe49a", "#fff6d8", "#e3b04b"]), size = rnd(2, 4), h = .4})
+	for e in G.enemies:
+		if e.dead: continue
+		var d = hyp(e.x - P.x, e.y - P.y)
+		if d > R + e.r: continue
+		damage_enemy(e, dmg * (1.0 - .35 * d / R), {arcane = true})
+		if not e.isBoss and d > 1: mg.move(e, (e.x - P.x) / d * 46, (e.y - P.y) / d * 46)
+	G.eshots = G.eshots.filter(func(s_): return hyp(s_.x - P.x, s_.y - P.y) > R)
 
 # ================= 레벨업 선택지 =================
 func build_options() -> Array:
@@ -967,7 +998,7 @@ func roll_mod(slot: String, used: Dictionary, lvl: int, mult: float, strong: boo
 	add.call("cast", 1.8 if slot in ["weapon", "gloves"] else .8, func(): return snappedf(rnd(.04, .1) * mult, .01))
 	add.call("cdr", .9, func(): return snappedf(rnd(.05, .1) * mult, .01))
 	add.call("res", 2.4 if slot == "cloak" else (1.6 if slot in ["belt", "boots"] else .6), func(): return snappedf(rnd(.03, .07) * mult, .01))
-	add.call("spd", 3.0 if slot == "boots" else (1.4 if slot == "cloak" else .5), func(): return snappedf(rnd(.03, .07) * mult, .01))
+	if slot == "boots": add.call("spd", 2.4, func(): return snappedf(rnd(.02, .04), .01))   # 이동 속도는 장화에만, 조금씩
 	add.call("gold", .8, func(): return snappedf(rnd(.1, .3) * mult, .01))
 	if pool.is_empty(): return {}
 	var tot = 0.0
@@ -1024,7 +1055,8 @@ func make_item(rar: String, lvl: int, base_id := "") -> Dictionary:
 	var it = {uid = "%d%d" % [Time.get_ticks_msec(), randi() % 10000], base = base.id, slot = base.slot, rar = rar, lvl = lvl, mods = [], enh = 0}
 	var used = {}
 	if base.imp != null:
-		it.mods.append({k = base.imp.k, v = snappedf(base.imp.v * (1 + lvl * .05), .01) if base.imp.v < 1 else int(round(base.imp.v * (1 + lvl * .05)))}); used[base.imp.k] = true
+		var iv: float = base.imp.v if base.imp.k == "spd" else base.imp.v * (1 + lvl * .05)
+		it.mods.append({k = base.imp.k, v = snappedf(iv, .01) if base.imp.v < 1 else int(round(iv))}); used[base.imp.k] = true
 	var bn: String = base.names[tier]
 	match rar:
 		"unique", "set":
@@ -1174,6 +1206,21 @@ func portal_back() -> void:
 	ring(P.x, P.y, 4, 40, .5, "#7fb2ff")
 	ui.emit("buttons"); set_state("play"); save()
 
+# 내려가기: 아래층의 올라가는 계단 앞에 선다(1층에서는 마을 탑 문 앞)
+func prev_floor() -> void:
+	if G.floor <= 1:
+		G.resume = max(G.resume, 1); go_town(false)
+		if mg.gate != null:
+			P.x = mg.gate.x; P.y = mg.gate.y + 80
+		mg.build_flow(P.x, P.y); return
+	G.floor -= 1; P.ward = 0.0; gen_floor()
+	var st = mg.stairs
+	if st != null:
+		st.found = true; P.x = st.x; P.y = st.y + 52
+		mg.reveal(P.x, P.y); mg.build_flow(P.x, P.y)
+	G.banner = {text = floor_name(G.floor), t = 1.8}
+	save()
+
 func next_floor() -> void:
 	if G.floor >= D.ROOF:
 		game_over(true); return
@@ -1298,24 +1345,28 @@ func update(dt: float) -> void:
 		if not r.seen and P.x > r.x * T and P.x < (r.x + r.w) * T and P.y > r.y * T and P.y < (r.y + r.h) * T: r.seen = true
 	# 계단·테라스 문: 회색 반원 안에 들어서면 빨려 들어가듯 걸어 들어가며 화면이 어두워진다
 	if G.pull != null:
+		# 계단은 천천히 한 걸음씩 걸어 올라(내려)간다
 		G.pull.t += dt
-		var k: float = min(1.0, G.pull.t / .9)
-		P.x = lerp(G.pull.fx, G.pull.tx, k); P.y = lerp(G.pull.fy, G.pull.ty, k); P.vx = 0.0; P.vy = -60.0; P.face = -PI / 2
-		if G.pull.t >= 1.0:
+		var dur: float = G.pull.get("dur", 1.0)
+		var k: float = min(1.0, G.pull.t / (dur * .92))
+		P.x = lerp(G.pull.fx, G.pull.tx, k); P.y = lerp(G.pull.fy, G.pull.ty, k); P.vx = 0.0; P.vy = -40.0; P.face = -PI / 2
+		if G.pull.t >= dur:
 			var what: String = G.pull.what; G.pull = null
 			match what:
 				"stairs": next_floor()
+				"down": prev_floor()
 				"door": enter_terrace()
 				"back": leave_terrace()
 		return
 	if G.floor > 0:
-		for o in [[mg.stairs, "stairs"], [mg.door, "back" if mg.terrace else "door"]]:
+		for o in [[mg.stairs, "stairs"], [mg.down, "down"], [mg.door, "back" if mg.terrace else "door"]]:
 			var st = o[0]
 			if st == null: continue
 			var near: bool = hyp(P.x - st.x, P.y - st.y) < (44 if st.get("alcove", false) else 20) and P.y >= st.y - 4
 			if near and (st.get("alcove", false) or o[1] == "stairs"):
-				sfx.emit("stairs" if o[1] == "stairs" else "door")
-				G.pull = {t = 0.0, fx = P.x, fy = P.y, tx = st.x, ty = st.y - (56 if o[1] == "stairs" else 24), what = o[1]}
+				var stair: bool = o[1] == "stairs" or o[1] == "down"
+				sfx.emit("stairs" if stair else "door")
+				G.pull = {t = 0.0, fx = P.x, fy = P.y, tx = st.x, ty = st.y - (58 if stair else 24), what = o[1], dur = 1.6 if stair else 1.0}
 				return
 	G.flowT -= dt
 	if G.flowT <= 0:

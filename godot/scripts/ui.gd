@@ -217,6 +217,7 @@ func cards(opts: Array, on_pick: Callable, maxw := 760.0) -> GridContainer:
 	for o in opts:
 		var c = Card.new(o); c.custom_minimum_size.x = (w - 10 * (g.columns - 1)) / g.columns
 		c.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		c.set_meta("opt", o)
 		c.pressed.connect(func(): on_pick.call(o)); g.add_child(c)
 	return g
 
@@ -373,16 +374,117 @@ func open_first() -> void:
 	_focus_first()
 
 # ================= 레벨업 =================
+# 뒤 화면 흐리게(레벨업 동안)
+static var _blur: ShaderMaterial
+static func blur_mat() -> ShaderMaterial:
+	if _blur == null:
+		var sh := Shader.new(); sh.code = """
+shader_type canvas_item;
+uniform sampler2D scr : hint_screen_texture, filter_linear;
+uniform float amt = 0.0;
+uniform float dim = .35;
+void fragment() {
+	vec2 px = SCREEN_PIXEL_SIZE * 3.2 * amt;
+	vec3 c = vec3(0.0); float w = 0.0;
+	for (int x = -3; x <= 3; x++) for (int y = -3; y <= 3; y++) {
+		float k = exp(-float(x * x + y * y) / 8.0);
+		c += texture(scr, SCREEN_UV + vec2(float(x), float(y)) * px).rgb * k; w += k;
+	}
+	COLOR = vec4(mix(c / w, vec3(.03, .02, .05), dim * amt), 1.0);
+}
+"""
+		_blur = ShaderMaterial.new(); _blur.shader = sh
+	return _blur
+
+var lv_sel = null
+var lv_busy := false
+func _tw() -> Tween:
+	var t := create_tween(); t.set_ignore_time_scale(true); return t
+
 func open_level() -> void:
-	_no_title_grad(); _begin("level", .42)
+	_no_title_grad(); _begin("level", 0.0)
+	lv_sel = null; lv_busy = false
+	var bm := blur_mat(); bg.material = bm; bg.color = Color.WHITE
+	bm.set_shader_parameter("amt", 0.0); _tw().tween_method(func(v): bm.set_shader_parameter("amt", v), 0.0, 1.0, .45)
 	var G = game.G; var P = game.P
 	box.add_child(h2("레벨 업 · Lv %d" % (P.lv - G.pendingLv + 1)))
 	box.add_child(lead("남은 선택 %d번. 셋 중 하나를 익히세요." % G.pendingLv if G.pendingLv > 1 else "셋 중 하나를 익히세요."))
 	var opts = game.build_options()
 	for o in opts: o.big = true
-	box.add_child(cards(opts, func(o):
-		hide_all(); game.apply_option(o), 820.0))
+	var grid := cards(opts, func(o): _lv_pick(o), 820.0); grid.name = "lvgrid"
+	box.add_child(grid)
+	# 원작처럼 아래에서 천천히 떠오르며 나타난다(카드는 하나씩)
+	var m: MarginContainer = scroll.get_node("m")
+	var top0: int = m.get_theme_constant("margin_top")
+	m.add_theme_constant_override("margin_top", top0 + 140); box.modulate.a = 0.0
+	var t := _tw().set_parallel(true).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	t.tween_method(func(v): m.add_theme_constant_override("margin_top", int(v)), float(top0 + 140), float(top0), .75)
+	t.tween_property(box, "modulate:a", 1.0, .55)
+	var i := 0
+	for c in grid.get_children():
+		c.modulate.a = 0.0
+		_tw().tween_property(c, "modulate:a", 1.0, .45).set_delay(.18 + i * .12); i += 1
 	_focus_first()
+
+func _lv_pick(o: Dictionary) -> void:
+	if lv_busy or lv_sel != null: return
+	lv_sel = o
+	main.snd.play("ok")
+	var grid = box.get_node_or_null("lvgrid")
+	if grid == null: return
+	var card: Control = null
+	for c in grid.get_children():
+		if c.get_meta("opt") == o: card = c
+		else: _tw().tween_property(c, "modulate", Color(.55, .55, .6, .55), .25)
+	if card == null: return
+	# 살짝 울렁이며 커지고, 뒤로 은은한 반짝임
+	card.pivot_offset = card.size / 2; card.z_index = 2
+	var t := _tw().set_trans(Tween.TRANS_SINE)
+	t.tween_property(card, "scale", Vector2(1.09, 1.09), .14).set_ease(Tween.EASE_OUT)
+	t.tween_property(card, "scale", Vector2(1.03, 1.03), .12)
+	t.tween_property(card, "scale", Vector2(1.06, 1.06), .1)
+	t.tween_property(card, "scale", Vector2(1.05, 1.05), .1)
+	var ft := _tw(); ft.tween_property(card, "modulate", Color(1.5, 1.42, 1.15), .1); ft.tween_property(card, "modulate", Color.WHITE, .35)
+	var fl := ColorRect.new(); fl.set_anchors_preset(Control.PRESET_FULL_RECT); fl.color = Color(1, .9, .6, 0); fl.mouse_filter = Control.MOUSE_FILTER_IGNORE; fl.name = "lvflash"
+	root.add_child(fl); root.move_child(fl, 1)
+	var t2 := _tw(); t2.tween_property(fl, "color:a", .1, .12); t2.tween_property(fl, "color:a", 0.0, .45); t2.tween_callback(fl.queue_free)
+	# 0.5초 뒤 "선택하시겠습니까?"
+	await get_tree().create_timer(.5, true, false, true).timeout
+	if lv_sel != o or cur != "level": return
+	var bar = VBoxContainer.new(); bar.name = "lvconfirm"; bar.add_theme_constant_override("separation", 8); bar.modulate.a = 0.0
+	var q = label("「%s」 — 선택하시겠습니까?" % o.title, 18, GOLD, display); q.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER; bar.add_child(q)
+	var yes = btn("선택", func(): _lv_confirm(o)); var no = btn("다시 고르기", func(): _lv_cancel(), true)
+	bar.add_child(row([yes, no])); box.add_child(bar)
+	_tw().tween_property(bar, "modulate:a", 1.0, .35)
+	await get_tree().process_frame
+	if is_instance_valid(yes): yes.grab_focus()
+
+func _lv_cancel() -> void:
+	if lv_busy: return
+	lv_sel = null
+	var grid = box.get_node_or_null("lvgrid")
+	if grid:
+		for c in grid.get_children():
+			_tw().tween_property(c, "modulate", Color.WHITE, .2); _tw().tween_property(c, "scale", Vector2.ONE, .2); c.z_index = 0
+	var bar = box.get_node_or_null("lvconfirm")
+	if bar: bar.queue_free()
+	_focus_first()
+
+func _lv_confirm(o: Dictionary) -> void:
+	if lv_busy: return
+	lv_busy = true
+	main.snd.play("levelup")
+	# 창 전체가 자연스럽게 사라지고, 흐림도 걷힌다
+	var m: MarginContainer = scroll.get_node("m")
+	var top0: int = m.get_theme_constant("margin_top")
+	var bm := blur_mat()
+	var t := _tw().set_parallel(true).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+	t.tween_property(box, "modulate:a", 0.0, .38)
+	t.tween_method(func(v): m.add_theme_constant_override("margin_top", int(v)), float(top0), float(top0 - 50), .38)
+	t.tween_method(func(v): bm.set_shader_parameter("amt", v), 1.0, 0.0, .38)
+	await t.finished
+	box.modulate.a = 1.0; bg.material = null; lv_busy = false; lv_sel = null
+	hide_all(); main.slow_resume(); game.apply_option(o)
 
 # ================= 일시정지 =================
 func open_pause() -> void:
@@ -732,6 +834,9 @@ func _render_bag() -> void:
 	for k in D.SLOTS:
 		var sz: float = clamp(EH / 5.6, 46.0, 58.0)
 		var b = _slot(P.eq[k], D.SLOTNAME[k], bag_sel != null and bag_sel.from == "eq" and bag_sel.slot == k, sz, func():
+			if _dbl("eq:" + k) and P.eq[k] != null:
+				if game.unequip(k): bag_sel = null      # 두 번 누르면 벗기
+				_render_bag(); return
 			bag_sel = {from = "eq", slot = k}; _render_bag())
 		if P.eq[k] == null:
 			var ph = TextureRect.new(); ph.texture = load("res://ui/slot_%s.png" % ("ring" if k.begins_with("ring") else k)); ph.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -751,6 +856,12 @@ func _render_bag() -> void:
 		var it = P.bag[i] if i < P.bag.size() else null
 		var b = _slot(it, "", bag_sel != null and bag_sel.from == "bag" and bag_sel.i == i, SL, func():
 			if i >= P.bag.size(): return
+			if _dbl("bag:%d" % i):
+				# 두 번 누르면 바로 착용(반지는 빈 칸 또는 약한 쪽)
+				var bi = P.bag[i]; var slot: String = bi.slot
+				if slot == "ring":
+					slot = "ring1" if P.eq.ring1 == null else ("ring2" if P.eq.ring2 == null else ("ring1" if Game.sum_score(P.eq.ring1) <= Game.sum_score(P.eq.ring2) else "ring2"))
+				bag_sel = {from = "bag", i = i}; _equip(slot); return
 			bag_sel = {from = "bag", i = i}; _render_bag())
 		b.set_meta("key", "bag:%d" % i); bg_.add_child(b)
 	gsc.add_child(bg_); c2.add_child(gsc)
@@ -770,7 +881,7 @@ func _render_bag() -> void:
 		if tot.is_empty(): es.add_child(label("착용한 장비가 없어요.", 12, MUTED))
 		for k in tot.keys(): es.add_child(label(D.mod_text({k = k, v = snappedf(tot[k], .01)}), 13, INK))
 		dv.add_child(es)
-		var p = label("아이템을 누르면 자세히 볼 수 있어요.", 12, MUTED); dv.add_child(p)
+		var p = label("아이템을 누르면 자세히, 두 번 누르면 바로 착용·벗기", 12, MUTED); dv.add_child(p)
 	else:
 		dv.add_child(label(iname(it), 16, Color(D.RAR[it.rar].color), display))
 		var bname: String = String(it.get("bname", D.base(it.base).names[D.tier(int(it.lvl))]))
@@ -807,10 +918,15 @@ func _render_bag() -> void:
 				var ks = {}
 				for k in a.keys() + b2.keys(): ks[k] = true
 				dv.add_child(label("착용 중인 장비와 비교 · %s" % basei.name, 12, MUTED))
+				# 좋아지는 점은 초록 ▲, 나빠지는 점(잃는 옵션 포함)은 빨강 ▼
+				var ups: Array = []; var downs: Array = []
 				for k in ks.keys():
 					var dd = snappedf(a.get(k, 0) - b2.get(k, 0), .01)
 					if dd == 0: continue
-					dv.add_child(label(("▲ " if dd > 0 else "▼ ") + D.mod_text({k = k, v = absf(dd)}), 12, Color("#7fd07f") if dd > 0 else Color("#ff7a6a")))
+					(ups if dd > 0 else downs).append([k, dd])
+				for u in ups: dv.add_child(label("▲ " + D.mod_text({k = u[0], v = absf(u[1])}), 13, Color("#7fe07f")))
+				for d_ in downs: dv.add_child(label("▼ " + D.mod_text({k = d_[0], v = absf(d_[1])}).replace("+", "-"), 13, Color("#ff6a5a")))
+				if ups.is_empty() and downs.is_empty(): dv.add_child(label("옵션이 똑같아요", 12, MUTED))
 			if it.slot == "ring":
 				var e1 = func(): _equip("ring1")
 				var e2 = func(): _equip("ring2")
@@ -833,17 +949,37 @@ func _render_bag() -> void:
 			sbtn.call("벗기", unf, false)
 		dv.add_child(rr); dv.move_child(rr, 2)   # 착용·팔기 버튼은 이름 바로 아래(스크롤 없이 보이게)
 	box.add_child(wrap)
-	if below:
-		dt.custom_minimum_size = Vector2(EW + IW + 10, 80); dt.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-		box.add_child(dt)
+	# 자세히 보기: 한 칸 높이를 넘치면 옆 칸으로 이어서(옆으로 밀어 계속 보기)
+	var DW: float = (EW + IW + 10) if below else max(220.0, min(320.0, AW - EW - IW - 20))
+	var DH: float = clamp(AH - EH - 30, 110.0, 260.0) if below else EH - 26
+	var colw: float = 250.0 if below else DW - 30
+	var kids: Array = dv.get_children()
+	for c in kids: dv.remove_child(c)
+	dt.remove_child(dv); dv.queue_free()
+	var hb = HBoxContainer.new(); hb.add_theme_constant_override("separation", 22); dt.add_child(hb)
+	var colv: VBoxContainer = null; var used := 9999.0
+	for c in kids:
+		var hgt: float = 46.0 if c is HFlowContainer else float(c.get_theme_font_size("font_size") if c is Label else 14) * 1.55 + 6
+		if c is Label and c.get_theme_font_size("font_size") <= 0: hgt = 28.0
+		if colv == null or used + hgt > DH:
+			colv = VBoxContainer.new(); colv.add_theme_constant_override("separation", 6); colv.custom_minimum_size.x = colw; hb.add_child(colv); used = 0.0
+		if c is Label:
+			c.autowrap_mode = TextServer.AUTOWRAP_OFF; c.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS; c.custom_minimum_size.x = colw; c.clip_text = true
+		colv.add_child(c); used += hgt
+	var dsc = ScrollContainer.new(); dsc.custom_minimum_size = Vector2(DW, DH + 26)
+	dsc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO; dsc.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	dt.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN; dt.custom_minimum_size = Vector2(0, DH + 18)
+	dsc.add_child(dt)
+	if hb.get_child_count() > 1:
+		var hint = label("옆으로 밀면 더 있어요 ›", 11, MUTED); hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		var holder = VBoxContainer.new(); holder.add_theme_constant_override("separation", 2); holder.add_child(dsc); holder.add_child(hint)
+		if below:
+			holder.size_flags_horizontal = Control.SIZE_SHRINK_CENTER; box.add_child(holder)
+		else: wrap.add_child(holder)
 	else:
-		dt.custom_minimum_size = Vector2(min(300.0, AW - EW - IW - 20), EH); dt.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-		dt.size_flags_vertical = Control.SIZE_FILL
-		var dsc = ScrollContainer.new(); dsc.custom_minimum_size = dt.custom_minimum_size; dsc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-		dv.custom_minimum_size.x = dt.custom_minimum_size.x - 26
-		for ch in dv.get_children():
-			if ch is Label: ch.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		dsc.add_child(dt); wrap.add_child(dsc)
+		if below:
+			dsc.size_flags_horizontal = Control.SIZE_SHRINK_CENTER; box.add_child(dsc)
+		else: wrap.add_child(dsc)
 	main.hud.build_buttons()
 	if keep_focus != "":
 		await get_tree().process_frame
@@ -867,6 +1003,14 @@ func _silhouette(w: float, h: float) -> Control:
 			t.modulate = Color(.75, .7, 1, .13)
 			c.add_child(t)
 	return c
+
+var tap_key := ""
+var tap_t := 0
+func _dbl(key: String) -> bool:
+	var now := Time.get_ticks_msec()
+	var yes: bool = key == tap_key and now - tap_t < 420
+	tap_key = "" if yes else key; tap_t = now
+	return yes
 
 func _equip(slot: String) -> void:
 	game.equip(bag_sel.i, slot); bag_sel = {from = "eq", slot = slot}; _render_bag()

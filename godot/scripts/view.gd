@@ -174,32 +174,73 @@ func _light(parent: Node3D, pos: Vector3, col: Color, rng: float, en: float) -> 
 	parent.add_child(L); return L
 
 func _build_gate(g: Vector2) -> void:
-	# 마을 북쪽의 탑 문: 돌벽 + 아치 문 + 창문 불빛 + 보랏빛 문
+	# 마을 북쪽 탑 입구(디아블로1 대성당 입구처럼): 돌 계단 → 큰 고딕 아치 → 반쯤 열린 나무 문 → 어둠 속 으스스한 빛
 	gate_node = Node3D.new(); gate_node.position = w3(g.x, g.y); add_child(gate_node)
-	var wm = StandardMaterial3D.new(); wm.albedo_texture = World.tex("res://assets/tiles/wall2.png")
-	wm.uv1_scale = Vector3(2.2, 1, 1); wm.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC; wm.roughness = 1
-	var wall = MeshInstance3D.new(); var bm = BoxMesh.new(); bm.size = Vector3(9.4, 3.6, .7); wall.mesh = bm; wall.material_override = wm
-	wall.position = Vector3(0, 1.8, -.6); gate_node.add_child(wall)
-	for k in 11:
-		var c = MeshInstance3D.new(); var cb = BoxMesh.new(); cb.size = Vector3(.5, .45, .7); c.mesh = cb; c.material_override = wm
-		c.position = Vector3(-4.69 + .25 + k * .875, 3.82, -.6); gate_node.add_child(c)
-	var dm = StandardMaterial3D.new(); dm.albedo_color = Color(.07, .05, .09); dm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	var door = MeshInstance3D.new(); var dq = QuadMesh.new(); dq.size = Vector2(2.25, 2.9); door.mesh = dq; door.material_override = dm
-	door.position = Vector3(0, 1.45, -.24); gate_node.add_child(door)
-	var dg = world.glow_quad(Color(.76, .6, 1, .55), 2.6); dg.position = Vector3(0, 1.3, -.2); gate_node.add_child(dg)
-	(dg.material_override as StandardMaterial3D).billboard_mode = BaseMaterial3D.BILLBOARD_DISABLED
-	for wx in [-110, -70, 70, 110]:
-		var wq = MeshInstance3D.new(); var q = QuadMesh.new(); q.size = Vector2(.42, .7); wq.mesh = q
-		var m = StandardMaterial3D.new(); m.albedo_color = Color(1, .77, .43); m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		wq.material_override = m; wq.position = Vector3(wx * S, 2.75, -.24); gate_node.add_child(wq)
-		var gw = world.glow_quad(Color(1, .69, .31, .5), 1.2); gw.position = Vector3(wx * S, 2.7, -.15); gate_node.add_child(gw)
-	_light(gate_node, Vector3(0, 1.8, .8), Color(.76, .6, 1), 6.0, 1.4)
+	var stone: Material = World.pbr("large_sandstone_blocks", .5)
+	var dark_stone: Material = World.pbr("stone_brick_wall_001", .5)
+	var step_m: Material = World.pbr("stone_tiles_02", .6)
+	var box := func(size: Vector3, pos: Vector3, m: Material, rot := Vector3()) -> MeshInstance3D:
+		var mi = MeshInstance3D.new(); var bm = BoxMesh.new(); bm.size = size; mi.mesh = bm; mi.material_override = m
+		mi.position = pos; mi.rotation = rot; gate_node.add_child(mi); return mi
+	# 정면 벽(두껍게) + 위쪽 톱니 + 양옆 부벽
+	box.call(Vector3(11.0, 4.4, 1.6), Vector3(0, 2.2, -1.25), stone)
+	for k in 13: box.call(Vector3(.52, .5, 1.6), Vector3(-5.5 + .26 + k * .895, 4.65, -1.25), stone)
+	for sx in [-1, 1]:
+		box.call(Vector3(1.1, 5.2, 2.2), Vector3(sx * 2.25, 2.6, -1.0), dark_stone)       # 문 양옆 큰 기둥
+		box.call(Vector3(1.3, .35, 2.4), Vector3(sx * 2.25, 5.3, -1.0), stone)
+		box.call(Vector3(.9, 3.4, 1.8), Vector3(sx * 4.9, 1.7, -.95), dark_stone)         # 끝 부벽
+	# 아치: 문틀 위로 돌을 겹겹이(뾰족 아치 느낌)
+	for i in 7:
+		var t: float = i / 6.0
+		var ang: float = lerp(-1.15, 1.15, t)
+		box.call(Vector3(.62, .5, 1.9), Vector3(sin(ang) * 1.45, 2.9 + cos(ang) * 1.05, -.95), stone, Vector3(0, 0, -ang))
+	box.call(Vector3(.55, .7, 2.0), Vector3(0, 4.05, -.9), dark_stone)                    # 쐐기돌
+	# 문 안쪽: 어두운 통로(깊은 상자) + 안에서 새어 나오는 붉은 보랏빛
+	var dm = StandardMaterial3D.new(); dm.albedo_color = Color(.02, .015, .03); dm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	box.call(Vector3(2.5, 3.1, .1), Vector3(0, 1.55, -2.1), dm)
+	for sx in [-1, 1]: box.call(Vector3(.1, 3.1, 1.7), Vector3(sx * 1.25, 1.55, -1.25), dm)
+	var ig = world.glow_quad(Color(.9, .25, .45, .55), 3.0); ig.position = Vector3(0, 1.0, -1.9); gate_node.add_child(ig)
+	(ig.material_override as StandardMaterial3D).billboard_mode = BaseMaterial3D.BILLBOARD_DISABLED
+	_light(gate_node, Vector3(0, 1.2, -1.2), Color(1, .3, .45), 4.0, 2.0)
+	# 반쯤 열린 무거운 나무 문 두 짝
+	var wood: Material = Props3D.m("wood", Color(.42, .3, .22), .8)
+	var iron: Material = Props3D.metal(Color(.25, .24, .26), .45)
+	for sx in [-1, 1]:
+		var dn := Node3D.new(); dn.position = Vector3(sx * 1.2, 0, -.45); dn.rotation.y = sx * -1.2; gate_node.add_child(dn)
+		var dmi = MeshInstance3D.new(); var db = BoxMesh.new(); db.size = Vector3(1.2, 3.0, .12); dmi.mesh = db; dmi.material_override = wood
+		dmi.position = Vector3(-sx * .6, 1.5, 0); dn.add_child(dmi)
+		for y in [.6, 1.6, 2.5]:
+			var bi = MeshInstance3D.new(); var bb = BoxMesh.new(); bb.size = Vector3(1.22, .1, .14); bi.mesh = bb; bi.material_override = iron
+			bi.position = Vector3(-sx * .6, y, 0); dn.add_child(bi)
+	# 문 앞 돌계단 세 단
+	for k in 3:
+		box.call(Vector3(3.6 - k * .3, .16, .55), Vector3(0, .08 + k * .16, .05 - k * .45), step_m)
+	# 양옆 화로(기둥 위 불)
+	for sx in [-1, 1]:
+		var br := Props3D.make("brazier", .8, 7 + sx); br.position = Vector3(sx * 3.4, 0, .6); gate_node.add_child(br)
+		var fg = world.glow_quad(Color(1, .55, .2, .95), 1.0); fg.position = Vector3(sx * 3.4, 1.15, .66); gate_node.add_child(fg)
+		_light(gate_node, Vector3(sx * 3.4, 1.6, .9), Color(1, .6, .3), 6.5, 1.6)
+	# 입구에서 새어 나오는 빛 알갱이·안개
+	var pt := CPUParticles3D.new(); var pq := QuadMesh.new(); pq.size = Vector2(.08, .08)
+	var pm := StandardMaterial3D.new(); pm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; pm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	pm.blend_mode = BaseMaterial3D.BLEND_MODE_ADD; pm.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED; pm.albedo_texture = World.glow_tex(); pm.albedo_color = Color(1, .4, .6, .8); pm.vertex_color_use_as_albedo = true
+	pq.material = pm; pt.mesh = pq; pt.amount = 30; pt.lifetime = 2.6; pt.preprocess = 2.0
+	pt.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX; pt.emission_box_extents = Vector3(1.0, .6, .2)
+	pt.direction = Vector3(0, .6, 1); pt.spread = 30.0; pt.initial_velocity_min = .2; pt.initial_velocity_max = .5; pt.gravity = Vector3.ZERO
+	var cg := Gradient.new(); cg.set_color(0, Color(1, 1, 1, 0)); cg.add_point(.3, Color(1, 1, 1, 1)); cg.set_color(cg.get_point_count() - 1, Color(1, 1, 1, 0)); pt.color_ramp = cg
+	pt.position = Vector3(0, .8, -1.4); gate_node.add_child(pt)
 
 # ---------------- 매 프레임 ----------------
 func sync(dt: float) -> void:
 	var G = game.G; var P = game.P; var mg = game.mg
 	# 플레이어
 	player.position = w3(P.x, P.y + 2)
+	# 계단을 오르내리는 동안: 발이 계단 높이를 따라가고, 벽에 가려 잘리지 않게 맨 앞에 그린다
+	var climbing: bool = G.pull != null and G.pull.what in ["stairs", "down"]
+	if climbing:
+		var fr: float = clamp((G.pull.ty + 58 - P.y) / 58.0, 0.0, 1.0)
+		player.position.y = fr * World.WALLZ * .95 * (1.0 if G.pull.what == "stairs" else -1.0)
+	player.spr.no_depth_test = climbing
 	player.face = P.face
 	player.set_anim(P.anim); player.at = P.at; player.tick(0)
 	var blink: bool = P.inv > 0 and int(G.time * 30) % 2 == 1
@@ -618,7 +659,7 @@ func _sync_lines(G, P) -> void:
 			var a = atan2(s.vy, s.vx)
 			_line(lines_mix, [Vector2(s.x - cos(a) * 10, s.y - sin(a) * 10), Vector2(s.x, s.y)], 2, Color("#e8dcc0"), .9)
 	# 계단·문 앞의 회색 반원: 여기 들어서면 빨려 들어간다
-	for st in [game.mg.stairs, game.mg.door]:
+	for st in [game.mg.stairs, game.mg.door, game.mg.down]:
 		if st == null or G.floor == 0 or not st.get("alcove", false) or not game.mg.is_seen(st.x, st.y + 8): continue
 		var pul: float = .5 + .5 * sin(G.time * 2.4)
 		var pts: Array = [Vector2(st.x, st.y)]

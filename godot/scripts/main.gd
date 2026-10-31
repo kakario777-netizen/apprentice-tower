@@ -347,13 +347,19 @@ func _read_input(st: Dictionary) -> void:
 	if test_inp != null: game.inp = test_inp
 
 # ---------------- 매 프레임 ----------------
+# 레벨업 순간 슬로모션 → 멈춤, 고른 뒤에는 부드럽게 원래 속도로
+var tscale := 1.0
+func slow_resume() -> void: tscale = min(tscale, .15)
+
 func _process(dt: float) -> void:
 	dt = min(dt, .05)
 	var st = _pad_frame()
 	var G = game.G
 	if G != null and G.state == "play":
 		_read_input(st)
-		game.update(dt)
+		if G.pendingLv > 0: tscale = move_toward(tscale, .12, dt * 2.2)
+		elif tscale < 1.0: tscale = move_toward(tscale, 1.0, dt * 1.35)
+		game.update(dt * tscale)
 		autosave_t += dt
 		if autosave_t >= autosave_min * 60.0:
 			autosave_t = 0.0; game.save()
@@ -471,6 +477,9 @@ func _run_samples() -> void:
 	await _frames(10)
 	P.x = game.G.npcs[0].x + 40; P.y = game.G.npcs[0].y + 30
 	await _frames(12); await _snap("2_town")
+	var gx = game.mg.gate
+	if gx != null:
+		var keep_p := Vector2(P.x, P.y); P.x = gx.x; P.y = gx.y + 170; await _frames(10); await _snap("2b_gate"); P.x = keep_p.x; P.y = keep_p.y
 	ui.open_talk(game.G.npcs[1]); await _frames(4); await _snap("3_shop"); ui.close_talk()
 	P.x = game.G.npcs[2].x + 30; P.y = game.G.npcs[2].y + 40; await _frames(10); await _snap("3a_smith")
 	ui.open_talk(game.G.npcs[2]); ui.enh_sel = ui._enh_items()[0]; ui._render_enhance(); await _frames(4); await _snap("3b_enhance"); ui.close_talk()
@@ -495,7 +504,12 @@ func _run_samples() -> void:
 	for i in bases.size(): game.G.drops.append({id = game.nid(), x = P.x - 160 + i * 40, y = P.y + 110, kind = "item", it = game.make_item(D.RAR_ORDER[i % 5], 5, bases[i]), t = 0.0, noPick = 1})
 	await _frames(8); await _snap("4c_loot"); game.G.drops = []
 	game.cast_sec("nova"); await _frames(6); await _snap("5_nova")
-	game.G.pendingLv = 1; game.set_state("levelup"); ui.open_level(); await _frames(4); await _snap("6_levelup"); ui.hide_all(); game.G.pendingLv = 0; game.set_state("play")
+	game.levelup_blast(); await _frames(5); await _snap("5b_blast")
+	game.G.pendingLv = 1; game.set_state("levelup"); ui.open_level(); await _frames(40); await _snap("6_levelup")
+	var g0 = ui.box.get_node_or_null("lvgrid")
+	if g0 and g0.get_child_count(): ui._lv_pick(g0.get_child(0).get_meta("opt"))
+	await _frames(45); await _snap("6b_pick")
+	ui.hide_all(); ui.bg.material = null; game.G.pendingLv = 0; game.set_state("play")
 	ui.open_bag(); ui.bag_sel = {from = "bag", i = 2}; ui._render_bag(); await _frames(4); await _snap("7_bag"); ui.close_bag()
 	ui.open_bag(); ui.bag_sel = {from = "eq", slot = "weapon"}; ui._render_bag(); await _frames(4); await _snap("7a_bag_unique"); ui.close_bag()
 	# 포탈: 그 자리에 열고 → 마을 → 마을 포탈로 다시 그 자리
@@ -513,6 +527,9 @@ func _run_samples() -> void:
 		P.x = st.x + 20; P.y = st.y + 110; game.G.enemies = []
 		for k in 3: game.mg.reveal(P.x, P.y - k * 60)
 		game.mg.dirty = true; await _frames(8); await _snap("8_stairs")
+		P.x = st.x; P.y = st.y + 40; await _frames(14); await _snap("8d_climb")
+		while game.G.pull != null: await _frames(2)
+		await _frames(10); await _snap("8e_arrive")
 	# 테라스
 	for f in range(2, 12):
 		game.sand_goto(f); await _frames(2)

@@ -25,6 +25,7 @@ var boss_room = false
 var terrace := false            # 야외 테라스 맵
 var door = null                 # 테라스로 나가는 문 / 테라스에서 돌아오는 문 {x,y,found}
 var alcoves: Array = []         # 벽을 판 자리 {tx, ty0, depth, kind}
+var down = null                 # 내려가는 계단(올라와서 도착한 자리 뒤 벽) {x,y,found}
 var dirty := true                 # 안개·미니맵 다시 그리기
 
 static func hash2(i: int, j: int) -> int:
@@ -72,7 +73,7 @@ func _reset() -> void:
 	seen = PackedByteArray(); seen.resize(MW * MH); seen.fill(0)
 	flow = PackedInt32Array(); flow.resize(MW * MH); flow.fill(-1)
 	rooms = []; torches = []; decor = []; obst = []; town = null; gate = null; stairs = null; boss_room = false
-	terrace = false; door = null; alcoves = []
+	terrace = false; door = null; alcoves = []; down = null
 	dirty = true
 
 func carve(x: int, y: int, w: int, h: int) -> void:
@@ -188,6 +189,7 @@ func gen_town() -> void:
 	# 북쪽 탑 문까지 올라가는 길목
 	var top := cy - int(ry) - 3
 	carve(cx - 2, top, 4, cy - top)
+	carve(cx - 5, top + 1, 10, 4)          # 탑 입구 앞 작은 돌 광장
 	var x0 := cx - int(rx) - 2; var y0 := top; var w := int(rx) * 2 + 4; var h := cy + int(ry) + 3 - top
 	rooms.append(_room(x0, y0, w, h, true))
 	seen.fill(1)
@@ -214,6 +216,8 @@ func gen_town() -> void:
 					if ii < 0 or jj < 0 or ii >= MW or jj >= MH: continue
 					if Vector2(ii + .5, jj + .5).distance_to(p / T) < r: path[jj * MW + ii] = 1
 	curve.call(gate, fountain, rnd(-2.5, 2.5), 1.6)
+	for jj in range(top, top + 5):
+		for ii in range(cx - 5, cx + 5): path[jj * MW + ii] = 1
 	curve.call(fountain, shop + Vector2(-24, 30), rnd(-4, 4), 1.3)
 	curve.call(fountain, guide + Vector2(20, -10), rnd(-4, 4), 1.3)
 	curve.call(fountain, start + Vector2(0, 40), rnd(-3, 3), 1.4)
@@ -237,7 +241,7 @@ func gen_town() -> void:
 		var ti := ri(x0 + 2, x0 + w - 3); var tj := ri(y0 + 3, y0 + h - 3)
 		if at(ti, tj) != 0 or path[tj * MW + ti] or at(ti, tj + 1) != 0: continue
 		var p := Vector2((ti + .5) * T, (tj + .5) * T)
-		if p.distance_to(fountain) < 150 or p.distance_to(shop) < 90 or p.distance_to(guide) < 90 or p.distance_to(smith) < 110 or p.distance_to(start) < 80 or p.distance_to(gate) < 120: continue
+		if p.distance_to(fountain) < 150 or p.distance_to(shop) < 90 or p.distance_to(guide) < 90 or p.distance_to(smith) < 110 or p.distance_to(start) < 80 or p.distance_to(gate) < 260: continue
 		var far := true
 		for o in obst:
 			if Vector2(o.x, o.y).distance_to(p) < 70: far = false
@@ -248,9 +252,10 @@ func gen_town() -> void:
 	for k in 40:
 		var ti := ri(x0, x0 + w); var tj := ri(y0, y0 + h)
 		if at(ti, tj) != 0 or path[tj * MW + ti]: continue
+		if Vector2((ti + .5) * T, (tj + .5) * T).distance_to(gate) < 220: continue     # 탑 입구 앞은 깨끗하게
 		decor.append({kind = "prop", p = pick(PL), pos = Vector2((ti + rnd(.1, .9)) * T, (tj + rnd(.1, .9)) * T), s = .8})
 	# 등불: 길가를 따라
-	for q in [[gate + Vector2(-70, 60), 0], [gate + Vector2(70, 60), 0], [fountain + Vector2(-110, -40), 0], [fountain + Vector2(110, 60), 0], [shop + Vector2(-60, 50), 0], [guide + Vector2(60, -40), 0]]:
+	for q in [[fountain + Vector2(-110, -40), 0], [fountain + Vector2(110, 60), 0], [shop + Vector2(-60, 50), 0], [guide + Vector2(60, -40), 0]]:
 		var p: Vector2 = q[0]
 		if not solid_at(p.x, p.y): torches.append({pos = p, wall = false, lamp = true})
 	build_flow(start.x, start.y)
@@ -268,6 +273,9 @@ func gen_floor(fl: int, boss: bool, want_door := false) -> void:
 		for j in range(y - 1, y + h + 1):
 			for i in range(x - 1, x + w + 1): seen[j * MW + i] = 1
 		start = Vector2((x + w / 2.0) * T, (y + h - 3) * T)
+		down = carve_alcove(rooms[0], 2, "down")
+		if down != null:
+			down.found = true; start = Vector2(down.x, down.y + 52)
 	else:
 		var cols = 4; var rows = 3; var cw = (MW - 2) / cols; var ch = (MH - 2) / rows
 		var cells: Array = []
@@ -325,8 +333,17 @@ func gen_floor(fl: int, boss: bool, want_door := false) -> void:
 			if c.id != start_c.id: rooms.append(c.room)
 		for r in rooms: carve(r.x, r.y, r.w, r.h)
 		for e in edges: corridor_adj(e[0].room, e[1].room, e[0].gy == e[1].gy)
+		# 올라온 계단: 벽을 팔 수 있는 방을 시작 방으로 삼고, 그 북쪽 벽 계단 앞에서 시작 — 다시 내려갈 수 있다
+		for idx in rooms.size():
+			down = carve_alcove(rooms[idx], 2, "down")
+			if down != null:
+				if idx != 0:
+					var tmp = rooms[0]; rooms[0] = rooms[idx]; rooms[idx] = tmp
+				break
 		var s: Dictionary = rooms[0]
 		start = Vector2(s.cx, s.cy); s.seen = true
+		if down != null:
+			down.found = true; start = Vector2(down.x, down.y + 52)
 		build_flow(start.x, start.y)
 		var far: Dictionary = rooms[1]; var fd = -1
 		for r in rooms:
@@ -399,6 +416,13 @@ func gen_terrace(fl: int, roof := false) -> void:
 		if not hits(p.x, p.y, 8): decor.append({kind = "prop", p = pick(PL), pos = p, s = .8})
 	build_flow(start.x, start.y)
 
+func near_alcove(p: Vector2, r := 80.0) -> bool:
+	for a in alcoves:
+		var m := Vector2((a.tx + 1) * T, (a.ty0 + a.depth) * T)
+		if absf(p.x - m.x) < r and p.y > m.y - 10 and p.y - m.y < r * 1.4: return true
+		if absf(p.x - m.x) < 48 and p.y <= m.y and p.y > a.ty0 * T - 4: return true
+	return false
+
 func _decorate() -> void:
 	const PROPS := ["barrel1", "barrel2", "dcrate1", "dcrate2", "barrel1", "lectern1", "statue1", "statue2", "chain1", "dcrate2"]
 	const BONES := ["bones1", "bones2", "bones3", "bones4", "bones5", "skulls", "skeleton1", "skeleton2"]
@@ -406,7 +430,7 @@ func _decorate() -> void:
 		var n: int = max(2, r.w / 5)
 		for k in n:
 			var tx: int = r.x + int(round((k + .5) * r.w / n)); var ty: int = r.y - 1
-			if at(tx, ty) == 1 and at(tx, ty + 1) == 0:
+			if at(tx, ty) == 1 and at(tx, ty + 1) == 0 and not near_alcove(Vector2((tx + .5) * T, r.y * T + 4), 40):
 				torches.append({pos = Vector2((tx + .5) * T, r.y * T), wall = true, lamp = false})
 		if not boss_room:
 			for k in ri(0, 3):
@@ -415,12 +439,13 @@ func _decorate() -> void:
 				var close = false
 				for d in decor:
 					if d.kind == "prop" and absf(d.pos.x - p.x) < 40 and absf(d.pos.y - p.y) < 40: close = true
-				if close: continue
+				if close or near_alcove(p): continue
 				decor.append({kind = "prop", p = pn, pos = p, s = .85 if pn.begins_with("statue") else .8})
 				if not pn.begins_with("chain"): obst.append({x = p.x, y = p.y, r = 10.0})
 		for k in ri(2, 6):
 			if randf() < .55:
 				var p = Vector2((r.x + rnd(1, r.w - 1)) * T, (r.y + rnd(1, r.h - 1)) * T)
+				if near_alcove(p): continue
 				decor.append({kind = "prop", p = BONES[hash2(int(p.x), int(p.y)) % BONES.size()], pos = p, s = .75})
 
 # 벽 칸의 테두리 비트: 1=북쪽이 바닥, 2=동, 4=남, 8=서. 바닥과 닿지 않은 벽은 -1

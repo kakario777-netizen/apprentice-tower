@@ -96,7 +96,9 @@ func _process(dt: float) -> void:
 	save_l.reset_size()
 	var mx: float = mini.position.x if mini.visible else vs.x - ins.r
 	save_l.position = Vector2(mx - save_l.size.x - 14, ins.t + 10)
-	if game.G != null and game.G.get("pull") != null: fader.modulate.a = clamp(game.G.pull.t / .9, 0, 1)
+	if game.G != null and game.G.get("pull") != null:
+		var du: float = game.G.pull.get("dur", 1.0)
+		fader.modulate.a = clamp((game.G.pull.t - du * .45) / (du * .5), 0, 1)
 	else: fader.modulate.a = move_toward(fader.modulate.a, 0.0, dt * 2.4)
 	toast_l.modulate.a = clamp(toast_t * 4, 0, 1) if toast_t < .25 else min(1.0, toast_l.modulate.a + dt * 4)
 	toast_l.reset_size(); toast_l.position = Vector2((vs.x - toast_l.size.x) / 2, ins.t + 58)
@@ -410,6 +412,8 @@ class HudDraw extends Control:
 		if G.portal != null: text(wp(G.portal.x, G.portal.y + 22, 52), ("포탈 · %d층으로 돌아가기" % G.portal.resume) if G.portal.get("back", false) else ("웨이포인트 · 마을로" if G.portal.get("way", false) else ("포탈 · 마을로" if G.portal.get("tp", false) else "마을로")), 11, Color("#cfe6ff"))
 		if mg.door != null and G.floor > 0 and mg.is_seen(mg.door.x, mg.door.y + 8):
 			text(wp(mg.door.x, mg.door.y, 70), "탑 안으로" if mg.terrace else "바깥 테라스", 12, Color("#cfe6ff") if not mg.terrace else Color("#ffe0b0"))
+		if mg.get("down") != null and G.floor > 0 and mg.is_seen(mg.down.x, mg.down.y + 8):
+			text(wp(mg.down.x, mg.down.y, 64), "마을로 내려가기" if G.floor == 1 else "%d층으로 내려가기" % (G.floor - 1), 12, Color("#cfe0ff"))
 		if G.nearItem != null:
 			var d = G.nearItem
 			var p = wp(d.x, d.y, 30)

@@ -179,7 +179,7 @@ const BASES := [
 	{id = "amulet", slot = "amulet", names = ["은 목걸이", "호박 목걸이", "수정 목걸이", "별빛 목걸이", "용의 눈 목걸이"], imp = null},
 	{id = "gloves", slot = "gloves", names = ["천 장갑", "가죽 장갑", "사슬 장갑", "룬 장갑", "용린 장갑"], imp = {k = "cast", v = .03}},
 	{id = "belt", slot = "belt", names = ["가죽 허리띠", "징 박힌 허리띠", "은사 허리띠", "수호자 허리띠", "거인 허리띠"], imp = {k = "hp", v = 6}},
-	{id = "boots", slot = "boots", names = ["천 신발", "가죽 장화", "여행자 장화", "바람 장화", "구름 장화"], imp = {k = "spd", v = .03}},
+	{id = "boots", slot = "boots", names = ["천 신발", "가죽 장화", "여행자 장화", "바람 장화", "구름 장화"], imp = {k = "spd", v = .02}},
 ]
 static func base(id: String) -> Dictionary:
 	for b in BASES:
@@ -217,13 +217,13 @@ const UNIQUES := [
 	{name = "일곱 번째 별", base = "ring", mods = [["dmg", .08, .12], ["mp", 15, 25], ["gold", .2, .4]]},
 	{name = "별의 심장", base = "amulet", mods = [["prim:mine", 1, 1], ["hp", 25, 40], ["regen", .15, .25]]},
 	{name = "마녀의 눈물", base = "amulet", mods = [["mp", 30, 50], ["sec:freeze", 1, 1], ["dmg", .08, .12]]},
-	{name = "밤의 장막", base = "cloak", mods = [["res", .1, .15], ["spd", .06, .1], ["sec:blink", 1, 1]]},
+	{name = "밤의 장막", base = "cloak", mods = [["res", .1, .15], ["regen", .12, .2], ["sec:blink", 1, 1]]},
 	{name = "불사조의 깃", base = "robe", mods = [["hp", 30, 50], ["prim:fire", 1, 1], ["res", .06, .1]]},
 	{name = "마법사의 손길", base = "gloves", mods = [["cast", .1, .15], ["dmg", .06, .1], ["mp", 15, 25]]},
 	{name = "얼음 손아귀", base = "gloves", mods = [["prim:frost", 1, 1], ["sub:harden", 1, 1], ["res", .05, .08]]},
 	{name = "거신의 띠", base = "belt", mods = [["hp", 40, 70], ["res", .05, .08]]},
-	{name = "바람 걸음", base = "boots", mods = [["spd", .12, .18], ["cast", .05, .08]]},
-	{name = "그림자 발자국", base = "boots", mods = [["spd", .08, .12], ["sec:blink", 1, 1], ["res", .04, .06]]},
+	{name = "바람 걸음", base = "boots", mods = [["spd", .05, .07], ["cast", .05, .08]]},
+	{name = "그림자 발자국", base = "boots", mods = [["spd", .03, .05], ["sec:blink", 1, 1], ["res", .04, .06]]},
 ]
 # 세트: 같은 세트를 여러 개 끼면 추가 효과(초록색)
 const SETS := {
@@ -236,7 +236,7 @@ const SETS := {
 		{name = "불새의 목걸이", base = "amulet", mods = [["hp", 20, 20], ["dmg", .06, .06]]},
 		{name = "불새의 로브", base = "robe", mods = [["res", .06, .06], ["mp", 20, 20]]},
 		{name = "불새의 장갑", base = "gloves", mods = [["cast", .08, .08]]},
-		{name = "불새의 장화", base = "boots", mods = [["spd", .08, .08]]}],
+		{name = "불새의 장화", base = "boots", mods = [["spd", .04, .04]]}],
 		bonus = {2: [["prim:fire", 1]], 3: [["res", .08]], 4: [["dmg", .2], ["hp", 40]]}},
 	star = {name = "별지기의 장신구", pieces = [
 		{name = "별지기의 목걸이", base = "amulet", mods = [["mp", 25, 25]]},
@@ -246,8 +246,8 @@ const SETS := {
 	frost = {name = "서리 군주의 갑주", pieces = [
 		{name = "서리 군주의 망토", base = "cloak", mods = [["res", .08, .08], ["hp", 20, 20]]},
 		{name = "서리 군주의 장갑", base = "gloves", mods = [["dmg", .06, .06]]},
-		{name = "서리 군주의 장화", base = "boots", mods = [["spd", .06, .06], ["res", .03, .03]]}],
-		bonus = {2: [["prim:frost", 1]], 3: [["res", .12], ["spd", .08]]}},
+		{name = "서리 군주의 장화", base = "boots", mods = [["spd", .03, .03], ["res", .03, .03]]}],
+		bonus = {2: [["prim:frost", 1]], 3: [["res", .12], ["cdr", .1]]}},
 }
 # 강화(강화석 1개씩): 성공률은 점점 낮아짐 · 한 번 성공할 때마다 옵션 +20%, 스킬 +1
 const ENH_RATE := [100, 85, 70, 55, 40, 25, 10, 8, 6, 5]
@@ -263,6 +263,7 @@ static func eff_mods(it) -> Array:
 		var k: String = m.k; var v = m.v
 		if is_skill(k): v = int(v) + e
 		elif k == "hp" or k == "mp": v = int(round(float(v) * (1 + .2 * e)))
+		elif k == "spd": v = snappedf(float(v) * (1 + .05 * e), .01)   # 이동 속도는 강화해도 조금만
 		else: v = snappedf(float(v) * (1 + .2 * e), .01)
 		out.append({k = k, v = v})
 	return out
