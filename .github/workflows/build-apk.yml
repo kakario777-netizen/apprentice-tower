@@ -8,6 +8,9 @@ on:
       - '.github/workflows/godot.yml'
       - 'tools/samples.sh'
       - 'tools/godot_icons.py'
+      - 'tools/fetch_assets.py'
+      - 'tools/normal_maps.py'
+      - '.github/workflows/assets.yml'
   workflow_dispatch:
 
 permissions:
