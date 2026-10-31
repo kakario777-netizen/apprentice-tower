@@ -9,6 +9,8 @@ on:
       - 'tools/samples.sh'
       - 'tools/godot_icons.py'
       - 'tools/fetch_assets.py'
+      - 'tools/fetch_pages.py'
+      - '.github/workflows/asset-pages.yml'
       - 'tools/normal_maps.py'
       - '.github/workflows/assets.yml'
   workflow_dispatch:

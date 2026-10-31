@@ -1,0 +1,22 @@
+name: 에셋 라이선스 페이지
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/fetch_pages.py'
+
+permissions:
+  contents: write
+
+jobs:
+  pages:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 tools/fetch_pages.py /tmp/pages
+      - run: |
+          cd /tmp/pages && git init -q -b asset-pages
+          git config user.name "asset-bot"; git config user.email "asset-bot@users.noreply.github.com"
+          git add -A && git commit -qm pages && git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" asset-pages
