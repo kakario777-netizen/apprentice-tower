@@ -96,7 +96,7 @@ class Card extends PanelContainer:
 			var t = TextureRect.new(); t.texture = load(Ui.icon_path(opt.icon)); t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 			t.custom_minimum_size = Vector2(66, 66) if big else Vector2(54, 54); t.size_flags_vertical = Control.SIZE_SHRINK_BEGIN; t.mouse_filter = Control.MOUSE_FILTER_IGNORE; h.add_child(t)
 		var v = VBoxContainer.new(); v.add_theme_constant_override("separation", 4); v.size_flags_horizontal = Control.SIZE_EXPAND_FILL; v.mouse_filter = Control.MOUSE_FILTER_IGNORE; h.add_child(v)
-		v.add_child(Ui.label(opt.tag, 13 if big else 11, Ui.MUTED))
+		var tg = Ui.label(opt.tag, 13 if big else 11, Ui.MUTED); tg.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; v.add_child(tg)
 		var tt = Ui.label(opt.title, 22 if big else 18, Ui.INK, Ui.display); tt.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; v.add_child(tt)
 		var ds = Ui.label(opt.desc, 15 if big else 13, Ui.MUTED.lightened(.15) if big else Ui.MUTED); ds.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; v.add_child(ds)
 		focus_entered.connect(func(): add_theme_stylebox_override("panel", focused))
@@ -106,7 +106,7 @@ class Card extends PanelContainer:
 			if ev.pressed: _down = true
 			elif _down:
 				_down = false
-				if get_global_rect().has_point(get_global_mouse_position()): pressed.emit()
+				if Rect2(Vector2.ZERO, size).has_point(ev.position): pressed.emit()     # 뗀 자리가 카드 안이면 선택
 			accept_event()
 		elif ev.is_action_pressed("ui_accept"):
 			pressed.emit(); accept_event()
@@ -151,7 +151,8 @@ func hide_all() -> void:
 
 func _begin(id: String, dim := .88, align := BoxContainer.ALIGNMENT_CENTER, left := false) -> void:
 	cur = id; root.visible = true
-	for c in box.get_children(): c.queue_free()
+	for c in box.get_children():
+		box.remove_child(c); c.queue_free()      # 바로 떼어내야 같은 이름의 새 창과 엉키지 않는다
 	var bc = root.get_node_or_null("bagclose")
 	if bc and id != "bag": bc.queue_free()
 	bg.color = Color(.035, .027, .055, dim); bg.material = null
@@ -398,6 +399,7 @@ void fragment() {
 
 var lv_sel = null
 var lv_busy := false
+var lv_grid: Control = null
 func _tw() -> Tween:
 	var t := create_tween(); t.set_ignore_time_scale(true); return t
 
@@ -411,7 +413,7 @@ func open_level() -> void:
 	box.add_child(lead("남은 선택 %d번. 셋 중 하나를 익히세요." % G.pendingLv if G.pendingLv > 1 else "셋 중 하나를 익히세요."))
 	var opts = game.build_options()
 	for o in opts: o.big = true
-	var grid := cards(opts, func(o): _lv_pick(o), 820.0); grid.name = "lvgrid"
+	var grid := cards(opts, func(o): _lv_pick(o), 820.0); grid.name = "lvgrid"; lv_grid = grid
 	box.add_child(grid)
 	# 원작처럼 아래에서 천천히 떠오르며 나타난다(카드는 하나씩)
 	var m: MarginContainer = scroll.get_node("m")
@@ -428,15 +430,16 @@ func open_level() -> void:
 
 func _lv_pick(o: Dictionary) -> void:
 	if lv_busy or lv_sel != null: return
+	var grid = lv_grid
+	if grid == null or not is_instance_valid(grid): return
 	lv_sel = o
 	main.snd.play("ok")
-	var grid = box.get_node_or_null("lvgrid")
-	if grid == null: return
 	var card: Control = null
 	for c in grid.get_children():
 		if c.get_meta("opt") == o: card = c
 		else: _tw().tween_property(c, "modulate", Color(.55, .55, .6, .55), .25)
-	if card == null: return
+	if card == null:
+		lv_sel = null; return
 	# 살짝 울렁이며 커지고, 뒤로 은은한 반짝임
 	card.pivot_offset = card.size / 2; card.z_index = 2
 	var t := _tw().set_trans(Tween.TRANS_SINE)
@@ -462,8 +465,8 @@ func _lv_pick(o: Dictionary) -> void:
 func _lv_cancel() -> void:
 	if lv_busy: return
 	lv_sel = null
-	var grid = box.get_node_or_null("lvgrid")
-	if grid:
+	var grid = lv_grid
+	if grid and is_instance_valid(grid):
 		for c in grid.get_children():
 			_tw().tween_property(c, "modulate", Color.WHITE, .2); _tw().tween_property(c, "scale", Vector2.ONE, .2); c.z_index = 0
 	var bar = box.get_node_or_null("lvconfirm")
@@ -680,10 +683,10 @@ func _render_trade() -> void:
 		r.add_child(b); rv.add_child(r)
 	cols.add_child(right)
 	box.add_child(cols)
-	var tip = label("안 쓰는 장비는 아래 '가방 열기'로 상인 미라에게 팔 수 있어요.", 12, MUTED); tip.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER; box.add_child(tip)
+	var tip = label("안 쓰는 장비는 아래 '물건 판매 (가방 열기)'로 팔 수 있어요.", 12, MUTED); tip.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER; box.add_child(tip)
 	var obf = func():
 		talk_npc = null; open_bag(true)
-	box.add_child(row([btn("가방 열기", obf, true), btn("닫기", close_talk)]))
+	box.add_child(row([btn("물건 판매 (가방 열기)", obf), btn("닫기", close_talk)]))
 	_focus_first()
 
 # ---------------- 강화(카엘 교수 · 마법진) ----------------

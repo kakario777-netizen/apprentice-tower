@@ -36,6 +36,7 @@ var bench_n := 0
 var test_floor := 0
 var test_inp = null
 var samples_dir := ""
+var lvtest := false
 
 func _ready() -> void:
 	Ui.init_fonts()
@@ -55,6 +56,7 @@ func _ready() -> void:
 		elif a.begins_with("--mode="): shot_mode = a.substr(7)
 		elif a == "--bench": bench = true
 		elif a.begins_with("--samples="): samples_dir = a.substr(10)
+		elif a == "--lvtest": lvtest = true
 		elif a.begins_with("--seed="): seed(int(a.substr(7)))
 	add_child(game)
 	World.set_fog(PackedByteArray())
@@ -77,6 +79,7 @@ func _ready() -> void:
 	ui.open_title()
 	if test_floor > 0 or shot_mode != "": _test_setup()
 	if samples_dir != "": _run_samples()
+	if lvtest: _run_lvtest()
 
 func _setup_env(town: bool) -> void:
 	var mg := game.mg
@@ -511,6 +514,18 @@ func _run_samples() -> void:
 	var g0 = ui.box.get_node_or_null("lvgrid")
 	if g0 and g0.get_child_count(): ui._lv_pick(g0.get_child(0).get_meta("opt"))
 	await _frames(45); await _snap("6b_pick")
+	# 두 번째 레벨업: 실제 터치(마우스 누름·뗌)로 카드를 골라 확인
+	if g0 and g0.get_child_count(): ui._lv_confirm(g0.get_child(0).get_meta("opt"))
+	await _frames(30)
+	game.G.pendingLv = 1; game.set_state("levelup"); ui.open_level(); await _frames(40)
+	var g1 = ui.lv_grid
+	if g1 and g1.get_child_count() > 1:
+		var c1: Control = g1.get_child(1); var cp: Vector2 = c1.get_viewport().get_screen_transform() * c1.get_global_rect().get_center()
+		for pr in [true, false]:
+			var ev := InputEventMouseButton.new(); ev.button_index = MOUSE_BUTTON_LEFT; ev.pressed = pr; ev.position = cp; ev.global_position = cp
+			Input.parse_input_event(ev); await _frames(2)
+	await _frames(40); await _snap("6c_second_pick")
+	print("LVTEST sel=", ui.lv_sel != null)
 	ui.hide_all(); ui.bg.material = null; game.G.pendingLv = 0; game.set_state("play")
 	ui.open_bag(); ui.bag_sel = {from = "bag", i = 2}; ui._render_bag(); await _frames(4); await _snap("7_bag"); ui.close_bag()
 	ui.open_bag(); ui.bag_sel = {from = "eq", slot = "weapon"}; ui._render_bag(); await _frames(4); await _snap("7a_bag_unique"); ui.close_bag()
@@ -582,3 +597,36 @@ func _sound_frame() -> void:
 		if k == "chain" or k == "beam": lp = "storm"
 		elif k == "cone": lp = "frost"
 	snd.loop(lp)
+
+# 레벨업 선택 시험(개발용): 레벨업 세 번 연속, 실제 터치로 카드 고르고 "선택"
+func _tap(c: Control) -> void:
+	var cp: Vector2 = c.get_viewport().get_screen_transform() * c.get_global_rect().get_center()
+	for pr in [true, false]:
+		var ev := InputEventMouseButton.new(); ev.button_index = MOUSE_BUTTON_LEFT; ev.pressed = pr; ev.position = cp; ev.global_position = cp
+		Input.parse_input_event(ev); await _frames(2)
+
+func _run_lvtest() -> void:
+	await _frames(10)
+	ui.hide_all(); game.new_game("norm"); game.G.sb = {god = true, mana = true, nocd = true, still = true}
+	game.P.prim.arcane = 1; game.P.active = "arcane"; game.G.resume = 1; game.enter_tower(); hud.build_buttons(); await _frames(5)
+	for round in 3:
+		game.gain_xp((game.P.next - game.P.xp) / game.diff_d().reward + 1)
+		for k in 200:
+			if ui.cur == "level": break
+			await _frames(1)
+		await _frames(30)
+		await _tap(ui.lv_grid.get_child(round % 3))
+		for k in 100:
+			if ui.box.get_node_or_null("lvconfirm") != null: break
+			await _frames(1)
+		var bar = ui.box.get_node_or_null("lvconfirm")
+		print("LVTEST round ", round, " picked=", ui.lv_sel != null, " confirm=", bar != null)
+		if bar == null: break
+		var yes: Control = bar.get_child(1).get_child(0)
+		await _tap(yes)
+		for k in 100:
+			if game.G.state == "play": break
+			await _frames(1)
+		print("LVTEST round ", round, " state=", game.G.state, " pending=", game.G.pendingLv)
+		await _frames(20)
+	get_tree().quit()
