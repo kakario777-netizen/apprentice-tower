@@ -198,6 +198,7 @@ func btn(t: String, fn: Callable, ghost := false) -> Button:
 		b.add_theme_stylebox_override("normal", btn_sb(true)); b.add_theme_stylebox_override("hover", btn_sb(true, .05)); b.add_theme_stylebox_override("pressed", btn_sb(true, -.05))
 		b.add_theme_color_override("font_color", INK); b.add_theme_color_override("font_hover_color", INK); b.add_theme_color_override("font_pressed_color", INK); b.add_theme_color_override("font_focus_color", INK)
 		b.add_theme_font_override("font", body)
+	b.pressed.connect(func(): main.snd.play("click"))
 	b.pressed.connect(fn)
 	return b
 
@@ -698,6 +699,7 @@ func _slot(it, lb: String, sel: bool, sz: float, fn: Callable) -> Button:
 		t.position = Vector2(sz * .08, sz * .06); t.size = Vector2(sz * .84, sz * .84); t.mouse_filter = Control.MOUSE_FILTER_IGNORE; b.add_child(t)
 	if lb != "":
 		var l = label(lb, 10, MUTED); l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER; l.position = Vector2(0, sz - 15); l.size = Vector2(sz, 14); b.add_child(l)
+	b.pressed.connect(func(): main.snd.play("click"))
 	b.pressed.connect(fn)
 	return b
 
@@ -889,7 +891,8 @@ func _tabbar(active: String) -> Control:
 		b.add_theme_font_override("font", bold); b.add_theme_font_size_override("font_size", 15)
 		for k in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]: b.add_theme_color_override(k, Color("#1b1206") if on else INK)
 		var id: String = t[0]
-		b.pressed.connect(func(): open_tab(id))
+		b.pressed.connect(func():
+			main.snd.play("book"); open_tab(id))
 		b.set_meta("key", "tab:" + id)
 		bar.add_child(b)
 	var sp = Control.new(); sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL; bar.add_child(sp)
@@ -1033,6 +1036,22 @@ func _tab_settings(body: Control) -> void:
 	var fpsf = func():
 		main.show_fps = not main.show_fps; main.save_settings(); open_tab("settings")
 	v.add_child(row([btn("FPS 표시: %s" % ("켜짐" if main.show_fps else "꺼짐"), fpsf, true)], false))
+	v.add_child(label("소리", 17, GOLD, display))
+	for kind in [["배경음", "music"], ["효과음", "sfx"]]:
+		var cr: Array = []
+		var kk: String = kind[1]
+		for lv in [[0.0, "끔"], [.35, "작게"], [.7, "보통"], [1.0, "크게"]]:
+			var cur_v: float = main.snd.music_vol if kk == "music" else main.snd.sfx_vol
+			var setf = func(vv):
+				if kk == "music": main.snd.set_music_vol(vv)
+				else: main.snd.sfx_vol = vv
+				main.save_settings(); open_tab("settings")
+			var b = _chip(HBoxContainer.new(), lv[1], setf.bind(lv[0]), absf(cur_v - lv[0]) < .05)
+			b.get_parent().remove_child(b); cr.append(b)
+		var hr = HBoxContainer.new(); hr.add_theme_constant_override("separation", 8)
+		var nl = label(kind[0], 14, INK); nl.custom_minimum_size.x = 60; hr.add_child(nl)
+		for b in cr: hr.add_child(b)
+		v.add_child(hr)
 	v.add_child(label("자동 저장", 17, GOLD, display))
 	var af = func(mn):
 		main.autosave_min = mn; main.autosave_t = 0.0; main.save_settings(); open_tab("settings")
@@ -1116,7 +1135,7 @@ func _chip(box_: Control, t: String, fn: Callable, pressed = null) -> Button:
 	b.add_theme_font_override("font", body); b.add_theme_font_size_override("font_size", 13)
 	for k in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]: b.add_theme_color_override(k, Color("#1b1206") if on else INK)
 	b.pressed.connect(func():
-		fn.call(); _render_sand())
+		main.snd.play("click"); fn.call(); _render_sand())
 	box_.add_child(b); return b
 
 func _grp(parent: Control, t: String) -> VBoxContainer:

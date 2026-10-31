@@ -5,6 +5,7 @@ extends Node
 signal toast(msg: String)
 signal ui(what: String)        # "buttons" "belt" "bag" "levelup" "end" "state" "talk"
 signal rumble(ms: int, strength: float)
+signal sfx(name: String)        # 효과음
 signal saved                    # 저장할 때마다(오른쪽 위 "자동 저장 중…")
 
 const T := 32.0
@@ -437,6 +438,7 @@ func smoke(x: float, y: float, n: int, c := "#2a2430") -> void:
 func kill_enemy(e: Dictionary) -> void:
 	if e.dead: return
 	e.dead = true; G.kills += 1
+	sfx.emit("roar" if (e.isBoss or e.get("elite", false)) else "die")
 	var kk: String = e.name if e.isBoss else e.type
 	G.killsBy[kk] = G.killsBy.get(kk, 0) + 1
 	var nm = spr_name(e)
@@ -512,6 +514,7 @@ func enemy_shot(e: Dictionary, kind: String, ang: float, speed: float, extra := 
 
 func enemy_fire(e: Dictionary) -> void:
 	var a = atan2(P.y - e.y, P.x - e.x); e.atkT = anim_dur(spr_name(e), "attack")
+	sfx.emit("arrow" if e.d.atk == "arrow" else "eorb")
 	match e.d.atk:
 		"arrow": enemy_shot(e, "arrow", a + rnd(-.05, .05), 270, {r = 4.0, life = 2.0})
 		"orb": enemy_shot(e, e.d.get("orb", e.get("orb", "ice")), a, 130, {r = 7.0, homing = 1.6, life = 5.0})
@@ -671,6 +674,7 @@ func fire(dt: float, ang: float) -> void:
 		if P.mp < a.mana:
 			P.cdShot = .25; return
 		P.mp -= a.mana; P.cdShot = a.cd / quick
+		sfx.emit("fire" if a.els.has("fire") else "arcane")
 		var n: int = 1 + (P.es.get("multi", 0) if a.els.has("arcane") else 0)
 		for i in n:
 			var an = ang + (i - (n - 1) / 2.0) * .2
@@ -755,10 +759,11 @@ func jag(x1: float, y1: float, x2: float, y2: float, amp: float) -> Array:
 
 func shot_hit(s: Dictionary, e: Dictionary) -> bool:
 	var dmg = rnd(s.dmg[0], s.dmg[1]); damage_enemy(e, dmg, s.els); s.hitSet[e.id] = true
+	sfx.emit("hit")
 	if s.els.has("arcane") and P.es.get("siphon", 0): P.mp = min(P.maxmp, P.mp + 1.2 * P.es.siphon)
 	if s.els.has("fire"):
 		var bl: int = P.es.get("blast", 0); var rad: float = 28 + 18 * bl if bl else 0.0
-		burst(s.x, s.y, "#ff8a3a", 8 + bl * 3, 140, .35, 3, shot_h * .8); burst(s.x, s.y, "#fff0b0", 4, 60, .2, 4, shot_h * .8); smoke(s.x, s.y, 2 + bl); fx_anim("fx_blast", s.x, s.y + 10, 34 + bl * 10, 0.0, 0.0, shot_h * .7)
+		sfx.emit("boom"); burst(s.x, s.y, "#ff8a3a", 8 + bl * 3, 140, .35, 3, shot_h * .8); burst(s.x, s.y, "#fff0b0", 4, 60, .2, 4, shot_h * .8); smoke(s.x, s.y, 2 + bl); fx_anim("fx_blast", s.x, s.y + 10, 34 + bl * 10, 0.0, 0.0, shot_h * .7)
 		if rad:
 			ring(s.x, s.y, 6, rad, .25, "#ffb05a")
 			for o in G.enemies:
@@ -796,6 +801,7 @@ func cast_sec(id: String) -> void:
 	if P.mp < m:
 		toast.emit("마나가 부족해요"); return
 	P.mp -= m; P.secCd[id] = sec_cd_max(id)
+	sfx.emit(id)
 	var pw: float = 1 + .08 * P.lv
 	match id:
 		"blink":
@@ -851,6 +857,7 @@ func hurt_player(d: float) -> void:
 	if P.ward > 0:
 		var a: float = min(P.ward, d); P.ward -= a; d -= a
 	P.hp -= d; P.inv = .25
+	if d > 1: sfx.emit("phurt")
 	if d > 3: P.hitT = .2
 	if d > 0:
 		rumble.emit(160 if d > 15 else 90, .9 if d > 15 else .5)
@@ -862,7 +869,7 @@ func hurt_player(d: float) -> void:
 func gain_xp(n: float) -> void:
 	var v = int(round(n * diff_d().reward)); P.xp += v
 	while P.xp >= P.next:
-		P.xp -= P.next; P.lv += 1; P.next = xp_need(P.lv); G.pendingLv += 1; G.lvDelay = .75; lv_fx(); recalc()
+		sfx.emit("levelup"); P.xp -= P.next; P.lv += 1; P.next = xp_need(P.lv); G.pendingLv += 1; G.lvDelay = .75; lv_fx(); recalc()
 		P.hp = min(P.maxhp, P.hp + P.maxhp * .2); P.mp = min(P.maxmp, P.mp + P.maxmp * .3)
 
 # ================= 레벨업 선택지 =================
@@ -1087,7 +1094,7 @@ func set_count(sid: String) -> int:
 func equip(i: int, slot: String) -> void:
 	var it = P.bag[i]; var old = P.eq[slot]; P.eq[slot] = it; P.bag.remove_at(i)
 	if old != null: P.bag.insert(i, old)
-	recalc(); ui.emit("buttons"); toast.emit("%s 착용" % it.name)
+	recalc(); ui.emit("buttons"); sfx.emit("equip"); toast.emit("%s 착용" % it.name)
 
 func unequip(slot: String) -> bool:
 	if P.bag.size() >= P.bagMax:
@@ -1102,11 +1109,11 @@ func enhance(it) -> String:
 	if int(P.get("stones", 0)) <= 0: return "nostone"
 	P.stones -= 1
 	if randi() % 100 < D.enh_rate(e):
-		it.enh = e + 1; it.value = item_value(it); recalc(); save(); return "ok"
-	save(); return "fail"
+		it.enh = e + 1; it.value = item_value(it); recalc(); save(); sfx.emit("ok"); sfx.emit("levelup"); return "ok"
+	save(); sfx.emit("fail"); return "fail"
 
 func sell(i: int) -> void:
-	G.gold += P.bag[i].value; P.bag.remove_at(i); save()
+	sfx.emit("sell"); G.gold += P.bag[i].value; P.bag.remove_at(i); save()
 
 func discard(i: int) -> void:
 	var x = P.bag[i]; P.bag.remove_at(i)
@@ -1115,11 +1122,11 @@ func discard(i: int) -> void:
 func buy(id: String) -> void:
 	var it = D.shop(id)
 	if G.gold < it.price or P.pot.get(id, 0) >= it.max: return
-	G.gold -= it.price; P.pot[id] = P.pot.get(id, 0) + 1; save(); ui.emit("belt")
+	G.gold -= it.price; P.pot[id] = P.pot.get(id, 0) + 1; save(); ui.emit("belt"); sfx.emit("sell")
 
 # ================= 층 이동 / 종료 =================
 func open_chest(c: Dictionary) -> void:
-	c.open = true; ring(c.x, c.y, 4, 34, .35, "#ffd76a"); burst(c.x, c.y - 6, "#ffd76a", 18, 140, .5, 2.5)
+	c.open = true; sfx.emit("chest"); ring(c.x, c.y, 4, 34, .35, "#ffd76a"); burst(c.x, c.y - 6, "#ffd76a", 18, 140, .5, 2.5)
 	var n = ri(5, 9); var v: int = max(1, int(round((6 + G.floor * 3) * diff_d().reward)))
 	for i in n: G.drops.append({id = nid(), x = c.x, y = c.y, kind = "gold", v = v, t = 0.0, vx = rnd(-130, 130), vy = rnd(-130, 130), h = 0.0, vh = rnd(90, 160)})
 	if randf() < .35: drop_item(c.x, c.y, "", .05)
@@ -1214,7 +1221,7 @@ func use_pot(id: String) -> void:
 		G.portal = {x = P.x + cos(P.face) * 50, y = P.y + sin(P.face) * 50, resume = G.floor, tp = true, ox = P.x, oy = P.y}
 		if mg.hits(G.portal.x, G.portal.y, 12):
 			G.portal.x = P.x; G.portal.y = P.y + 40
-		ring(G.portal.x, G.portal.y, 4, 40, .5, "#7fb2ff"); toast.emit("마을로 가는 포탈이 열렸어요"); ui.emit("belt"); save(); return
+		ring(G.portal.x, G.portal.y, 4, 40, .5, "#7fb2ff"); sfx.emit("portal"); toast.emit("마을로 가는 포탈이 열렸어요"); ui.emit("belt"); save(); return
 	if P.potCd > 0: return
 	if id == "pothp":
 		if P.hp >= P.maxhp:
@@ -1226,7 +1233,7 @@ func use_pot(id: String) -> void:
 			toast.emit("마나가 가득 차 있어요"); return
 		var v: float = P.maxmp * .6; P.mp = min(P.maxmp, P.mp + v)
 		float_text(P.x, P.y - 18, "+%d" % int(round(v)), "#8ab0ff"); burst(P.x, P.y, "#6f9cff", 14, 90, .5, 2.5)
-	P.pot[id] -= 1; P.potCd = .8; ui.emit("belt")
+	P.pot[id] -= 1; P.potCd = .8; ui.emit("belt"); sfx.emit("drink")
 
 func swap_active() -> void:
 	var l = active_list()
@@ -1266,6 +1273,7 @@ func update(dt: float) -> void:
 			c.t += dt; continue
 		if hyp(P.x - c.x, P.y - c.y) < 26: open_chest(c)
 	if G.portal != null and hyp(P.x - G.portal.x, P.y - G.portal.y) < 22:
+		sfx.emit("portal")
 		if G.portal.get("back", false):
 			portal_back(); return
 		if G.portal.get("tp", false):
@@ -1306,6 +1314,7 @@ func update(dt: float) -> void:
 			if st == null: continue
 			var near: bool = hyp(P.x - st.x, P.y - st.y) < (44 if st.get("alcove", false) else 20) and P.y >= st.y - 4
 			if near and (st.get("alcove", false) or o[1] == "stairs"):
+				sfx.emit("stairs" if o[1] == "stairs" else "door")
 				G.pull = {t = 0.0, fx = P.x, fy = P.y, tx = st.x, ty = st.y - (56 if o[1] == "stairs" else 24), what = o[1]}
 				return
 	G.flowT -= dt
@@ -1433,12 +1442,13 @@ func update(dt: float) -> void:
 			var k: float = min(1.0, (95 - dd) / 95 * 8 * dt + .02); d.x += (P.x - d.x) * k * 3; d.y += (P.y - d.y) * k * 3
 		if dd < 16:
 			d.got = true
+			if d.kind in ["hp", "mp", "pothp", "potmp", "scroll"]: sfx.emit("pickup")
 			if d.kind == "hp":
 				var v: float = P.maxhp * .25; P.hp = min(P.maxhp, P.hp + v); float_text(P.x, P.y - 18, "+%d" % int(round(v)), "#ff8a8a")
 			elif d.kind == "mp":
 				var v: float = P.maxmp * .35; P.mp = min(P.maxmp, P.mp + v); float_text(P.x, P.y - 18, "+%d" % int(round(v)), "#8ab0ff")
 			elif d.kind == "stone":
-				P.stones = int(P.get("stones", 0)) + 1; float_text(P.x, P.y - 22, "강화석 +1", "#bfe6ff"); ring(d.x, d.y, 2, 22, .3, "#bfe6ff")
+				sfx.emit("gem"); P.stones = int(P.get("stones", 0)) + 1; float_text(P.x, P.y - 22, "강화석 +1", "#bfe6ff"); ring(d.x, d.y, 2, 22, .3, "#bfe6ff")
 			elif d.kind in ["pothp", "potmp", "scroll"]:
 				var it = D.shop(d.kind)
 				if P.pot.get(d.kind, 0) < it.max:
@@ -1452,10 +1462,10 @@ func update(dt: float) -> void:
 					if not d.get("warned", false):
 						toast.emit("가방이 가득 찼어요"); d.warned = true
 					continue
-				P.bag.append(d.it); G.bagNew = true; ui.emit("bagbtn")
+				P.bag.append(d.it); G.bagNew = true; ui.emit("bagbtn"); sfx.emit("item")
 				float_text(P.x, P.y - 24, d.it.name, D.RAR[d.it.rar].color); ring(d.x, d.y, 2, 22, .3, D.RAR[d.it.rar].color)
 			else:
-				G.gold += d.v; G.goldPulse = .35; float_text(P.x + 8, P.y - 20, "+%d" % d.v, "#ffd76a")
+				sfx.emit("coin" if randf() < .5 else "coin2"); G.gold += d.v; G.goldPulse = .35; float_text(P.x + 8, P.y - 20, "+%d" % d.v, "#ffd76a")
 				for i in 8:
 					var a = rnd(0, TAU)
 					G.fx.append({x = d.x, y = d.y, vx = cos(a) * rnd(40, 110), vy = sin(a) * rnd(40, 110) - 30, life = .45, max = .45, color = pick(["#ffd76a", "#fff3c4", "#e3b04b"]), size = rnd(1.2, 2.4)})

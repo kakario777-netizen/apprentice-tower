@@ -62,6 +62,60 @@ void fragment() {
 	m.set_shader_parameter("tint", Vector3(TINT.r, TINT.g, TINT.b))
 	return m
 
+# 사진 질감(Poly Haven): 색·요철(노멀)·거칠기. 타일과 상관없이 월드 좌표로 이어 붙인다.
+static var PBR_SHADER: Shader
+static var PBR := {}
+static func pbr(name: String, scale := .4) -> ShaderMaterial:
+	var key := "%s|%s|%s" % [name, scale, TINT.to_html()]
+	if PBR.has(key): return PBR[key]
+	if PBR_SHADER == null:
+		PBR_SHADER = Shader.new()
+		PBR_SHADER.code = """
+shader_type spatial;
+render_mode cull_disabled;
+uniform sampler2D albedo_t : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform sampler2D normal_t : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform sampler2D rough_t : filter_linear_mipmap, repeat_enable;
+uniform sampler2D fog : filter_linear;
+uniform vec3 tint = vec3(1.0);
+uniform float scale = .4;
+uniform float nstr = 1.3;
+uniform float bright = 1.0;
+varying vec3 wp;
+varying vec3 wn;
+void vertex() { wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; wn = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz); }
+void fragment() {
+	vec2 uv = abs(wn.y) > .5 ? wp.xz : (abs(wn.x) > .5 ? vec2(wp.z, -wp.y) : vec2(wp.x, -wp.y));
+	uv *= scale;
+	vec3 c = texture(albedo_t, uv).rgb;
+	float f = texture(fog, wp.xz / vec2(82.0, 62.0)).r;
+	// 노멀맵: 화면 미분으로 접선 공간을 만들어 적용
+	vec3 tn = texture(normal_t, uv).rgb * 2.0 - 1.0; tn.xy *= nstr;
+	vec3 N = NORMAL;
+	vec3 dp1 = dFdx(VERTEX); vec3 dp2 = dFdy(VERTEX); vec2 du1 = dFdx(uv); vec2 du2 = dFdy(uv);
+	vec3 dp2p = cross(dp2, N); vec3 dp1p = cross(N, dp1);
+	vec3 T = dp2p * du1.x + dp1p * du2.x; vec3 B = dp2p * du1.y + dp1p * du2.y;
+	float im = inversesqrt(max(max(dot(T, T), dot(B, B)), 1e-12));
+	NORMAL = normalize(mat3(T * im, -B * im, N) * normalize(tn));
+	c = mix(vec3(dot(c, vec3(.3, .59, .11))), c, .85) * .82 * bright;   // 사진 질감은 살짝 차분하게
+	ALBEDO = c * COLOR.rgb * tint * f;
+	ROUGHNESS = clamp(texture(rough_t, uv).r * 1.05, .3, 1.0);
+	SPECULAR = .4 * f;
+}
+"""
+	var m := ShaderMaterial.new(); m.shader = PBR_SHADER
+	m.set_shader_parameter("albedo_t", tex("res://tex/%s_d.jpg" % name))
+	m.set_shader_parameter("normal_t", tex("res://tex/%s_n.jpg" % name))
+	m.set_shader_parameter("rough_t", tex("res://tex/%s_r.jpg" % name))
+	m.set_shader_parameter("fog", fog_tex); m.set_shader_parameter("scale", scale)
+	m.set_shader_parameter("bright", {mossy_cobblestone = .55, embedded_rock_floor = .9, stone_tiles_02 = .8, forrest_ground_01 = .85}.get(name, 1.0))
+	m.set_shader_parameter("tint", Vector3(TINT.r, TINT.g, TINT.b))
+	PBR[key] = m
+	return m
+
+static var FLOOR_PBR := ""   # 층 분위기마다 바닥·벽 사진 질감
+static var WALL_PBR := ""
+
 static func set_fog(bytes: PackedByteArray) -> void:
 	var img = Image.create_from_data(MapGen.MW, MapGen.MH, false, Image.FORMAT_L8, bytes)
 	if fog_tex == null: fog_tex = ImageTexture.create_from_image(img)
@@ -127,11 +181,17 @@ func _build_ground() -> void:
 	var mf = mat(tf)
 	var mp: ShaderMaterial = null
 	if tp != null: mp = mat(tp)
+	# 사진 질감으로
+	if town != null:
+		mf = pbr("forrest_ground_01", .35); mp = pbr("cobblestone_floor_001", .5)
+	elif mg.terrace: mf = pbr("stone_tiles", .4)
+	elif FLOOR_PBR != "": mf = pbr(FLOOR_PBR, .26 if FLOOR_PBR == "mossy_cobblestone" else .4)
 	for cy in range(0, MapGen.MH, CHUNK):
 		for cx in range(0, MapGen.MW, CHUNK):
 			var sf = SurfaceTool.new(); sf.begin(Mesh.PRIMITIVE_TRIANGLES)
 			var sp = SurfaceTool.new(); sp.begin(Mesh.PRIMITIVE_TRIANGLES)
-			var nf = 0; var np = 0
+			var sp2 = SurfaceTool.new(); sp2.begin(Mesh.PRIMITIVE_TRIANGLES)
+			var nf = 0; var np = 0; var nf2 = 0
 			for j in range(cy, min(cy + CHUNK, MapGen.MH)):
 				for i in range(cx, min(cx + CHUNK, MapGen.MW)):
 					var h = MapGen.hash2(i, j)
@@ -154,9 +214,10 @@ func _build_ground() -> void:
 							_quad_floor(sf, i, j, _uv(((i + j) & 1) * 8 + h % 8, 16), _ao(i, j)); nf += 1
 					elif town != null:
 						# 마을 바깥 숲 바닥(조금 어둡게)
-						_quad_floor(sf, i, j, _uv(h % 16, 16), [.62, .62, .62, .62]); nf += 1
+						_quad_floor(sp2, i, j, _uv(h % 16, 16), [.62, .62, .62, .62]); nf2 += 1
 			if nf: _add_mesh(sf, mf)
 			if np: _add_mesh(sp, mp)
+			if nf2: _add_mesh(sp2, pbr("brown_mud_leaves_01", .35))
 
 func _add_mesh(st: SurfaceTool, m: Material) -> MeshInstance3D:
 	var mi = MeshInstance3D.new()
@@ -182,6 +243,9 @@ func _top(st: SurfaceTool, i: int, j: int, h: float, uv: Rect2) -> void:
 
 func _build_walls() -> void:
 	var mw = mat(tex("res://assets/tiles/wall2.png")); var mt = mat(tex("res://assets/tiles/top2.png"))
+	var wn: String = "stone_wall_04" if mg.terrace else WALL_PBR
+	if wn != "":
+		mw = pbr(wn, .55); mt = pbr(wn, .55)
 	for cy in range(0, MapGen.MH, CHUNK):
 		for cx in range(0, MapGen.MW, CHUNK):
 			var sw = SurfaceTool.new(); sw.begin(Mesh.PRIMITIVE_TRIANGLES)
@@ -205,7 +269,7 @@ func _build_walls() -> void:
 
 # 마을: 벽 자리에 나무와 덤불
 func _build_forest() -> void:
-	const FOREST := ["pine1", "pine2", "pine3", "pine4", "oak1", "oak3", "pine1", "oak4", "birch2", "pine3"]
+	const FOREST := ["fpine", "fpine", "foak", "fpine", "foak"]
 	const PL := ["shrub1", "shrub2", "shrub3", "grass1", "grass2", "grass3"]
 	var t = mg.town
 	for j in range(t.y0 - 7, t.y0 + t.h + 4):
@@ -213,7 +277,9 @@ func _build_forest() -> void:
 			if mg.at(i, j) != 1: continue
 			if mg.gate != null and absf((i + .5) * 32 - mg.gate.x) < 170 and absf(j * 32 - mg.gate.y) < 48: continue
 			var h = MapGen.hash2(i, j); var edge = mg.wall_bits(i, j) >= 0
-			if not edge and h % 2 == 0: continue
+			# 진짜 나무 모델은 크고 무거우니 둘레에 듬성듬성(가장자리는 한 칸 걸러, 안쪽은 더 드물게)
+			if edge and (i + j) % 2 == 1: continue
+			if not edge and not (i % 3 == 0 and j % 2 == 0 and h % 2 == 0): continue
 			var p = Vector2((i + .5) * 32 + ((h >> 3) % 9 - 4) * 2, (j + .85) * 32)
 			var south := false   # 마을보다 아래(카메라 쪽)면 키 큰 나무가 캐릭터를 가리므로 덤불만
 			for k in range(1, 8):
@@ -221,7 +287,9 @@ func _build_forest() -> void:
 			if south:
 				if (edge and h % 3 != 0) or (not edge and h % 7 == 0): add_prop(PL[h % PL.size()], p, 1.0 if edge else .9)
 			else:
+				Props3D.cast = false     # 둘레 숲 나무는 그림자 없이(가볍게)
 				add_prop(FOREST[h % FOREST.size()], p, .8 + (h % 5) * .08)
+				Props3D.cast = true
 
 # ---------------- 소품 ----------------
 func add_prop(n: String, p: Vector2, sc := 1.0) -> Node3D:

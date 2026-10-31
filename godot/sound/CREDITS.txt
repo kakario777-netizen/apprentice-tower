@@ -1,0 +1,6 @@
+모든 소리는 OpenGameArt.org 의 CC0(퍼블릭 도메인) 작품입니다. 표기 의무는 없지만 감사의 뜻으로 적어 둡니다.
+배경음: cynicmusic(Town Theme RPG), yd(Dungeon Ambience), Paul Wortmann(Dark Cavern Ambient), JaggedStone(Loopable Dungeon Ambience),
+  Wolfgang_(Battle Theme), RandomMind(Medieval: Defeat Theme), josepharaoh99 모음 "CC0 - Cinematic Music"(Once Upon a Time, Ancient Power of Serpents,
+  Choir Chords, Exploration, Juhani Junkala - Epic Boss Battle, Victory)
+효과음: Kenney(50 RPG Sound Effects, Interface Sounds), rubberduck(80 CC0 RPG SFX, 100 CC0 SFX), JaggedStone(Magic Spell SFX), HaelDB(Spell sounds),
+  bart(Ice spells), artisticdude(Freeze Spell), qubodup(Swish)

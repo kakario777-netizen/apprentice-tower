@@ -276,11 +276,11 @@ static func boss_kind(f: int) -> String:
 	return ""
 static func theme(f: int) -> int: return clampi((f - 1) / 20, 0, 4)
 const THEMES := [
-	{name = "돌의 회랑", amb = Color(.46, .41, .56), tint = Color(1, 1, 1), torch = Color(1, .6, .3), floor = "floor2"},
-	{name = "이끼 낀 지하묘지", amb = Color(.36, .46, .4), tint = Color(.82, .95, .84), torch = Color(.95, .75, .4), floor = "floor"},
-	{name = "잿불의 층", amb = Color(.52, .34, .3), tint = Color(1.05, .82, .74), torch = Color(1, .42, .18), floor = "floor2"},
-	{name = "별빛 서고", amb = Color(.36, .38, .62), tint = Color(.8, .84, 1.1), torch = Color(.55, .7, 1), floor = "floor"},
-	{name = "검은 첨탑", amb = Color(.42, .3, .5), tint = Color(.78, .7, .9), torch = Color(.8, .4, 1), floor = "floor2"},
+	{name = "돌의 회랑", amb = Color(.46, .41, .56), tint = Color(.92, .9, 1), torch = Color(1, .6, .3), floor = "floor2", fp = "stone_tiles_02", wp = "large_sandstone_blocks"},
+	{name = "이끼 낀 지하묘지", amb = Color(.36, .46, .4), tint = Color(.82, .95, .84), torch = Color(.95, .75, .4), floor = "floor", fp = "mossy_cobblestone", wp = "rock_wall_08"},
+	{name = "잿불의 층", amb = Color(.52, .34, .3), tint = Color(1.0, .85, .78), torch = Color(1, .42, .18), floor = "floor2", fp = "embedded_rock_floor", wp = "castle_brick_07"},
+	{name = "별빛 서고", amb = Color(.36, .38, .62), tint = Color(.82, .86, 1.08), torch = Color(.55, .7, 1), floor = "floor", fp = "herringbone_brick", wp = "medieval_blocks_03"},
+	{name = "검은 첨탑", amb = Color(.42, .3, .5), tint = Color(.8, .72, .9), torch = Color(.8, .4, 1), floor = "floor2", fp = "worn_tile_floor", wp = "stone_brick_wall_001"},
 ]
 
 static func mod_text(m: Dictionary) -> String:

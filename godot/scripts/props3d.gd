@@ -47,14 +47,86 @@ static func shadow(parent: Node3D, w: float, d: float, a := .5) -> void:
 const NAMES := ["barrel", "dcrate", "crate", "chest", "statue", "brazier", "lectern", "oak", "birch", "pine", "deadtree", "shrub", "rock", "stump", "grave", "cross", "fountain", "stall", "wood", "anvil", "campfire"]
 
 static func supports(n: String) -> bool:
+	if _model_spec(n).size(): return true
 	for k in NAMES:
 		if n.begins_with(k): return true
 	return false
+
+# ---------------- 진짜 3D 모델(Quaternius, CC0) ----------------
+# 소품 이름 → [모델 후보들, 크기 배율, 색 보정 종류]
+const MODEL_MAP := [
+	["fpine", ["Pine_5", "Pine_4"], .4, "leaf"],
+	["foak", ["CommonTree_5", "CommonTree_3"], .44, "leaf"],
+	["oak", ["CommonTree_1", "CommonTree_2", "CommonTree_5"], .44, "leaf"],
+	["birch", ["CommonTree_3", "CommonTree_4"], .36, "leaf"],
+	["pine", ["Pine_1", "Pine_2", "Pine_3", "Pine_5"], .42, "leaf"],
+	["deadtree", ["DeadTree_1", "DeadTree_2", "DeadTree_3"], .28, "dead"],
+	["shrub", ["Bush_Common", "Bush_Common_Flowers"], .42, "leaf"],
+	["rock", ["Rock_Medium_1", "Rock_Medium_2", "Rock_Medium_3"], .3, "stone"],
+	["flower", ["Flower_3_Group", "Flower_4_Group"], .2, "leaf"],
+	["fern", ["Fern_1"], .3, "leaf"],
+	["grass", ["Grass_Common_Short", "Grass_Wispy_Short"], .32, "leaf"],
+	["leaf", ["Clover_1", "Plant_1"], .32, "leaf"],
+	["barrel", ["Barrel", "Barrel", "Barrel_Apples"], .85, "prop"],
+	["dcrate", ["Crate_Wooden", "Crate_Metal"], .78, "prop"],
+	["crate", ["Crate_Wooden", "Crate_Wooden", "Crate_Metal"], .78, "prop"],
+	["chest", ["Chest_Wood"], .72, "prop"],
+	["lectern", ["BookStand"], .78, "prop"],
+	["anvil", ["Anvil"], 1.0, "prop"],
+	["stall", ["Stall_Empty"], 1.15, "prop"],
+]
+const GRADE := {leaf = Color(.72, .8, .7), dead = Color(.75, .72, .78), stone = Color(.8, .8, .85), prop = Color(.9, .86, .82)}
+static var GRADED := {}
+
+static func _model_spec(n: String) -> Array:
+	for m in MODEL_MAP:
+		if n.begins_with(m[0]): return m
+	return []
+
+static func _graded(mat: Material, kind: String) -> Material:
+	if not (mat is BaseMaterial3D): return mat
+	var key := "%d|%s" % [mat.get_instance_id(), kind]
+	if GRADED.has(key): return GRADED[key]
+	var g: BaseMaterial3D = mat.duplicate()
+	g.albedo_color = g.albedo_color * GRADE[kind]
+	g.rim_enabled = true; g.rim = .15 if kind == "leaf" else .25; g.rim_tint = .6
+	if kind == "leaf": g.roughness = max(g.roughness, .85)
+	# 잎 그림의 투명 부분은 '잘라내기'로(반투명 섞기보다 훨씬 가볍다)
+	if g.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED:
+		g.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR; g.alpha_scissor_threshold = .5
+	GRADED[key] = g
+	return g
+
+static func model(name: String, kind := "prop", sc := 1.0) -> Node3D:
+	var ps: PackedScene = load("res://models/%s.gltf" % name)
+	var n: Node3D = ps.instantiate()
+	n.scale = Vector3.ONE * sc
+	for mi in n.find_children("*", "MeshInstance3D", true, false):
+		var m3: MeshInstance3D = mi
+		m3.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if cast else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		for i in m3.mesh.get_surface_count():
+			var mt = m3.get_active_material(i)
+			if mt != null: m3.set_surface_override_material(i, _graded(mt, kind))
+	return n
 
 static func make(n: String, sc: float, h: int) -> Node3D:
 	var root := Node3D.new()
 	var R := RandomNumberGenerator.new(); R.seed = h * 7919 + 13
 	root.rotation.y = R.randf_range(-.35, .35)
+	var spec := _model_spec(n)
+	if spec.size():
+		var nm: String = spec[1][R.randi() % spec[1].size()]
+		var kind: String = spec[3]
+		if kind in ["leaf", "dead", "stone"]: root.rotation.y = R.randf() * TAU
+		if n.begins_with("stall") or n.begins_with("chest"): root.rotation.y = 0
+		var md := model(nm, kind, spec[2] * (sc if kind != "prop" else 1.0) * R.randf_range(.92, 1.08))
+		root.add_child(md)
+		if n.begins_with("chest") and n.contains("_o"):
+			var lid = md.find_child("Chest_Wood_Lid", true, false)
+			if lid == null: lid = md.find_child("Chest_Top", true, false)
+			if lid: lid.rotation.x = -1.1
+		if kind == "prop" or kind == "stone": shadow(root, .9 * spec[2], .55 * spec[2], .4)
+		return root
 	if n.begins_with("barrel"): _barrel(root, sc)
 	elif n.begins_with("dcrate") or n.begins_with("crate"): _crate(root, sc, R)
 	elif n.begins_with("chest"): _chest(root, n.contains("_o"))
@@ -267,6 +339,8 @@ static func loot(kind: String, it = null) -> Node3D:
 			_mesh(r, cyl(.05, .04, .05, 8), m("wood", Color(.7, .5, .35)), Vector3(0, .37, 0))
 			_mesh(r, ball(.05, 8), m("", Color(1, 1, 1), .1, Color(.9, .9, .9)), Vector3(.05, .19, .08))   # 반짝임
 		"scroll":
+			var sc_ := model("Scroll_1", "prop", 2.0); sc_.position.y = .02; r.add_child(sc_)
+		"scroll_old":
 			_mesh(r, cyl(.07, .07, .36, 14), m("cloth", Color(.95, .85, .62)), Vector3(0, .08, 0), Vector3(0, 0, PI / 2))
 			_mesh(r, cyl(.075, .075, .06, 14), m("", Color(.75, .15, .15), .5), Vector3(0, .08, 0), Vector3(0, 0, PI / 2))
 			for sx in [-.2, .2]: _mesh(r, cyl(.03, .03, .05, 8), m("wood", Color(.55, .38, .25)), Vector3(sx, .08, 0), Vector3(0, 0, PI / 2))

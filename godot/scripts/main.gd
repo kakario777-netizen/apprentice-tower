@@ -19,6 +19,7 @@ var title_t := 0.0
 var pad_swap := false
 var quality := 1.0
 var show_fps := false
+var snd := Snd.new()
 var autosave_min := 5          # 자동 저장 간격(분): 5 · 10 · 15 · 30
 var autosave_t := 0.0
 var pad_prev := {}
@@ -44,6 +45,9 @@ func _ready() -> void:
 	if cfg.load(SETTINGS) == OK:
 		pad_swap = cfg.get_value("pad", "swap", false)
 		quality = cfg.get_value("gfx", "quality", 1.0); show_fps = cfg.get_value("gfx", "fps", false)
+		autosave_min = cfg.get_value("game", "autosave", 5)
+		snd.music_vol = cfg.get_value("sound", "music", .7); snd.sfx_vol = cfg.get_value("sound", "sfx", .9)
+	Game.migrate_old()
 	get_viewport().scaling_3d_scale = quality
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--shot="): shot_path = a.substr(7)
@@ -65,6 +69,7 @@ func _ready() -> void:
 	ui = Ui.new(); ui.main = self; ui.game = game; add_child(ui)
 	game.toast.connect(hud.show_toast)
 	game.saved.connect(hud.show_saving)
+	add_child(snd); game.sfx.connect(snd.play)
 	game.ui.connect(_on_ui)
 	game.rumble.connect(_rumble)
 	# 타이틀: 마을 장면을 배경으로
@@ -114,6 +119,7 @@ func _rebuild_level() -> void:
 	World.TINT = th.tint if game.G.floor > 0 and not game.mg.terrace else Color.WHITE
 	World.TORCH = th.torch if game.G.floor > 0 else Color(1, .6, .3)
 	World.FLOOR_TEX = th.floor
+	World.FLOOR_PBR = th.fp; World.WALL_PBR = th.wp
 	world.build(game.mg); view.rebuild()
 	_setup_env(game.mg.town != null)
 	game.mg.dirty = true
@@ -151,7 +157,8 @@ func try_talk() -> void:
 	if n != null and game.G.state == "play": ui.open_talk(n)
 func save_settings() -> void:
 	var cfg = ConfigFile.new(); cfg.set_value("pad", "swap", pad_swap)
-	cfg.set_value("gfx", "quality", quality); cfg.set_value("gfx", "fps", show_fps); cfg.set_value("game", "autosave", autosave_min); cfg.save(SETTINGS)
+	cfg.set_value("gfx", "quality", quality); cfg.set_value("gfx", "fps", show_fps); cfg.set_value("game", "autosave", autosave_min)
+	cfg.set_value("sound", "music", snd.music_vol); cfg.set_value("sound", "sfx", snd.sfx_vol); cfg.save(SETTINGS)
 
 func set_quality(q: float) -> void:
 	quality = q; get_viewport().scaling_3d_scale = q; _apply_shadows(); save_settings()
@@ -353,6 +360,7 @@ func _process(dt: float) -> void:
 	elif G != null and G.state == "title":
 		title_t += dt
 	if game.level_changed: _rebuild_level()
+	_sound_frame()
 	if game.G != null:
 		view.sync(dt)
 		_place_cam(dt)
@@ -520,3 +528,29 @@ func _run_samples() -> void:
 		await _frames(6); await _snap("12_theme_%d" % f)
 	hud.move_id = -1
 	get_tree().quit()
+
+# ---------------- 소리: 장면에 맞는 배경음 · 누르는 동안 나는 소리 ----------------
+func _sound_frame() -> void:
+	var G = game.G
+	if G == null: return
+	var id := ""
+	match G.state:
+		"title": id = "title"
+		"dead": id = "defeat"
+		"win": id = "victory"
+		_:
+			if G.floor == 0: id = "town"
+			elif game.mg.terrace and G.floor != D.ROOF: id = "terrace"
+			else:
+				var boss := false
+				for e in G.enemies:
+					if e.isBoss and not e.dead: boss = true
+				if boss: id = "final" if G.floor == D.ROOF else "boss"
+				else: id = "d%d" % (D.theme(G.floor) + 1)
+	snd.music(id)
+	var lp := ""
+	if G.state == "play" and game.inp.firing and game.P.active != null and G.floor > 0 and game.P.mp > 1:
+		var k: String = game.attack_of(game.P.active).kind
+		if k == "chain" or k == "beam": lp = "storm"
+		elif k == "cone": lp = "frost"
+	snd.loop(lp)
