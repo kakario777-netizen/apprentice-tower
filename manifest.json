@@ -1,0 +1,1434 @@
+[
+ {
+  "cat": "models",
+  "slug": "stylized-nature-megakit",
+  "title": "Stylized Nature MegaKit",
+  "licenses": [],
+  "author": "quaternius",
+  "desc": "  The  Stylized Nature MEGAKIT  is a pack containing 110+ unique nature models. Ideal for creating enchanting, Ghibli-inspired scenes, it includes 40 trees, 35 plants and flowers, 27 rocks, grass, bushes and more. With a wide array of assets this kit allows you to create an extensive variety of distinct stunning nature environments. \n This here is the  Standard  version which includes 68 of those ",
+  "files": [
+   "stylized_nature_megakitstandard.zip"
+  ]
+ },
+ {
+  "cat": "models",
+  "slug": "fantasy-props-megakit",
+  "title": "Fantasy Props MegaKit",
+  "licenses": [],
+  "author": "quaternius",
+  "desc": "  The  Fantasy Props MEGAKIT  is a pack of over 200 medieval props, ranging from weapons and tools to vegetables, potions, market stalls, chests, furniture, and more. Each model was carefully crafted using as few textures as possible for optimization (all 200 models use just 4 texture sets), and meshes with low poly counts. In the Source and Pro versions, models also include custom simple collisio",
+  "files": [
+   "fantasy_props_megakitstandard.zip"
+  ]
+ },
+ {
+  "cat": "music",
+  "slug": "loopable-dungeon-ambience",
+  "title": "Loopable Dungeon Ambience",
+  "licenses": [],
+  "author": "JaggedStone",
+  "desc": "  A loopable dungeon/cave ambient track with a low frequency wind effect and water drips \n",
+  "files": [
+   "dungeon_ambient_1.ogg.mp3",
+   "dungeon_ambient_1.ogg",
+   "dungeon_ambient_1_0.ogg"
+  ]
+ },
+ {
+  "cat": "music",
+  "slug": "dungeon-ambience",
+  "title": "Dungeon Ambience",
+  "licenses": [],
+  "author": "yd",
+  "desc": "  Background track for exploring a dark dungeon. \n",
+  "files": [
+   "dungeon002.ogg.mp3",
+   "dungeon002.ogg",
+   "dungeon002_0.ogg"
+  ]
+ },
+ {
+  "cat": "music",
+  "slug": "dark-cavern-ambient",
+  "title": "Dark Cavern Ambient",
+  "licenses": [],
+  "author": "Paul Wortmann",
+  "desc": "  Ambient sound for a dark cavern or dungeon. 1 fades in and out. 2 is a continuous loop. \n CC0 Resources used: \n  https://opengameart.org/content/ghost-monster-voice-moaning-growling  \n  https://opengameart.org/content/ghost  \n  https://opengameart.org/content/35-wooden-crackshitsdestructions  \n  https://opengameart.org/content/crash-collision  \n  https://opengameart.org/content/wind1  \n  https:/",
+  "files": [
+   "dark_cavern_ambient_001_0.ogg.mp3",
+   "dark_cavern_ambient_001.ogg",
+   "dark_cavern_ambient_001_0.ogg",
+   "dark_cavern_ambient_002.ogg"
+  ]
+ },
+ {
+  "cat": "music",
+  "slug": "dark-the-whispering-shadows-dungeon",
+  "title": "(Dark) The Whispering Shadows Dungeon",
+  "licenses": [],
+  "author": "Clement Panchout -Composer-",
+  "desc": "  I've made this track for a musical challenge back in 2016 \"The Whispering Shadows Dungeon\", it was then used in an unreleased game to finally sleep for years on a hard drive, until now! \n",
+  "files": [
+   "retro_-spooky-soundscape_-the-whispering-shadows-dungeon-_clement-panchout-2016_1.mp3.ogg",
+   "retro_-spooky-soundscape_-the-whispering-shadows-dungeon-_clement-panchout-2016_1.mp3",
+   "retro_spooky_soundscape_the_whispering_shadows_dungeon_clement_panchout_2016_1.wav"
+  ]
+ },
+ {
+  "cat": "music",
+  "slug": "sinister-loop",
+  "title": "Sinister Loop",
+  "licenses": [],
+  "author": "Patrick Maney",
+  "desc": "  A dark sounding musical loop. \n",
+  "files": [
+   "sinister loop.wav.mp3",
+   "sinister loop.wav.ogg",
+   "sinister loop.wav"
+  ]
+ },
+ {
+  "cat": "music",
+  "slug": "medieval-the-old-tower-inn",
+  "title": "Medieval: The Old Tower Inn",
+  "licenses": [],
+  "author": "RandomMind",
+  "desc": "  My CC0 track available in full and loop version, you can freely use for any purpose! \n  https://www.youtube.com/watch?v=zFO3Jyr-mZ4  \n",
+  "files": [
+   "Loop_The_Old_Tower_Inn.wav",
+   "The_Old_Tower_Inn.mp3",
+   "The_Old_Tower_Inn_1.mp3",
+   "The_Old_Tower_Inn_1.mp3.ogg"
+  ]
+ },
+ {
+  "cat": "music",
+  "slug": "medieval-kings-feast",
+  "title": "Medieval: King's Feast",
+  "licenses": [],
+  "author": "RandomMind",
+  "desc": "  My medieval themed track available in full and loop version. Can be freely used for your projects (CC0 license). Credits are appreciated but not required! \n   \n  https://youtu.be/tqylCjXe-qg  \n",
+  "files": [
+   "Kings_Feast.mp3",
+   "Kings_Feast_0.mp3",
+   "Loop_Kings_Feast_0.wav",
+   "Kings_Feast.mp3.ogg"
+  ]
+ },
+ {
+  "cat": "music",
+  "slug": "medieval-town",
+  "title": "medieval town",
+  "licenses": [],
+  "author": "syncopika",
+  "desc": "  an idea for medieval town bgm. ^_^ thanks for listening! \n",
+  "files": [
+   "022815townbgm.ogg",
+   "022815townbgm.wav",
+   "022815townbgm_0.ogg",
+   "022815townbgm.ogg.mp3"
+  ]
+ },
+ {
+  "cat": "music",
+  "slug": "magestic-dreams",
+  "title": "Magestic Dreams",
+  "licenses": [],
+  "author": "Bobjt",
+  "desc": "  Medieval sounds akin to a calm castle court or a studious library, where a voice is heard \"focus on the subject, lest your mind flutter about!\"  \n License is CC BY 3.0 for compatibility with tridentkeep's Frostbite Medieval Soundtrack: \n  https://opengameart.org/content/frostbite-medieval-soundtrack  \n from which, this tune is a remix/remaster of their original work, 'Chamber Birds Eye'.  \n 2026",
+  "files": [
+   "flight_academy_oga_preview.mp3.ogg",
+   "magestic_drawms_with_tail.mp3.ogg",
+   "flight_acadamy.mp3",
+   "flight_acadamy.ogg",
+   "flight_academy_oga_preview.mp3",
+   "magestic_drawms_with_tail.mp3",
+   "magestic_drawms_with_tail_0.mp3",
+   "magestic_dreams.ogg",
+   "magestic_dreams_0.mp3",
+   "magestic_dreams_with_tail.ogg"
+  ]
+ },
+ {
+  "cat": "music",
+  "slug": "battle-theme-0",
+  "title": "Battle Theme",
+  "licenses": [],
+  "author": "Wolfgang_",
+  "desc": "  A theme for a battle or otherwise tense moment. \n Orchestral. \n",
+  "files": [
+   "Battle.mp3",
+   "Battle.mp3.ogg"
+  ]
+ },
+ {
+  "cat": "music",
+  "slug": "colossal-boss-battle-theme",
+  "title": "Colossal Boss Battle Theme",
+  "licenses": [],
+  "author": "Matthew Pablo",
+  "desc": "  This is an epic colossal battle theme. Prepare for epic choir chants, heavy-hitting drums, and massive orchestral moments to help your game truly give make your boss battles a colossal struggle to defeat the boss! This is not to be missed for any epic project! \n Looped version is also included. \n   \n I hope you guys enjoy this track. \n Also, if needed  I can re-arrange it to best suit your needs",
+  "files": [
+   "Blackmoor Colossus.mp3",
+   "Colossal Boss Battle Theme_0.zip",
+   "Blackmoor Colossus.mp3.ogg"
+  ]
+ },
+ {
+  "cat": "music",
+  "slug": "boss-theme",
+  "title": "Boss Theme",
+  "licenses": [],
+  "author": "remaxim",
+  "desc": "  This music fills the villain's lair as he plots against the hero and his people \n   \n Commissioned by OpenGameArt \n",
+  "files": [
+   "boss theme_0.ogg.mp3",
+   "boss theme.flac",
+   "boss theme.ogg",
+   "boss theme_0.ogg"
+  ]
+ },
+ {
+  "cat": "music",
+  "slug": "medieval-defeat-theme",
+  "title": "Medieval: Defeat Theme",
+  "licenses": [],
+  "author": "RandomMind",
+  "desc": "  My CC0 track for medieval/fantasy defeat theme. Victory theme is also available in my uploads! \n  https://www.youtube.com/watch?v=5j8corCBDUk  \n",
+  "files": [
+   "defeat.mp3.ogg",
+   "defeat.mp3",
+   "defeat.wav",
+   "defeat_0.mp3"
+  ]
+ },
+ {
+  "cat": "music",
+  "slug": "cc0-cinematic-music",
+  "title": "CC0 - Cinematic Music",
+  "licenses": [],
+  "author": "",
+  "desc": "  A collection of free, CC0 cinematic (dramatic) music. \n   \n No attribution is required. \n",
+  "files": [
+   "0-hymn-2025-hymn-it-again-sam.mp3",
+   "A Long Winter at Home_1.ogg",
+   "Ancient_Power_Of_Serpents.ogg",
+   "BattleLoop2.ogg",
+   "ChoirChordsBassMaster.mp3",
+   "Exploration.ogg",
+   "Fantasy Choir 1.mp3",
+   "Heavy Concept A Bass Master.mp3",
+   "Juhani Junkala - Epic Boss Battle Preview.mp3",
+   "LD40 Heavy Heist.mp3",
+   "Lament of the War - MP3 Preview.mp3",
+   "Loop_Market_Day.mp3",
+   "Magic Strings - A Legend Will Rise.mp3",
+   "Outlive_Short Ver.mp3",
+   "Rejoicing.mp3",
+   "Sinister Boss Appears.mp3",
+   "The Hope preview.mp3",
+   "The_Old_Tower_Inn_1.mp3",
+   "Unexplored short ver_0.mp3",
+   "Vehicle - OGA - Col Legno - Preview.mp3",
+   "Vehicle - OGA - Siberian Intro - Preview.mp3",
+   "Victory1.mp3",
+   "0-hymn-2025-hymn-it-again-sam.mp3.ogg",
+   "A Long Winter at Home_1.ogg.mp3",
+   "Ancient_Power_Of_Serpents.ogg.mp3",
+   "BattleLoop2.ogg.mp3",
+   "ChoirChordsBassMaster.mp3.ogg",
+   "EasternArcticDubstep_0.MP3.ogg",
+   "Exploration.ogg.mp3",
+   "Fantasy Choir 1.mp3.ogg",
+   "Heavy Concept A Bass Master.mp3.ogg",
+   "Juhani Junkala - Epic Boss Battle Preview.mp3.ogg",
+   "LD40 Heavy Heist.mp3.ogg",
+   "Lament of the War - MP3 Preview.mp3.ogg",
+   "Loop_Market_Day.mp3.ogg",
+   "Magic Strings - A Legend Will Rise.mp3.ogg",
+   "Outlive_Short Ver.mp3.ogg",
+   "Rejoicing.mp3.ogg",
+   "Sinister Boss Appears.mp3.ogg",
+   "The Hope preview.mp3.ogg",
+   "The_Old_Tower_Inn_1.mp3.ogg",
+   "Unexplored short ver_0.mp3.ogg",
+   "Vehicle - OGA - Col Legno - Preview.mp3.ogg",
+   "Vehicle - OGA - Siberian Intro - Preview.mp3.ogg",
+   "Victory1.mp3.ogg",
+   "background.mp3.ogg",
+   "battleThemeA_0.mp3.ogg",
+   "battleThemeB_Preview.mp3.ogg",
+   "battleground_remastered.mp3.ogg",
+   "bit_forrest_stinger.mp3.ogg",
+   "boss_battle_#2_metal_preview.mp3.ogg",
+   "bosstheme_WO_low.mp3.ogg",
+   "celtic.mp3.ogg",
+   "cinematic-calm.mp3.ogg",
+   "determined_pursuit_preview.mp3.ogg",
+   "evil_approach_preview.mp3.ogg",
+   "last_battle_145bpm.ogg.mp3",
+   "ld44.mp3.ogg",
+   "letter.mp3.ogg",
+   "new_sunrise_preview.mp3.ogg",
+   "once_upon_a_time_loop.mp3.ogg",
+   "prepare_to_fight.mp3.ogg",
+   "randdom1.ogg.mp3",
+   "scrapland_menu_theme_1.mp3.ogg",
+   "tad_-_unexplored_-_expanded_1_by_bo_jingles.mp3.ogg",
+   "background.mp3",
+   "battleThemeA_0.mp3",
+   "battleThemeB_Preview.mp3",
+   "battleground_remastered.mp3",
+   "bit_forrest_stinger.mp3",
+   "boss_battle_#2_metal_preview.mp3",
+   "bosstheme_WO_low.mp3",
+   "celtic.mp3",
+   "cinematic-calm.mp3",
+   "determined_pursuit_preview.mp3",
+   "evil_approach_preview.mp3",
+   "last_battle_145bpm.ogg",
+   "ld44.mp3",
+   "letter.mp3",
+   "new_sunrise_preview.mp3",
+   "once_upon_a_time_loop.mp3",
+   "prepare_to_fight.mp3",
+   "randdom1.ogg",
+   "scrapland_menu_theme_1.mp3",
+   "tad_-_unexplored_-_expanded_1_by_bo_jingles.mp3"
+  ]
+ },
+ {
+  "cat": "music",
+  "slug": "heroic-demise-updated-version",
+  "title": "Heroic Demise [Updated Version]",
+  "licenses": [],
+  "author": "Matthew Pablo",
+  "desc": "  *Note: This is an updated version. I've implemented new instruments including choirs and new string patches. \n   \n This is your standard hero theme in your standard fantasy world with sword weilding warriors, warlocks and dragons. \n   \n I hope you guys enjoy this track. \n Also, if needed I can re-arrange it to best suit your needs. \n Contact me on my official website:  http://www.matthewpablo.co",
+  "files": [
+   "Heroic Demise (New).mp3",
+   "Heroic Demise (New)_0.mp3",
+   "Heroic Demise (New).mp3.ogg"
+  ]
+ },
+ {
+  "cat": "music",
+  "slug": "the-dark-castle",
+  "error": "HTTP Error 404: Not Found"
+ },
+ {
+  "cat": "music",
+  "slug": "dark-ambient",
+  "title": "Dark Ambient",
+  "licenses": [],
+  "author": "Music",
+  "desc": "  Just a nice little chillout loop I finished. \n",
+  "files": [
+   "fr4s - 8bit2.mp3.ogg",
+   "fr4s - 8bit2.mp3"
+  ]
+ },
+ {
+  "cat": "music",
+  "slug": "crypt-loop",
+  "error": "HTTP Error 404: Not Found"
+ },
+ {
+  "cat": "music",
+  "slug": "cave-theme",
+  "title": "Cave Theme",
+  "licenses": [],
+  "author": "HaelDB",
+  "desc": "  Cave Theme, for a mysterious cave, for Mr.Pfunked. \n",
+  "files": [
+   "cave themeb4.ogg.mp3",
+   "cave themeb4.ogg"
+  ]
+ },
+ {
+  "cat": "music",
+  "slug": "town-theme-rpg",
+  "title": "Town Theme RPG",
+  "licenses": [],
+  "author": "cynicmusic",
+  "desc": "  Town theme for an RPG. Typical harps and recorders fare perfect for your RPG. Now CC0 Public Domain License! \n This is for my game Pixelsphere  http://pixelsphere.org  I'm sharing some of my assets (art, sound effects and music) with the community to thank you for all the great content you have contributed. Let me know which works you find useful and I will share more similar content. \n My game ",
+  "files": [
+   "TownTheme.mp3",
+   "TownTheme_0.mp3",
+   "TownTheme_0.mp3.ogg"
+  ]
+ },
+ {
+  "cat": "music",
+  "slug": "village",
+  "title": "Village",
+  "licenses": [],
+  "author": "nicubunu",
+  "desc": "  Village building, part of my PD-licensed  game map  clipart collection. \n",
+  "files": []
+ },
+ {
+  "cat": "music",
+  "slug": "fantasy-dungeon-music",
+  "error": "HTTP Error 404: Not Found"
+ },
+ {
+  "cat": "music",
+  "slug": "dungeon-theme",
+  "title": "Dungeon Theme",
+  "licenses": [],
+  "author": "remaxim",
+  "desc": "  Background music for a foreboding, haunted dungeon to set the hero at unease \n   \n Commissioned by OpenGameArt \n",
+  "files": [
+   "dungeon theme.ogg.mp3",
+   "dungeon theme.flac",
+   "dungeon theme.ogg"
+  ]
+ },
+ {
+  "cat": "music",
+  "slug": "catacombs",
+  "error": "HTTP Error 404: Not Found"
+ },
+ {
+  "cat": "sfx",
+  "slug": "50-rpg-sound-effects",
+  "title": "50 RPG sound effects",
+  "licenses": [],
+  "author": "Kenney",
+  "desc": "  50 sound effects for RPG/fantasy/adventure games. \n  Includes:  \n \n OGG Audio files (50x) \n \n Let me know if you have any questions or requests! \n --- \n  Like to support the creation of free game assets? Consider a donation:  \n     \n",
+  "files": [
+   "RPGsounds_Kenney.zip",
+   "rpgPreview.ogg.mp3",
+   "rpgPreview.ogg"
+  ]
+ },
+ {
+  "cat": "sfx",
+  "slug": "rpg-sound-pack",
+  "title": "RPG Sound Pack",
+  "licenses": [],
+  "author": "artisticdude",
+  "desc": "    \n A compilation of all my sound effect work for the past couple months. While I created them specifically with RPGs in mind (such as Summoning Wars and FLARE, should either of those projects have a use for any of these), I'm sure there are much broader uses for at least a few of these. 95 files, all in the .wav format \n   \n A list of the sound effects in this pack: \n   \n Battle Sounds \n -2 Spe",
+  "files": [
+   "montageAudio-20120206@223055.mp3.ogg",
+   "montageAudio-20120206@223055.mp3",
+   "rpg_sound_pack.zip"
+  ]
+ },
+ {
+  "cat": "sfx",
+  "slug": "80-cc0-rpg-sfx",
+  "title": "80 CC0 RPG SFX",
+  "licenses": [],
+  "author": "rubberduck",
+  "desc": "  I created 80 sound effects for fantasy / rpg games including: \n 3x blade 4x book / page flip 3x chain 22x creature (die, hurt, misc, monster, roar, slime) 21x item (coins, gem, misc, stone, wood) 3x lock 3x metal 3x misc 9x spell (regular, fire) 4x stones 5x wood \n",
+  "files": [
+   "80-CC0-RPG-SFX_0.zip",
+   "rpg_sfx_prev_0.ogg.mp3",
+   "rpg_sfx_prev_0.ogg"
+  ]
+ },
+ {
+  "cat": "sfx",
+  "slug": "interface-sounds",
+  "title": "Interface Sounds",
+  "licenses": [],
+  "author": "Kenney",
+  "desc": "  This package includes interface sounds like button clicks, snaps, minimize, maximize, confirmation sounds and more. \n  Files:  \n \n 100× separate OGG files \n Normalized volume \n \n Let me know if you have any questions or requests! \n --- \n  Like to support the creation of free game assets? Consider a donation:  \n     \n",
+  "files": [
+   "interfaceSounds_preview.ogg.mp3",
+   "interfaceSounds_preview.ogg",
+   "kenney_interfaceSounds.zip"
+  ]
+ },
+ {
+  "cat": "sfx",
+  "slug": "magic-sounds",
+  "title": "Magic Sounds",
+  "licenses": [],
+  "author": "",
+  "desc": "  Sounds... magic...  \n",
+  "files": [
+   "Accept_0.mp3",
+   "Decline.mp3",
+   "Earth Element Magic Spell_4.ogg",
+   "Electric Demo.mp3",
+   "LedasLuzta.ogg",
+   "Replenish.ogg",
+   "Soundpack preview demo.mp3",
+   "a_4.mp3",
+   "all_0.mp3",
+   "Accept_0.mp3.ogg",
+   "Decline.mp3.ogg",
+   "Earth Element Magic Spell_4.ogg.mp3",
+   "Electric Demo.mp3.ogg",
+   "LedasLuzta.ogg.mp3",
+   "Magic Shield.wav.mp3",
+   "Magic Shield.wav.ogg",
+   "Magic Smite.wav.mp3",
+   "Magic Smite.wav.ogg",
+   "Replenish.ogg.mp3",
+   "Soundpack preview demo.mp3.ogg",
+   "Waving Torch.wav.mp3",
+   "Waving Torch.wav.ogg",
+   "a_4.mp3.ogg",
+   "all_0.mp3.ogg",
+   "dm.mp3.ogg",
+   "flame.ogg.mp3",
+   "foom_0.wav.mp3",
+   "foom_0.wav.ogg",
+   "freeze.wav.mp3",
+   "freeze.wav.ogg",
+   "healing.ogg.mp3",
+   "hs.mp3.ogg",
+   "ices.mp3.ogg",
+   "life_pickup_0.mp3.ogg",
+   "magical_1.ogg.mp3",
+   "montage-sfx-20121112@021906.ogg.mp3",
+   "montage-sfx-20121112@144604.ogg.mp3",
+   "montage-sfx-20130926@031949.ogg.mp3",
+   "montage-sfx-20131006@021306.ogg.mp3",
+   "montage-sfx-20131209@162004_0.ogg.mp3",
+   "montageAudio-20120408@141117.mp3.ogg",
+   "montageAudio-20120408@142754.mp3.ogg",
+   "montageAudio-20120408@144605.mp3.ogg",
+   "montageAudio-20120619@031244.ogg.mp3",
+   "qubodup-PowerDrain.ogg.mp3",
+   "shimmer_1.flac_.mp3.ogg",
+   "spell1_0.wav.mp3",
+   "spell1_0.wav.ogg",
+   "spell2.wav.mp3",
+   "spell2.wav.ogg",
+   "spell3.wav.mp3",
+   "spell3.wav.ogg",
+   "spell4.wav.mp3",
+   "spell4.wav.ogg",
+   "spellspreview.mp3.ogg",
+   "teleport.wav.mp3",
+   "teleport.wav.ogg",
+   "thunderclap.ogg.mp3",
+   "transitking-wave-prev.ogg.mp3",
+   "twink.ogg.mp3",
+   "wat_0.mp3.ogg",
+   "water_sfx_prev.ogg.mp3",
+   "waterharp.mp3.ogg",
+   "dm.mp3",
+   "flame.ogg",
+   "healing.ogg",
+   "hs.mp3",
+   "ices.mp3",
+   "life_pickup_0.mp3",
+   "magical_1.ogg",
+   "montage-sfx-20121112@021906.ogg",
+   "montage-sfx-20121112@144604.ogg",
+   "montage-sfx-20130926@031949.ogg",
+   "montage-sfx-20131006@021306.ogg",
+   "montage-sfx-20131209@162004_0.ogg",
+   "montageAudio-20120408@141117.mp3",
+   "montageAudio-20120408@142754.mp3",
+   "montageAudio-20120408@144605.mp3",
+   "montageAudio-20120619@031244.ogg",
+   "qubodup-PowerDrain.ogg",
+   "shimmer_1.flac_.mp3",
+   "spellspreview.mp3",
+   "thunderclap.ogg",
+   "transitking-wave-prev.ogg",
+   "twink.ogg",
+   "wat_0.mp3",
+   "water_sfx_prev.ogg",
+   "waterharp.mp3"
+  ]
+ },
+ {
+  "cat": "sfx",
+  "slug": "spell-sounds",
+  "title": "Spell sounds",
+  "licenses": [],
+  "author": "HaelDB",
+  "desc": "  Sorry the files arent just one sound. Its the same sound done more than a couple times at different durations so you can choose how long you want the spell sound or how short. \n   \n I posted in the preview in order of what I was going for \n 1.Healing (3 times \n 2.Teleport (3 times \n 3. Electrical/Spell 2 diff types \n If you would like me to upload more spell sounds and have some in mind. PLease ",
+  "files": [
+   "healing.ogg.mp3",
+   "electricspell.ogg",
+   "electricspell2.ogg",
+   "healing.ogg",
+   "teleport.ogg"
+  ]
+ },
+ {
+  "cat": "sfx",
+  "slug": "ice-spells",
+  "title": "Ice spells",
+  "licenses": [],
+  "author": "bart",
+  "desc": "  Here are some ice spell sounds I put together from  this sound  by  Stephan  at  pdsounds . \n Tools used: Audacity \n",
+  "files": [
+   "ices.mp3.ogg",
+   "ices.mp3",
+   "icespells.zip"
+  ]
+ },
+ {
+  "cat": "sfx",
+  "slug": "magic-spell-sfx",
+  "title": "Magic Spell SFX",
+  "licenses": [],
+  "author": "JaggedStone",
+  "desc": "  A few 'spellcasting' sound effects that I used in a dungeon crawler type game. They would work ok in other contexts, e.g. user interfaces. \n",
+  "files": [
+   "magical_1.ogg.mp3",
+   "magical_2_1.ogg.mp3",
+   "magical_3_1.ogg.mp3",
+   "magical_4_1.ogg.mp3",
+   "magical_5_1.ogg.mp3",
+   "magical_6.ogg.mp3",
+   "magical_7.ogg.mp3",
+   "magical_1.ogg",
+   "magical_1_0.ogg",
+   "magical_2.ogg",
+   "magical_2_1.ogg",
+   "magical_3.ogg",
+   "magical_3_1.ogg",
+   "magical_4.ogg",
+   "magical_4_1.ogg",
+   "magical_5.ogg",
+   "magical_5_1.ogg",
+   "magical_6.ogg",
+   "magical_6_0.ogg",
+   "magical_7.ogg",
+   "magical_7_0.ogg"
+  ]
+ },
+ {
+  "cat": "sfx",
+  "slug": "fire-evil-spell",
+  "title": "Fire & Evil Spell",
+  "licenses": [],
+  "author": "artisticdude",
+  "desc": "   this thread  :) \n",
+  "files": [
+   "montageAudio-20120408@141117.mp3.ogg",
+   "montageAudio-20120408@141117.mp3"
+  ]
+ },
+ {
+  "cat": "sfx",
+  "slug": "ice-electricity-magic",
+  "title": "Ice & Electricity Magic",
+  "licenses": [],
+  "author": "qubodup",
+  "desc": "  Ice magic sounds made for  http://lipsofsuna.org/wiki/audio-tasks  and electricity sounds that were created during the process by chance (hint: audacity delay effect at low intervals) \n",
+  "files": [
+   "montage-sfx-20131006@021306.ogg.mp3",
+   "montage-sfx-20131006@021306.ogg"
+  ]
+ },
+ {
+  "cat": "sfx",
+  "slug": "freeze-spell-0",
+  "title": "Freeze Spell",
+  "licenses": [],
+  "author": "artisticdude",
+  "desc": "  An experimental freeze/ice spell in the .wav format, created for the FOSS RPG Summoning Wars \n",
+  "files": [
+   "freeze.wav.mp3",
+   "freeze.wav.ogg",
+   "freeze.wav"
+  ]
+ },
+ {
+  "cat": "sfx",
+  "slug": "spell-effects-by-starsteelgaming",
+  "title": "Spell Effects by StarsteelGaming",
+  "licenses": [],
+  "author": "StarsteelGaming",
+  "desc": "  These are three animated spells that I created for use in my current project. Each was created on a 64x32 canvas. Because of the amount of subimages, I chose to release these as a single zip pack; if people want things done a little differently, please let me know. Since these are being released under the public domain, you can use them any way that you choose, with or without attribution. If yo",
+  "files": [
+   "Spell Effects.zip"
+  ]
+ },
+ {
+  "cat": "sfx",
+  "slug": "cc0-sounds-library",
+  "title": "CC0 Sounds Library",
+  "licenses": [],
+  "author": "",
+  "desc": "  Sound effects under CC0. \n",
+  "files": [
+   "Birds, Wind, Synth (Final B Mix).ogg",
+   "Earth Element Magic Spell_4.ogg",
+   "Menu Choice_0.mp3",
+   "adding_salt_01_0.ogg",
+   "alarm.ogg",
+   "all_0.mp3",
+   "allsounds.ogg",
+   "asfx.mp3",
+   "atmo.mp3",
+   "Birds, Wind, Synth (Final B Mix).ogg.mp3",
+   "Earth Element Magic Spell_4.ogg.mp3",
+   "Menu Choice_0.mp3.ogg",
+   "adding_salt_01_0.ogg.mp3",
+   "alarm.ogg.mp3",
+   "all_0.mp3.ogg",
+   "allsounds.ogg.mp3",
+   "asfx.mp3.ogg",
+   "atmo.mp3.ogg",
+   "bea.mp3.ogg",
+   "bicycle-horn-1.wav.mp3",
+   "bicycle-horn-1.wav.ogg",
+   "bicycle_spokes-1.ogg.mp3",
+   "but.mp3.ogg",
+   "camera.ogg.mp3",
+   "clock-1.ogg.mp3",
+   "cooking_without_cover_01.ogg.mp3",
+   "crack.mp3.ogg",
+   "cut_pumpkin_01_0.ogg.mp3",
+   "drinkprev.mp3.ogg",
+   "ghost.wav.mp3",
+   "ghost.wav.ogg",
+   "gui.mp3.ogg",
+   "heartbeat.mp3_.flac_.mp3.ogg",
+   "high_pitch_scream_gverb.mp3.ogg",
+   "hit.mp3.ogg",
+   "hits.7zmontageAudio-20120208@173616.mp3.ogg",
+   "ices.mp3.ogg",
+   "im.mp3.ogg",
+   "imp_3.mp3.ogg",
+   "jasinski-wave-prev.ogg.mp3",
+   "jumpland.wav.mp3",
+   "jumpland.wav.ogg",
+   "monster2.mp3.ogg",
+   "montage-sfx-20121120@163441.ogg.mp3",
+   "montage-sfx-20121205@005411.ogg.mp3",
+   "montage-sfx-20140418@233053_0.ogg.mp3",
+   "montageAudio-20110823@162101.mp3.ogg",
+   "montageAudio-20120206@223055.mp3.ogg",
+   "montageAudio-20120408@130311.mp3.ogg",
+   "montageAudio-20120408@142754.mp3.ogg",
+   "montageAudio-20120408@143435.mp3.ogg",
+   "montageAudio-20120408@145831.mp3.ogg",
+   "montageAudio-20120416@023706.mp3.ogg",
+   "montageAudio-20120619@031244.ogg.mp3",
+   "montageAudio-20121011@003831.mp3.ogg",
+   "pick_cutlery_01_0.ogg.mp3",
+   "prev-dog.wav_.mp3.ogg",
+   "pumpkin_break_01.ogg.mp3",
+   "steps_preview.mp3.ogg",
+   "teleport.wav.mp3",
+   "teleport.wav.ogg",
+   "transitking-wave-prev.ogg.mp3",
+   "turn_stove_on_01.ogg.mp3",
+   "ventilator.ogg.mp3",
+   "winchprev.mp3.ogg",
+   "wood.mp3.ogg",
+   "ws.mp3.ogg",
+   "bea.mp3",
+   "bicycle_spokes-1.ogg",
+   "but.mp3",
+   "camera.ogg",
+   "clock-1.ogg",
+   "cooking_without_cover_01.ogg",
+   "crack.mp3",
+   "cut_pumpkin_01_0.ogg",
+   "drinkprev.mp3",
+   "gui.mp3",
+   "heartbeat.mp3_.flac_.mp3",
+   "high_pitch_scream_gverb.mp3",
+   "hit.mp3",
+   "hits.7zmontageAudio-20120208@173616.mp3",
+   "ices.mp3",
+   "im.mp3",
+   "imp_3.mp3",
+   "jasinski-wave-prev.ogg",
+   "monster2.mp3",
+   "montage-sfx-20121120@163441.ogg",
+   "montage-sfx-20121205@005411.ogg",
+   "montage-sfx-20140418@233053_0.ogg",
+   "montageAudio-20110823@162101.mp3",
+   "montageAudio-20120206@223055.mp3",
+   "montageAudio-20120408@130311.mp3",
+   "montageAudio-20120408@142754.mp3",
+   "montageAudio-20120408@143435.mp3",
+   "montageAudio-20120408@145831.mp3",
+   "montageAudio-20120416@023706.mp3",
+   "montageAudio-20120619@031244.ogg",
+   "montageAudio-20121011@003831.mp3",
+   "pick_cutlery_01_0.ogg",
+   "prev-dog.wav_.mp3",
+   "pumpkin_break_01.ogg",
+   "steps_preview.mp3",
+   "transitking-wave-prev.ogg",
+   "turn_stove_on_01.ogg",
+   "ventilator.ogg",
+   "winchprev.mp3",
+   "wood.mp3",
+   "ws.mp3"
+  ]
+ },
+ {
+  "cat": "sfx",
+  "slug": "51-ui-sound-effects-buttons-switches-and-clicks",
+  "title": "51 UI sound effects (buttons, switches and clicks)",
+  "licenses": [],
+  "author": "Kenney",
+  "desc": "  51 UI sound effects (buttons, switches and clicks), WAV format - all organic sounds. \n 5 clicks, 2 mouseclicks, 6 rollovers and 38 switches. \n Let me know if you have any questions or requests! \n  ( Note:  preview doesn't include all sounds and is low quality MP3)  \n  ---  \n  Like to support the creation of free game assets? Consider a donation:  \n     \n",
+  "files": [
+   "UI_SFX_Set.zip",
+   "sfxguipreview.mp3.ogg",
+   "sfxguipreview.mp3"
+  ]
+ },
+ {
+  "cat": "sfx",
+  "slug": "impact-sounds",
+  "error": "HTTP Error 404: Not Found"
+ },
+ {
+  "cat": "sfx",
+  "slug": "inventory-sound-effects",
+  "title": "Inventory Sound Effects",
+  "licenses": [],
+  "author": "Ogrebane",
+  "desc": "  A set of six sound effects in the .wav format created for the FOSS RPG game Summoning Wars. \n   \n -Metal Clash \n -Ring \n -Leather \n -Cloth \n -turn page \n -sell/buy \n",
+  "files": [
+   "montageAudio-20120408@143359.mp3.ogg",
+   "inventory_sound_effects.zip",
+   "montageAudio-20120408@143359.mp3"
+  ]
+ },
+ {
+  "cat": "sfx",
+  "slug": "coin-sounds",
+  "title": "coin sounds",
+  "licenses": [],
+  "author": "syncopika",
+  "desc": "  some coin sounds I recorded today with real coins! :D  \n",
+  "files": [
+   "coinsounds011015.ogg.mp3",
+   "coinsounds011015.ogg",
+   "coinsounds011015.wav",
+   "coinsounds011015_0.ogg"
+  ]
+ },
+ {
+  "cat": "sfx",
+  "slug": "8-bit-sound-effects-library",
+  "title": "8-Bit Sound Effects Library",
+  "licenses": [],
+  "author": "Little Robot Sound Factory",
+  "desc": "  8-Bit Sound Effects Library is a powerful collection of often used 8-Bit sound effects for creating  an old school and nostalgic experience . It contains: \n \n 1 Climb Rope \n 3 Collect Point \n 1 Craft Item \n 5 Explosions \n 1 Hero Death \n 4 Hits \n 6 Jingles (Achievement, Win, Lose) \n 4 Jump \n 4 Menu Navigate \n 2 Open \n 5 Pickup \n 4 Shoot \n \n  Total: 40 8-Bit SFX!  \n All sounds are both isolated pr",
+  "files": [
+   "8-Bit Sample.mp3",
+   "8-Bit Sound Library.zip",
+   "8-Bit Sample.mp3.ogg"
+  ]
+ },
+ {
+  "cat": "sfx",
+  "slug": "level-up-sound-effects",
+  "title": "Level up sound effects",
+  "licenses": [],
+  "author": "bart",
+  "desc": "  A small collection of 5 level up sound effects in wav format. \n Includes: \n \n A short snare drumroll for military units \n A chiptune jingle somewaht inspired by Dragon Quest \n ...and 3 more sound effects \n \n",
+  "files": [
+   "Level Up!.zip",
+   "preview_2.ogg.mp3",
+   "preview_2.ogg"
+  ]
+ },
+ {
+  "cat": "sfx",
+  "slug": "fire-crackling-ambience",
+  "error": "HTTP Error 404: Not Found"
+ },
+ {
+  "cat": "sfx",
+  "slug": "swish-bamboo-stick-weapon-swhoshes",
+  "title": "Swish - bamboo stick weapon swhoshes",
+  "licenses": [],
+  "author": "qubodup",
+  "desc": "  I waved my bamboo stick in front of the mic. Awesome, no? \n",
+  "files": [
+   "montageAudio-20120408@130311.mp3.ogg",
+   "montageAudio-20120408@130311.mp3"
+  ]
+ },
+ {
+  "cat": "sfx",
+  "slug": "bone-crushing",
+  "error": "HTTP Error 404: Not Found"
+ },
+ {
+  "cat": "sfx",
+  "slug": "monster-sound-effects-pack",
+  "title": "Monster Sound Effects Pack",
+  "licenses": [],
+  "author": "Ogrebane",
+  "desc": "  Monster noises! Who doesn't love those? :D \n",
+  "files": [
+   "monster1.mp3.ogg",
+   "monster1.mp3",
+   "monster_sfx_pack.zip"
+  ]
+ },
+ {
+  "cat": "sfx",
+  "slug": "100-cc0-sfx",
+  "title": "100 CC0 SFX",
+  "licenses": [],
+  "author": "rubberduck",
+  "desc": "  my first sound effect pack ever including 100 effects, recorded with an android device... \n Note: the preview does not contain all sounds \n includes: \n 3x bell 4x dishes 2x door squeak 4x door close 1x door open 1x explosion 5x glass 2x \"gong\" sound 4x hit sound 2x key open 3x machine loop 12x metal 2x microwave door close / open 2x noise 7x other 4x paper 2x \"plop\" sound 2x pot 2x shot 7x slam ",
+  "files": [
+   "100-CC0-SFX_0.zip",
+   "sfx_prev_0.ogg.mp3",
+   "sfx_prev_0.ogg"
+  ]
+ },
+ {
+  "cat": "sfx",
+  "slug": "rpg-sfx",
+  "title": "rpg-sfx",
+  "licenses": [],
+  "author": "",
+  "desc": "  A few collected sound effects for rpg games. \n",
+  "files": [
+   "preview_9.ogg.mp3",
+   "preview_9.ogg"
+  ]
+ },
+ {
+  "cat": "sfx",
+  "slug": "potion-drinking",
+  "error": "HTTP Error 404: Not Found"
+ },
+ {
+  "cat": "sfx",
+  "slug": "bubbles-pop",
+  "title": "bubbles 'pop'",
+  "licenses": [],
+  "author": "farfadet46",
+  "desc": "  bubble pop sound \n little sound for games. powerups ... \n",
+  "files": [
+   "pop_0.ogg.mp3",
+   "pop.ogg",
+   "pop_0.ogg"
+  ]
+ },
+ {
+  "cat": "sfx",
+  "slug": "door-open-close",
+  "error": "HTTP Error 404: Not Found"
+ },
+ {
+  "cat": "tex",
+  "slug": "stone_tiles_02",
+  "licenses": [
+   "CC0"
+  ],
+  "author": "Poly Haven",
+  "files": [
+   "diff",
+   "nor",
+   "rough",
+   "ao"
+  ]
+ },
+ {
+  "cat": "tex",
+  "slug": "stone_tiles",
+  "licenses": [
+   "CC0"
+  ],
+  "author": "Poly Haven",
+  "files": [
+   "diff",
+   "nor",
+   "rough",
+   "ao"
+  ]
+ },
+ {
+  "cat": "tex",
+  "slug": "stone_brick_wall_001",
+  "licenses": [
+   "CC0"
+  ],
+  "author": "Poly Haven",
+  "files": [
+   "diff",
+   "nor",
+   "rough",
+   "ao"
+  ]
+ },
+ {
+  "cat": "tex",
+  "slug": "stone_wall",
+  "licenses": [
+   "CC0"
+  ],
+  "author": "Poly Haven",
+  "files": [
+   "diff",
+   "nor",
+   "rough",
+   "ao"
+  ]
+ },
+ {
+  "cat": "tex",
+  "slug": "stone_wall_02",
+  "licenses": [
+   "CC0"
+  ],
+  "author": "Poly Haven",
+  "files": [
+   "diff",
+   "nor",
+   "rough",
+   "ao"
+  ]
+ },
+ {
+  "cat": "tex",
+  "slug": "stone_wall_04",
+  "licenses": [
+   "CC0"
+  ],
+  "author": "Poly Haven",
+  "files": [
+   "diff",
+   "nor",
+   "rough",
+   "ao"
+  ]
+ },
+ {
+  "cat": "tex",
+  "slug": "rustic_stone_wall",
+  "licenses": [
+   "CC0"
+  ],
+  "author": "Poly Haven",
+  "files": [
+   "diff",
+   "nor",
+   "rough",
+   "ao"
+  ]
+ },
+ {
+  "cat": "tex",
+  "slug": "rock_wall_12",
+  "licenses": [
+   "CC0"
+  ],
+  "author": "Poly Haven",
+  "files": [
+   "diff",
+   "nor",
+   "rough",
+   "ao"
+  ]
+ },
+ {
+  "cat": "tex",
+  "slug": "rock_wall_05",
+  "licenses": [
+   "CC0"
+  ],
+  "author": "Poly Haven",
+  "files": [
+   "diff",
+   "nor",
+   "rough",
+   "ao"
+  ]
+ },
+ {
+  "cat": "tex",
+  "slug": "red_sandstone_wall",
+  "licenses": [
+   "CC0"
+  ],
+  "author": "Poly Haven",
+  "files": [
+   "diff",
+   "nor",
+   "rough",
+   "ao"
+  ]
+ },
+ {
+  "cat": "tex",
+  "slug": "embedded_rock_floor",
+  "licenses": [
+   "CC0"
+  ],
+  "author": "Poly Haven",
+  "files": [
+   "diff",
+   "nor",
+   "rough",
+   "ao"
+  ]
+ },
+ {
+  "cat": "tex",
+  "slug": "t_brick_floor_002",
+  "licenses": [
+   "CC0"
+  ],
+  "author": "Poly Haven",
+  "files": [
+   "diff",
+   "nor",
+   "rough",
+   "ao"
+  ]
+ },
+ {
+  "cat": "tex",
+  "slug": "tiled_floor_001",
+  "licenses": [
+   "CC0"
+  ],
+  "author": "Poly Haven",
+  "files": [
+   "diff",
+   "nor",
+   "rough",
+   "ao"
+  ]
+ },
+ {
+  "cat": "tex",
+  "slug": "large_sandstone_blocks",
+  "licenses": [
+   "CC0"
+  ],
+  "author": "Poly Haven",
+  "files": [
+   "diff",
+   "nor",
+   "rough",
+   "ao"
+  ]
+ },
+ {
+  "cat": "tex",
+  "slug": "cobblestone_floor_001",
+  "licenses": [
+   "CC0"
+  ],
+  "author": "Poly Haven",
+  "files": [
+   "diff",
+   "nor",
+   "rough"
+  ]
+ },
+ {
+  "cat": "tex",
+  "slug": "castle_brick_07",
+  "licenses": [
+   "CC0"
+  ],
+  "author": "Poly Haven",
+  "files": [
+   "diff",
+   "nor",
+   "rough",
+   "ao"
+  ]
+ },
+ {
+  "cat": "tex",
+  "slug": "castle_brick_02_red",
+  "licenses": [
+   "CC0"
+  ],
+  "author": "Poly Haven",
+  "files": [
+   "diff",
+   "nor",
+   "rough",
+   "ao"
+  ]
+ },
+ {
+  "cat": "tex",
+  "slug": "medieval_blocks_02",
+  "licenses": [
+   "CC0"
+  ],
+  "author": "Poly Haven",
+  "files": [
+   "diff",
+   "nor",
+   "rough",
+   "ao"
+  ]
+ },
+ {
+  "cat": "tex",
+  "slug": "medieval_blocks_03",
+  "licenses": [
+   "CC0"
+  ],
+  "author": "Poly Haven",
+  "files": [
+   "diff",
+   "nor",
+   "rough",
+   "ao"
+  ]
+ },
+ {
+  "cat": "tex",
+  "slug": "dark_brick_wall",
+  "licenses": [
+   "CC0"
+  ],
+  "author": "Poly Haven",
+  "files": [
+   "diff",
+   "nor",
+   "rough",
+   "ao"
+  ]
+ },
+ {
+  "cat": "tex",
+  "slug": "forrest_ground_01",
+  "licenses": [
+   "CC0"
+  ],
+  "author": "Poly Haven",
+  "files": [
+   "diff",
+   "nor",
+   "rough",
+   "ao"
+  ]
+ },
+ {
+  "cat": "tex",
+  "slug": "aerial_grass_rock",
+  "licenses": [
+   "CC0"
+  ],
+  "author": "Poly Haven",
+  "files": [
+   "diff",
+   "nor",
+   "rough",
+   "ao"
+  ]
+ },
+ {
+  "cat": "tex",
+  "slug": "brown_mud_leaves_01",
+  "licenses": [
+   "CC0"
+  ],
+  "author": "Poly Haven",
+  "files": [
+   "diff",
+   "nor",
+   "rough",
+   "ao"
+  ]
+ },
+ {
+  "cat": "tex",
+  "slug": "rocky_terrain_02",
+  "licenses": [
+   "CC0"
+  ],
+  "author": "Poly Haven",
+  "files": [
+   "diff",
+   "nor",
+   "rough",
+   "ao"
+  ]
+ },
+ {
+  "cat": "tex",
+  "slug": "grass_path_2",
+  "licenses": [
+   "CC0"
+  ],
+  "author": "Poly Haven",
+  "files": [
+   "diff",
+   "nor",
+   "rough",
+   "ao"
+  ]
+ },
+ {
+  "cat": "tex",
+  "slug": "cobblestone_05",
+  "licenses": [
+   "CC0"
+  ],
+  "author": "Poly Haven",
+  "files": [
+   "diff",
+   "nor",
+   "rough",
+   "ao"
+  ]
+ },
+ {
+  "cat": "tex",
+  "slug": "mossy_cobblestone",
+  "licenses": [
+   "CC0"
+  ],
+  "author": "Poly Haven",
+  "files": [
+   "diff",
+   "nor",
+   "rough",
+   "ao"
+  ]
+ },
+ {
+  "cat": "tex",
+  "slug": "broken_wall",
+  "licenses": [
+   "CC0"
+  ],
+  "author": "Poly Haven",
+  "files": [
+   "diff",
+   "nor",
+   "rough",
+   "ao"
+  ]
+ },
+ {
+  "cat": "tex",
+  "slug": "old_planks_02",
+  "licenses": [
+   "CC0"
+  ],
+  "author": "Poly Haven",
+  "files": [
+   "diff",
+   "nor",
+   "rough",
+   "ao"
+  ]
+ },
+ {
+  "cat": "tex",
+  "slug": "black_stone_floor",
+  "error": "HTTP Error 404: Not Found"
+ },
+ {
+  "cat": "tex",
+  "slug": "gravel_floor_02",
+  "licenses": [
+   "CC0"
+  ],
+  "author": "Poly Haven",
+  "files": [
+   "diff",
+   "nor",
+   "rough",
+   "ao"
+  ]
+ },
+ {
+  "cat": "tex",
+  "slug": "cobble_floor_04",
+  "error": "HTTP Error 404: Not Found"
+ },
+ {
+  "cat": "tex",
+  "slug": "stone_floor",
+  "licenses": [
+   "CC0"
+  ],
+  "author": "Poly Haven",
+  "files": [
+   "diff",
+   "nor",
+   "rough",
+   "ao"
+  ]
+ },
+ {
+  "cat": "tex",
+  "slug": "worn_tile_floor",
+  "licenses": [
+   "CC0"
+  ],
+  "author": "Poly Haven",
+  "files": [
+   "diff",
+   "nor",
+   "rough",
+   "ao"
+  ]
+ },
+ {
+  "cat": "tex",
+  "slug": "herringbone_brick",
+  "licenses": [
+   "CC0"
+  ],
+  "author": "Poly Haven",
+  "files": [
+   "diff",
+   "nor",
+   "rough",
+   "ao"
+  ]
+ },
+ {
+  "cat": "tex",
+  "slug": "brick_floor_003",
+  "licenses": [
+   "CC0"
+  ],
+  "author": "Poly Haven",
+  "files": [
+   "diff",
+   "nor",
+   "rough",
+   "ao"
+  ]
+ },
+ {
+  "cat": "tex",
+  "slug": "castle_wall_slates",
+  "licenses": [
+   "CC0"
+  ],
+  "author": "Poly Haven",
+  "files": [
+   "diff",
+   "nor",
+   "rough",
+   "ao"
+  ]
+ },
+ {
+  "cat": "tex",
+  "slug": "rock_wall_08",
+  "licenses": [
+   "CC0"
+  ],
+  "author": "Poly Haven",
+  "files": [
+   "diff",
+   "nor",
+   "rough",
+   "ao"
+  ]
+ }
+]
