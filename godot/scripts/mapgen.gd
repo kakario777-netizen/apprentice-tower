@@ -451,6 +451,7 @@ func gen_floor(fl: int, boss: bool, want_door := false) -> void:
 			if c.id != start_c.id: rooms.append(c.room)
 		for r in rooms: carve(r.x, r.y, r.w, r.h)
 		# 방마다 쓰임새(연구실·숙소·감옥·서고·창고·의식실)와 모양(기둥·모서리 깎기) — 통로는 그 뒤에 뚫어서 늘 이어짐
+		theme_used = {}
 		for i in rooms.size():
 			var r: Dictionary = rooms[i]
 			r.theme = _pick_theme(r) if i > 0 else "plain"
@@ -648,16 +649,20 @@ func near_opening(r: Dictionary, p: Vector2, rad := 2) -> bool:
 			if i < r.x or i >= r.x + r.w or j < r.y or j >= r.y + r.h: return true
 	return false
 
-const THEME_W := {plain = 28, lab = 14, dorm = 12, prison = 10, library = 14, storage = 12, ritual = 8}
+const THEME_W := {plain = 24, lab = 10, dorm = 5, prison = 7, library = 10, storage = 9, ritual = 6, meeting = 11, armory = 8, dining = 8, ruin = 7}
+var theme_used := {}
+# 한 층에 같은 쓰임새 방은 한 번만(빈 방·창고는 여러 번 가능)
 func _pick_theme(r: Dictionary) -> String:
 	var tot := 0
 	for k in THEME_W: tot += THEME_W[k]
-	for tries in 4:
+	for tries in 6:
 		var x := randi() % tot
 		for k in THEME_W:
 			x -= THEME_W[k]
 			if x < 0:
-				if k in ["dorm", "prison", "library", "lab"] and (r.w < 10 or r.h < 8): break
+				if k in ["dorm", "prison", "library", "lab", "meeting", "dining"] and (r.w < 10 or r.h < 8): break
+				if theme_used.has(k) and not k in ["plain", "storage"]: break
+				theme_used[k] = true
 				return k
 	return "plain"
 
@@ -676,8 +681,8 @@ func _shape_octagon(r: Dictionary, c: int) -> void:
 
 # ---------- 방 꾸미기(3D 소품) ----------
 const FS := .74     # 가구 크기(사람 키에 맞춤)
-func _mdl(name: String, p: Vector2, rot := 0.0, sc := FS, r_obst := 0.0, h := 0.0) -> void:
-	decor.append({kind = "model", name = name, pos = p, rot = rot, s = sc, h = h})
+func _mdl(name: String, p: Vector2, rot := 0.0, sc := FS, r_obst := 0.0, h := 0.0, tilt := Vector2.ZERO) -> void:
+	decor.append({kind = "model", name = name, pos = p, rot = rot, s = sc, h = h, tilt = tilt})
 	if r_obst > 0: obst.append({x = p.x, y = p.y, r = r_obst})
 
 func _free(r: Dictionary, p: Vector2, rad: float) -> bool:
@@ -785,6 +790,54 @@ func _decorate_theme(r: Dictionary) -> void:
 					if _free(r, p, 13): _mdl(pick(["Crate_Wooden", "Crate_Metal", "Barrel", "Barrel", "Pot_1", "Rope_1", "Bucket_Wooden_1"]), p, rnd(-.4, .4), FS, 13.0)
 			var bh := Vector2(r.cx, (r.y + .5) * T)
 			if _free(r, bh, 20): _mdl("Barrel_Holder", bh, 0.0, FS, 18.0)
+		"meeting":
+			# 버려진 회의실·공부방: 가운데 부서져 주저앉은 큰 탁자, 둘레에 쓰러진 의자, 벽에 기대 넘어진 의자·흩어진 종이
+			if _free(r, c, 34):
+				_mdl("Table_Large", c, rnd(-.15, .15), FS, 30.0, -.12, Vector2(rnd(.12, .22), rnd(-.1, .1)))       # 한쪽 다리가 꺾여 기운 탁자
+				_on_table(c + Vector2(-8, 0), 16, 5, .6 * FS, ["Book_5", "Scroll_2", "Candle_1"], ri(1, 3))
+				for k in ri(3, 5):
+					var a := rnd(0, TAU); var p := c + Vector2(cos(a) * 46, sin(a) * 30)
+					if _free(r, p, 8): _mdl("Chair_1", p, rnd(0, TAU), FS, 0.0, .1, Vector2(PI / 2 * pick([-1, 1]), 0))   # 쓰러진 의자
+			for k in ri(3, 6):
+				var side := randi() % 3
+				var p := Vector2((r.x + rnd(1.2, r.w - 1.2)) * T, (r.y + .55) * T) if side == 0 else Vector2((r.x + (.6 if side == 1 else r.w - .6)) * T, (r.y + rnd(1.5, r.h - 1.5)) * T)
+				if _free(r, p, 10):
+					var rot := 0.0 if side == 0 else (PI / 2 if side == 1 else -PI / 2)
+					if randf() < .6: _mdl("Chair_1", p, rot, FS, 8.0, 0.0, Vector2(-.35, 0))        # 벽에 기대 비스듬히
+					else: _mdl("Chair_1", p, rot + rnd(-1, 1), FS, 0.0, .1, Vector2(PI / 2, rnd(-.3, .3)))
+			for k in ri(4, 8):
+				var p := Vector2((r.x + rnd(1.2, r.w - 1.2)) * T, (r.y + rnd(1.2, r.h - 1.2)) * T)
+				if _free(r, p, 4): _mdl(pick(["Scroll_2", "Book_5"]), p, rnd(0, TAU), FS * 1.2, 0.0)
+			var bs := Vector2((r.x + r.w - 1.5) * T, (r.y + .6) * T)
+			if _free(r, bs, 12): _mdl("BookStand", bs, 0.0, FS, 10.0)
+		"armory":
+			# 무기고: 벽을 따라 무기 거치대·방패, 가운데 허수아비
+			for p in _along_north(r, ["WeaponStand", "Shield_Wooden", "WeaponStand"], 2.0, 14):
+				pass
+			for k in ri(1, 2):
+				var p := Vector2((r.x + rnd(2, r.w - 2)) * T, (r.y + rnd(3, r.h - 2)) * T)
+				if _free(r, p, 14): _mdl("Dummy", p, rnd(-.5, .5), FS, 12.0)
+			for k in ri(1, 3):
+				var p := Vector2((r.x + rnd(1.5, r.w - 1.5)) * T, (r.y + rnd(2, r.h - 1.5)) * T)
+				if _free(r, p, 12): _mdl(pick(["Crate_Metal", "Barrel", "Anvil"]), p, rnd(0, TAU), FS, 12.0)
+		"dining":
+			# 식당: 긴 탁자 두 줄에 그릇·잔, 의자, 구석에 통과 사과 상자
+			for dy in [-.22, .22]:
+				var tp := c + Vector2(0, dy * r.h * T)
+				if _free(r, tp, 30):
+					_mdl("Table_Large", tp, 0.0, FS, 28.0); _on_table(tp, 22, 5, .81 * FS, ["Table_Plate", "Mug", "Chalice", "Table_Spoon", "Candle_1"], ri(4, 7))
+					for sx in [-22, 0, 22]:
+						_mdl("Chair_1", tp + Vector2(sx, 18), PI + rnd(-.2, .2), FS, 0.0)
+			for corner in [Vector2(r.x + 1.3, r.y + 1.2), Vector2(r.x + r.w - 1.3, r.y + 1.2)]:
+				var p: Vector2 = corner * T
+				if _free(r, p, 14): _mdl(pick(["Barrel_Apples", "Barrel", "FarmCrate_Apple"]), p, rnd(0, TAU), FS, 13.0)
+		"ruin":
+			# 무너진 방: 바닥에 깨진 항아리·잔해·쓰러진 책장
+			for k in ri(4, 7):
+				var p := Vector2((r.x + rnd(1.5, r.w - 1.5)) * T, (r.y + rnd(1.5, r.h - 1.5)) * T)
+				if _free(r, p, 12): _mdl(pick(["Vase_Rubble_Medium", "Vase_Rubble_Medium", "Rock_Medium_1", "Rock_Medium_2", "Crate_Wooden"]), p, rnd(0, TAU), FS * rnd(.7, 1.0), 10.0)
+			var bp := Vector2((r.x + rnd(2, r.w - 2)) * T, (r.y + rnd(2, r.h - 2)) * T)
+			if _free(r, bp, 26): _mdl("Bookcase_2", bp, rnd(0, TAU), FS, 22.0, .1, Vector2(PI / 2, 0))     # 넘어진 책장
 		"ritual":
 			# 의식실: 바닥에 붉은 마법진, 둘레에 촛대
 			decor.append({kind = "circle", pos = c, red = true})
@@ -820,7 +873,7 @@ func _doorframes() -> void:
 					if run.size() >= 2 and run.size() <= 3 and randf() < .65:
 						var m: Vector2 = (Vector2(run[0]) + Vector2(run[-1])) / 2.0 + Vector2(.5, .5)
 						var pos := Vector2(m.x * T, (r.y) * T) if side == "n" else Vector2((r.x + r.w if side == "e" else r.x) * T, m.y * T)
-						decor.append({kind = "doorframe", pos = pos, side = side, wd = run.size() * T, leaf = randf() < .6})
+						decor.append({kind = "doorframe", pos = pos, side = side, wd = run.size() * T, leaf = randf() < .7})
 					run = []
 
 func _decorate() -> void:

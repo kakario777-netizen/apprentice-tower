@@ -754,19 +754,19 @@ func _run_roomtest() -> void:
 	var P = game.P; var G = game.G
 	P.prim.arcane = 2; P.active = "arcane"; G.sb = {god = true, mana = true, nocd = true, still = true}
 	var seen := {}
-	for f in [3, 7, 12, 16, 23, 27, 33, 38, 44, 48, 52, 57]:
+	for f in [3, 7, 12, 16, 23, 27, 33, 38, 44, 48, 52, 57, 62, 66, 72, 77, 83, 87]:
 		G.resume = f; game.enter_tower(f); await _frames(3)
 		G.enemies = []
 		for r in game.mg.rooms:
 			var th: String = r.get("theme", "plain")
 			if th == "plain" and seen.has("plain"): continue
-			if seen.get(th, 0) >= 2: continue
+			if seen.get(th, 0) >= 1: continue
 			seen[th] = seen.get(th, 0) + 1
 			P.x = r.cx; P.y = r.cy + 30; game.mg.reveal(P.x, P.y); game.mg.dirty = true
 			for rr in game.mg.rooms:
 				if Game.hyp(rr.cx - P.x, rr.cy - P.y) < 400: game.mg.reveal(rr.cx, rr.cy)
 			await _frames(8); await _snap("r_%s_%d_f%d" % [th, seen[th], f])
-		if seen.size() >= 7 and seen.values().min() >= 2: break
+		if seen.size() >= 11: break
 	print("ROOMTEST done ", seen); get_tree().quit()
 
 # 테라스 확인(개발용): --samples=DIR --terrtest

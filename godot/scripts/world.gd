@@ -340,7 +340,9 @@ func _build_props() -> void:
 		elif d.kind == "stall":
 			add_prop("stall", d.pos, 1.0)
 		elif d.kind == "model":
-			var md := Props3D.model(d.name, "prop", d.s); md.position = Vector3(d.pos.x / 32.0, d.get("h", 0.0), d.pos.y / 32.0); md.rotation.y = d.rot; add_child(md)
+			var md := Props3D.model(d.name, "prop", d.s); md.position = Vector3(d.pos.x / 32.0, d.get("h", 0.0), d.pos.y / 32.0)
+			var tl: Vector2 = d.get("tilt", Vector2.ZERO)
+			md.rotation = Vector3(tl.x, d.rot, tl.y); add_child(md)
 			if mg.town == null: fog_nodes.append([md, d.pos.x, d.pos.y])
 		elif d.kind == "circle": _magic_circle(d.pos, d.get("red", false))
 		elif d.kind == "glowpt":
@@ -404,23 +406,29 @@ func _bars(a: Vector2, b: Vector2) -> void:
 		rail.position = (A + B) / 2.0 + Vector3(0, y, 0); rail.rotation.y = -atan2(B.z - A.z, B.x - A.x); root.add_child(rail)
 	fog_nodes.append([root, (a.x + b.x) / 2.0, (a.y + b.y) / 2.0])
 
-# 나무 문틀(+ 가끔 벽 쪽으로 열린 문짝): 북쪽은 가로, 동·서쪽은 세로로 걸침
+# 방 입구: 벽 높이에 맞춘 나무 문틀 + 상인방, 양쪽 문짝은 방 안쪽 벽에 착 붙도록 활짝 열림(통로를 막지 않음)
 func _doorframe(d: Dictionary) -> void:
 	var root := Node3D.new(); add_child(root)
 	var wm = pbr("old_planks_02", .5)
-	var W: float = d.wd / 32.0; var H := 1.35
-	var p := Vector3(d.pos.x / 32.0, 0, d.pos.y / 32.0)
-	root.position = p
-	if d.side != "n": root.rotation.y = PI / 2
+	var W: float = d.wd / 32.0; var H := WALLZ * .92
+	root.position = Vector3(d.pos.x / 32.0, 0, d.pos.y / 32.0)
+	# 북쪽 문: 벽은 x 방향으로 놓이고 방은 +z 쪽. 동쪽 문: 방은 -x 쪽, 서쪽 문: 방은 +x 쪽
+	if d.side == "e": root.rotation.y = -PI / 2
+	elif d.side == "w": root.rotation.y = PI / 2
+	var into := .1          # 방 쪽으로 살짝(벽 안쪽 면)
 	for sx in [-1, 1]:
-		var post := MeshInstance3D.new(); var bm := BoxMesh.new(); bm.size = Vector3(.16, H, .2); post.mesh = bm; post.material_override = wm
-		post.position = Vector3(sx * (W / 2.0 + .02), H / 2.0, 0); root.add_child(post)
-	var lin := MeshInstance3D.new(); var lb := BoxMesh.new(); lb.size = Vector3(W + .3, .16, .24); lin.mesh = lb; lin.material_override = wm
-	lin.position = Vector3(0, H + .06, 0); root.add_child(lin)
+		var post := MeshInstance3D.new(); var bm := BoxMesh.new(); bm.size = Vector3(.14, H, .22); post.mesh = bm; post.material_override = wm
+		post.position = Vector3(sx * (W / 2.0 + .03), H / 2.0, into); root.add_child(post)
+	var lin := MeshInstance3D.new(); var lb := BoxMesh.new(); lb.size = Vector3(W + .32, .2, .26); lin.mesh = lb; lin.material_override = wm
+	lin.position = Vector3(0, H, into); root.add_child(lin)
+	var sill := MeshInstance3D.new(); var sb := BoxMesh.new(); sb.size = Vector3(W, .04, .3); sill.mesh = sb; sill.material_override = wm
+	sill.position = Vector3(0, .02, into); root.add_child(sill)
 	if d.get("leaf", false):
-		var leaf := MeshInstance3D.new(); var lfb := BoxMesh.new(); lfb.size = Vector3(W * .5, H * .95, .06); leaf.mesh = lfb; leaf.material_override = wm
-		var hinge := Node3D.new(); hinge.position = Vector3(-W / 2.0, 0, 0); hinge.rotation.y = -1.25; root.add_child(hinge)
-		leaf.position = Vector3(W * .25, H * .475, 0); hinge.add_child(leaf)
+		for sx in [-1, 1]:
+			if randf() < .25: continue          # 한 짝은 떨어져 나가고 없기도
+			var leaf := MeshInstance3D.new(); var lfb := BoxMesh.new(); lfb.size = Vector3(W * .5, H * .9, .05); leaf.mesh = lfb; leaf.material_override = wm
+			leaf.position = Vector3(sx * (W / 2.0 + .1 + W * .25), H * .45, into + .1)     # 문틀 바깥쪽 벽면에 붙어 열린 문짝
+			root.add_child(leaf)
 	fog_nodes.append([root, d.pos.x, d.pos.y])
 
 func _magic_circle(p: Vector2, red := false) -> void:

@@ -28,7 +28,7 @@ static func bag_price(cur: int) -> int:
 	return [3000, 8000, 18000, 35000, 60000][min(n, 4)]
 
 const PRIMARIES := {
-	arcane = {name = "비전탄", color = "#c39bff", kind = "shot", desc = "적을 스스로 쫓아가는 마력탄. 조준이 서툴러도 잘 맞는다.", cd = .3, speed = 205, homing = 3.2, radius = 5},
+	arcane = {name = "비전탄", color = "#c39bff", kind = "shot", desc = "적을 스스로 쫓아가는 마력탄. 조준이 서툴러도 잘 맞는다.", cd = .5, speed = 205, homing = 3.2, radius = 5},
 	fire = {name = "화염구", color = "#ff7b34", kind = "shot", desc = "곧게 날아가 부딪히면 터지는 불덩이. 한 방이 묵직하다.", cd = .55, speed = 300, homing = 0, radius = 7},
 	storm = {name = "번개", color = "#86e3ff", kind = "chain", desc = "조준한 쪽 적에게 전격을 계속 흘려보낸다. 누르는 동안 지속.", range = 230},
 	frost = {name = "냉기 숨결", color = "#cdf2ff", kind = "cone", desc = "앞쪽으로 냉기를 뿜어 여러 적을 한꺼번에 느리게 만든다.", range = 138},
