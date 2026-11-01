@@ -38,6 +38,7 @@ var test_inp = null
 var samples_dir := ""
 var lvtest := false
 var fxtest := false
+var tiertest := false
 
 func _ready() -> void:
 	Ui.init_fonts()
@@ -59,6 +60,7 @@ func _ready() -> void:
 		elif a.begins_with("--samples="): samples_dir = a.substr(10)
 		elif a == "--lvtest": lvtest = true
 		elif a == "--fxtest": fxtest = true
+		elif a == "--tiertest": tiertest = true
 		elif a.begins_with("--seed="): seed(int(a.substr(7)))
 	add_child(game)
 	World.set_fog(PackedByteArray())
@@ -80,9 +82,10 @@ func _ready() -> void:
 	_title_scene()
 	ui.open_title()
 	if test_floor > 0 or shot_mode != "": _test_setup()
-	if samples_dir != "" and not fxtest: _run_samples()
+	if samples_dir != "" and not fxtest and not tiertest: _run_samples()
 	if lvtest: _run_lvtest()
 	if fxtest: _run_fxtest()
+	if tiertest: _run_tiertest()
 
 func _setup_env(town: bool) -> void:
 	var mg := game.mg
@@ -122,7 +125,7 @@ func _rebuild_level() -> void:
 	game.level_changed = false
 	World.set_fog(game.mg.fog_bytes())
 	var th: Dictionary = D.THEMES[D.theme(max(1, game.G.floor))]
-	World.TINT = th.tint if game.G.floor > 0 and not game.mg.terrace else Color.WHITE
+	World.TINT = th.tint if game.G.floor > 0 and not game.mg.terrace and game.mg.town == null else Color.WHITE
 	World.TORCH = th.torch if game.G.floor > 0 else Color(1, .6, .3)
 	World.FLOOR_TEX = th.floor
 	World.FLOOR_PBR = th.fp; World.WALL_PBR = th.wp
@@ -135,12 +138,15 @@ func _rebuild_level() -> void:
 func new_game(diff: String, slot_i := -1) -> void:
 	if slot_i < 0: slot_i = max(0, Game.free_slot())
 	ui.hide_all(); game.new_game(diff, slot_i); hud.build_buttons(); autosave_t = 0.0
-func continue_game(slot_i := -1) -> void:
+func continue_game(slot_i := -1, tier := -1) -> void:
 	if slot_i < 0: slot_i = Game.latest_slot()
 	if slot_i < 0: return
 	var sv = Game.read_slot(slot_i)
-	if sv != null:
-		ui.hide_all(); game.load_game(sv, slot_i); hud.build_buttons(); autosave_t = 0.0
+	if sv == null: return
+	# 다음 단계가 열려 있으면(디아블로처럼) 이어하기 전에 단계를 고른다
+	if tier < 0 and int(sv.get("tierMax", 0)) > 0:
+		ui.open_tier_pick(slot_i, sv); return
+	ui.hide_all(); game.load_game(sv, slot_i, tier); hud.build_buttons(); autosave_t = 0.0
 func sand_start() -> void:
 	ui.hide_all(); game.sand_start(); hud.build_buttons(); ui.open_sand()
 func open_pause() -> void:
@@ -586,7 +592,7 @@ func _sound_frame() -> void:
 		"win": id = "victory"
 		_:
 			if G.floor == 0: id = "town"
-			elif game.mg.terrace and G.floor != D.ROOF: id = "terrace"
+			elif (game.mg.terrace and G.floor != D.ROOF) or G.floor == D.COW: id = "terrace"
 			else:
 				var boss := false
 				for e in G.enemies:
@@ -667,3 +673,61 @@ func _run_fxtest() -> void:
 	ui.bag_sel = {from = "bag", i = 1}; ui._render_bag(); await _frames(4); await _snap("f7_sell_sel")
 	ui._sell_ask(1); await _frames(16); await _snap("f8_sell_ask")
 	print("FXTEST done"); get_tree().quit()
+
+# 단계·괴생물 퀘스트·토끼 동산 확인(개발용): --samples=DIR --tiertest
+func _run_tiertest() -> void:
+	DirAccess.make_dir_recursive_absolute(samples_dir)
+	hud.touch_ui = true
+	await _frames(10)
+	new_game("norm", 4); await _frames(5)
+	var P = game.P; var G = game.G
+	P.prim.fire = 5; P.prim.frost = 4; P.active = "fire"; P.lv = 40; P.next = Game.xp_need(40); game.recalc(); hud.build_buttons()
+	G.talkSeen.guide = 1
+	# 옥상 보스 처치 → 나이트메어 열림
+	G.resume = 100; game.enter_tower(100); await _frames(6)
+	for e in G.enemies:
+		if e.isBoss: game.kill_enemy(e)
+	await _frames(200); await _snap("t1_win")
+	print("TIER after win: tier=", G.tier, " max=", G.tierMax, " state=", G.state)
+	game.switch_tier(1); ui.hide_all(); hud.build_buttons(); await _frames(8); await _snap("t2_nm_town")
+	game.enter_tower(1); await _frames(6)
+	var hp0 := 0.0
+	for e in G.enemies:
+		hp0 = max(hp0, e.max)
+	print("NM f1 enemies=", G.enemies.size(), " maxhp=", hp0, " lvf=", game.lvf())
+	await _snap("t3_nm_f1")
+	game.go_town(false); await _frames(4)
+	ui.open_talk(G.npcs[0]); await _frames(4); await _snap("t4_quest")
+	game.cow_talk_done("cow_q"); ui.close_talk(); print("cowQ=", G.cowQ, " cowF=", G.cowF)
+	game.set_state("gate"); ui.open_gate(); await _frames(30); await _snap("t5_gate_glow"); ui.hide_all(); game.set_state("play")
+	G.sb = {god = true, mana = true, nocd = true, still = false}
+	game.enter_tower(G.cowF); await _frames(6)
+	var rb = null
+	for e in G.enemies:
+		if e.get("cowq", false): rb = e
+	print("quest rabbit: ", rb != null, " hp=", rb.max if rb else 0)
+	if rb:
+		P.x = rb.x; P.y = rb.y + 150; game.mg.reveal(P.x, P.y); game.mg.dirty = true; rb.aggro = true
+		await _frames(30); await _snap("t6_rabbit_boss")
+		game.kill_enemy(rb); await _frames(20); await _snap("t7_portal")
+	G.sb = null
+	game.go_town(false); await _frames(4)
+	ui.open_talk(G.npcs[0]); await _frames(4); await _snap("t8_quest2")
+	game.cow_talk_done("cow_open"); ui.close_talk(); await _frames(4)
+	P.x = G.redPortal.x + 60; P.y = G.redPortal.y + 70; await _frames(20); await _snap("t9_red_portal")
+	G.sb = {god = true, mana = true, nocd = true, still = false}
+	game.enter_cow(); await _frames(10); await _snap("t10_cow_start")
+	print("cow enemies=", G.enemies.size(), " herds=", G.herds.size())
+	var h0 = G.herds[0]; P.x = h0.x + 220; P.y = h0.y + 120; await _frames(40); await _snap("t11_herd")
+	var king = null
+	for e in G.enemies:
+		if e.type == "rabbit_king": king = e
+	if king:
+		P.x = king.x; P.y = king.y + 200; await _frames(30); await _snap("t12_king")
+	P.active = "frost"; test_inp = {mx = 0.0, my = 0.0, firing = true, ang = -1.2}; await _frames(20); await _snap("t13_frost"); test_inp = null
+	G.sb = null; game.save(); await _frames(2)
+	to_title(false); await _frames(4)
+	continue_game(4); await _frames(6); await _snap("t14_tierpick")
+	continue_game(4, 0); await _frames(10); await _snap("t15_normal_town")
+	print("after load normal: tier=", G.tier if game.G else -1, " floor=", game.G.floor, " resume=", game.G.resume, " cowQ=", game.G.cowQ)
+	print("TIERTEST done"); get_tree().quit()

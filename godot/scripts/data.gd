@@ -4,6 +4,14 @@ extends RefCounted
 
 const LAST_FLOOR := 99   # 99층 위는 옥상(ROOF) — 최종 보스
 const ROOF := 100
+const COW := 150         # 토끼 동산(디아블로 카우 레벨 자리) — 층 번호 대신 쓰는 표시
+# 단계(디아블로 노말·나이트메어·헬): 옥상 보스를 잡으면 다음 단계가 열린다.
+# 다음 단계는 1층부터 다시 오르지만 몬스터 레벨은 직전 단계 100층 바로 다음부터(층 + 100×단계).
+const TIERS := [
+	{name = "노말", color = "#e8e2d4"},
+	{name = "나이트메어", color = "#ff9a4a"},
+	{name = "헬", color = "#ff4a4a"},
+]
 const PRIMARY_MAX := 10
 const T := 32.0
 const MW := 82
@@ -23,7 +31,7 @@ const PRIMARIES := {
 	arcane = {name = "비전탄", color = "#c39bff", kind = "shot", desc = "적을 스스로 쫓아가는 마력탄. 조준이 서툴러도 잘 맞는다.", cd = .3, speed = 340, homing = 3.2, radius = 5},
 	fire = {name = "화염구", color = "#ff7b34", kind = "shot", desc = "곧게 날아가 부딪히면 터지는 불덩이. 한 방이 묵직하다.", cd = .55, speed = 300, homing = 0, radius = 7},
 	storm = {name = "번개", color = "#86e3ff", kind = "chain", desc = "조준한 쪽 적에게 전격을 계속 흘려보낸다. 누르는 동안 지속.", range = 230},
-	frost = {name = "냉기 숨결", color = "#cdf2ff", kind = "cone", desc = "앞쪽으로 냉기를 뿜어 여러 적을 한꺼번에 느리게 만든다.", range = 172},
+	frost = {name = "냉기 숨결", color = "#cdf2ff", kind = "cone", desc = "앞쪽으로 냉기를 뿜어 여러 적을 한꺼번에 느리게 만든다.", range = 138},
 }
 const PRIM_ORDER := ["arcane", "fire", "storm", "frost"]
 
@@ -147,6 +155,9 @@ const MONSTERS := {
 	fire_archer = {name = "불화살 사수", hp = 20, spd = 52, r = 12, dmg = 9, atk = "fireball", blast = 28, range = 320, cd = 2.0, xp = 14, color = "#ffb060", undead = 1, from = 20, spr = "archer", h = 48, tint = "#ffbe8a"},
 	ice_wyvern = {name = "서리 비룡", hp = 90, spd = 55, r = 18, dmg = 15, atk = "orb", orb = "ice", range = 280, cd = 2.6, xp = 30, color = "#9fd8ff", from = 25, spr = "wyvern_fire", h = 62, tint = "#90c8ff"},
 	dune_lord = {name = "모래 군주", hp = 70, spd = 85, r = 16, dmg = 14, atk = "melee", hidden = 1, xp = 26, color = "#e0c080", from = 30, spr = "antlion", h = 46, tint = "#ffe6b0"},
+	# 토끼 동산·괴생물 퀘스트(직접 나오지 않음: from = 999)
+	rabbit = {name = "만렙 토끼", hp = 60, spd = 72, r = 16, dmg = 13, atk = "melee", xp = 26, color = "#ece6dc", from = 999, spr = "rabbit", h = 70},
+	rabbit_king = {name = "만렙 토끼왕", hp = 60, spd = 66, r = 22, dmg = 13, atk = "melee", xp = 26, color = "#f0c060", from = 999, spr = "rabbit_king", h = 70},
 	lich_adept = {name = "리치 견습생", hp = 50, spd = 60, r = 13, dmg = 14, atk = "skull", range = 320, cd = 3.0, shield = 60, xp = 30, color = "#b77bff", undead = 1, from = 35, spr = "lich", h = 54, tint = "#d8b8ff"},
 }
 const BOSSES := {
@@ -307,7 +318,7 @@ static func mod_text(m: Dictionary) -> String:
 
 const TALK := {
 	guide = [
-		"왔구나, 졸업 예정자. 마지막 시험은 저 탑이다. 흑마법사 벨로르가 꼭대기 15층에 진을 쳤지.",
+		"왔구나, 졸업 예정자. 마지막 시험은 저 탑이다. 흑마법사 벨로르가 꼭대기 옥상에 진을 쳤지.",
 		"왼손으로 걷고 오른손으로 마법을 쏴라. 오른쪽 화면을 짧게 누르고만 있으면 가까운 적을 알아서 노린다.",
 		"적을 쓰러뜨리면 경험이 쌓이고, 레벨이 오를 때마다 셋 중 하나를 고를 수 있다. 한 계열을 깊게 파는 편이 대체로 강하지.",
 		"주 마법 두 가지를 익히면 융합 마법을 고를 수 있다. 융합을 고르면 다른 계열은 더 배울 수 없으니 신중해라.",
@@ -317,6 +328,16 @@ const TALK := {
 		"준비가 되면 북쪽의 탑 문으로 들어가라. 들어가기 전에 첫 마법을 하나 고르게 될 거다.",
 	],
 	shop = ["어서 와. 필요한 걸 골라. 쓰지 않는 장비는 '물건 판매'를 눌러 나한테 팔면 돼."],
+	cow_q = [
+		"마침 잘 왔다. 탑에 정체 모를 괴생물이 나타났다는 소식이다. 귀가 길고… 도끼를 들었다더군.",
+		"탑 문의 웨이포인트에서 혼자 빛나는 층이 보일 거다. 그 층 끝에 녀석이 있다. 가서 처치하고 와라.",
+	],
+	cow_wait = ["탑 문의 웨이포인트에서 혼자 빛나는 층으로 가라. 그 층 끝에 괴생물이 있다."],
+	cow_open = [
+		"해치웠다고? …그런데 네가 간 사이에 마을 서쪽에 이상한 포탈이 생겼다. 붉게 일렁이는 게 영 수상해.",
+		"아까 그 괴생물들이 그 너머에서 몰려온 모양이다. 들어가서 해결해라. 무리 지어 다니니 조심하고.",
+	],
+	cow_done = ["그 붉은 포탈은 닫히지가 않는구나. 들어갈 때마다 동산 모양이 바뀐다더군. 토끼왕은 아직 거기 있을 거다."],
 	smith = ["강화석을 가져왔나? 유니크나 세트 장비라면 이 마법진 위에서 더 강하게 만들어 주지. 단계가 오를수록 성공하기 어려워지니 각오하고."],
 }
 

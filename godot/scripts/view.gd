@@ -17,6 +17,7 @@ var drops := {}         # id → Node3D
 var stairs_node: Node3D
 var stairs_key := ""
 var portal_node: Node3D
+var red_node: Node3D
 var gate_node: Node3D
 var ward_q: MeshInstance3D
 var harden_q: MeshInstance3D
@@ -151,6 +152,8 @@ func rebuild() -> void:
 	stairs_node = null; stairs_key = ""
 	if portal_node: portal_node.queue_free()
 	portal_node = null
+	if red_node: red_node.queue_free()
+	red_node = null
 	if gate_node: gate_node.queue_free()
 	gate_node = null
 	if game.mg.gate != null: _build_gate(game.mg.gate)
@@ -180,7 +183,7 @@ func _light(parent: Node3D, pos: Vector3, col: Color, rng: float, en: float) -> 
 
 # 디아블로식 포탈: 세워진 타원 속 푸른 소용돌이 + 가장자리 빛 + 빛 알갱이
 static var PORTAL_SH: Shader
-func _make_portal() -> Node3D:
+func _make_portal(red := false) -> Node3D:
 	var n := Node3D.new()
 	if PORTAL_SH == null:
 		PORTAL_SH = Shader.new(); PORTAL_SH.code = """
@@ -207,11 +210,15 @@ void fragment() {
 """
 	var q := QuadMesh.new(); q.size = Vector2(1.5, 2.3)
 	var sm := ShaderMaterial.new(); sm.shader = PORTAL_SH
+	if red:
+		# 토끼 동산으로 가는 붉은 포탈(디아블로 카우 포탈처럼)
+		sm.set_shader_parameter("c1", Color(.85, .1, .08)); sm.set_shader_parameter("c2", Color(1, .55, .4))
 	var mi := MeshInstance3D.new(); mi.mesh = q; mi.material_override = sm; mi.position = Vector3(0, 1.2, 0)
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF; n.add_child(mi)
-	_glow(n, Color(.4, .65, 1, .55), 3.2, Vector3(0, 1.2, .1))
-	_glow(n, Color(.5, .75, 1, .35), 2.2, Vector3(0, .1, .3))
-	_light(n, Vector3(0, 1.3, .7), Color(.5, .7, 1), 6.0, 1.8)
+	var gc := Color(1, .3, .2) if red else Color(.4, .65, 1)
+	_glow(n, Color(gc, .55), 3.2, Vector3(0, 1.2, .1))
+	_glow(n, Color(gc.lightened(.1), .35), 2.2, Vector3(0, .1, .3))
+	_light(n, Vector3(0, 1.3, .7), Color(1, .4, .3) if red else Color(.5, .7, 1), 6.0, 1.8)
 	return n
 
 func _build_gate(g: Vector2) -> void:
@@ -310,9 +317,9 @@ func sync(dt: float) -> void:
 		live[e.id] = true
 		if not enemies.has(e.id):
 			var a = Actor.new(); add_child(a); a.setup(Game.spr_name(e), Game.enemy_h(e)); enemies[e.id] = a
-			if e.get("elite", false):
-				# 유니크 몬스터: 몸 주위로 제 색 빛
-				var ec := Color(e.tint)
+			if e.get("elite", false) or e.get("cowq", false) or e.type == "rabbit_king":
+				# 유니크 몬스터·괴생물·토끼왕: 몸 주위로 제 색 빛
+				var ec := Color(e.get("tint", "#ffd76a"))
 				_glow(a, Color(ec, .5), 2.8, Vector3(0, .9, -.2)); _light(a, Vector3(0, 1.2, .6), ec, 4.0, 2.2)
 		var a: Actor = enemies[e.id]
 		var vis = mg.is_seen(e.x, e.y)
@@ -320,6 +327,7 @@ func sync(dt: float) -> void:
 		if not vis: continue
 		a.position = w3(e.x, e.y)
 		a.face = atan2(e.y - P.y, e.x - P.x) if e.fearT > 0 else atan2(P.y - e.y, P.x - e.x)
+		if e.has("herd") and not e.aggro and Game.hyp(e.vx, e.vy) > 6: a.face = atan2(e.vy, e.vx)   # 무리 지어 어슬렁일 땐 가는 쪽을 봄
 		a.set_anim(e.anim); a.at = e.at; a.tick(0)
 		var alpha = 1.0
 		if e.d.has("hidden"):
@@ -393,8 +401,17 @@ func sync(dt: float) -> void:
 			_light(stairs_node, Vector3(0, 1.2, .5), Color(1, .82, .45), 5.0, 1.0)
 	if stairs_node and mg.stairs != null: stairs_node.visible = mg.is_seen(mg.stairs.x, mg.stairs.y)
 	# 귀환문
+	if G.get("redPortal") != null and red_node == null:
+		red_node = _make_portal(true); add_child(red_node)
+	elif G.get("redPortal") == null and red_node != null:
+		red_node.queue_free(); red_node = null
+	if red_node:
+		red_node.position = w3(G.redPortal.x, G.redPortal.y)
+		var ka: float = ease(clamp((G.time - G.redPortal.get("born", -9.0)) / .6, 0.0, 1.0), .4)
+		red_node.scale = Vector3.ONE * max(ka, .001)
+		if randf() < .4: G.fx.append({x = G.redPortal.x + Game.rnd(-16, 16), y = G.redPortal.y + Game.rnd(-4, 6), vx = 0.0, vy = -20.0, life = .7, max = .7, color = "#ff8a70", size = 1.8, h = Game.rnd(.3, 1.8)})
 	if G.portal != null and portal_node == null:
-		portal_node = _make_portal(); add_child(portal_node)
+		portal_node = _make_portal(G.portal.get("red", false)); add_child(portal_node)
 	elif G.portal == null and portal_node != null:
 		portal_node.queue_free(); portal_node = null
 	if portal_node:
@@ -787,11 +804,14 @@ uniform float speed = 2.4;
 uniform sampler2D noise : repeat_enable, filter_linear;
 void fragment() {
 	float u = UV.x; float v = UV.y;
-	float n1 = texture(noise, vec2(u * 1.3 - TIME * speed, v * 2.0)).r;
-	float n2 = texture(noise, vec2(u * 2.7 - TIME * speed * 1.6, v * 3.0 + .37)).r;
+	float n1 = texture(noise, vec2(u * .9 - TIME * speed, v * 1.5)).r;
+	float n2 = texture(noise, vec2(u * 1.9 - TIME * speed * 1.4, v * 2.2 + .37)).r;
 	float n = n1 * .6 + n2 * .4;
-	float m = smoothstep(.35, .8, n);                       // 안개 덩어리만 남기고 사이는 비게
-	float a = smoothstep(0.0, .12, u) * (1.0 - smoothstep(.55, 1.0, u)) * (.08 + .9 * m);
+	float m = smoothstep(.3, .85, n);                       // 몽글몽글한 안개 덩어리
+	// 윤곽이 칼같이 보이지 않게: 고깔 옆면(시선과 비스듬한 곳)은 흐리게
+	float face = abs(dot(normalize(NORMAL), normalize(VIEW)));
+	float soft = smoothstep(.05, .75, face);
+	float a = smoothstep(0.0, .16, u) * (1.0 - smoothstep(.4, 1.0, u)) * (.05 + .85 * m) * soft;
 	vec3 c = mix(vec3(.95, .99, 1.0), col.rgb * vec3(.85, .95, 1.0), smoothstep(.0, .4, u));
 	ALBEDO = c; ALPHA = clamp(a * amt * col.a, 0.0, 1.0);
 }
@@ -807,6 +827,8 @@ func _cone_mesh(half: float, squash: float) -> ArrayMesh:
 		for j in nv:
 			var u0 := float(i) / nu; var u1 := float(i + 1) / nu; var v0 := float(j) / nv; var v1 := float(j + 1) / nv
 			for q in [[u0, v0], [u1, v0], [u1, v1], [u0, v0], [u1, v1], [u0, v1]]:
+				# 바깥을 향한 면 방향(타원 고깔)
+				st.set_normal(Vector3(-tn * .6, sin(TAU * q[1]) / squash, cos(TAU * q[1])).normalized())
 				st.set_uv(Vector2(q[0], q[1])); st.add_vertex(P.call(q[0], q[1]))
 	return st.commit()
 

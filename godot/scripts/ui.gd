@@ -293,6 +293,32 @@ func _slot_line(sv: Dictionary) -> String:
 	var wh: String = ("%d층" % fl if fl < D.ROOF else "옥상") if fl > 0 else "마을 (다음 %d층)" % int(sv.resume)
 	return "%s · %s · Lv %d · %s · 금화 %d" % [String(sv.P.get("name", "견습생")), dn, int(sv.P.lv), wh, int(sv.gold)]
 
+# ================= 단계 고르기(이어하기) =================
+func open_tier_pick(si: int, sv: Dictionary) -> void:
+	_no_title_grad(); _begin("tier")
+	box.add_child(h2("어느 단계로 들어갈까요?"))
+	box.add_child(lead("단계마다 오른 층과 웨이포인트는 따로 기억돼요. 캐릭터·장비·금화는 함께 써요."))
+	var tm := int(sv.get("tierMax", 0)); var cur := int(sv.get("tier", 0)); var tiers: Dictionary = sv.get("tiers", {})
+	var col = VBoxContainer.new(); col.add_theme_constant_override("separation", 10); _center(col, 560)
+	for t in range(0, tm + 1):
+		var snap = tiers.get(str(t), {})
+		var fl := int(sv.get("floor", 0)) if t == cur else int(snap.get("floor", 0))
+		var done := bool(snap.get("done", false))
+		var res := int(sv.get("resume", 1)) if t == cur else int(snap.get("resume", 1))
+		var where := "마을" if (fl <= 0 or fl == D.COW or done) else ("옥상" if fl == D.ROOF else "%d층" % fl)
+		var sub := ("완료 · " if done else "") + ("%s에서 · 다음 %d층" % [where, res] if where == "마을" else "%s에서 이어서" % where)
+		var p = PanelContainer.new(); p.add_theme_stylebox_override("panel", sb(Color(.13, .105, .18, .97), 12, Color(D.TIERS[t].color), 2, Vector4(16, 10, 16, 10)))
+		var h = HBoxContainer.new(); h.add_theme_constant_override("separation", 12); p.add_child(h)
+		var v = VBoxContainer.new(); v.size_flags_horizontal = Control.SIZE_EXPAND_FILL; h.add_child(v)
+		v.add_child(label(D.TIERS[t].name, 21, Color(D.TIERS[t].color), display))
+		v.add_child(label(sub + ("  · 몬스터 레벨 +%d" % (100 * t) if t > 0 else ""), 13, MUTED))
+		var tt: int = t
+		h.add_child(_sbtn("들어가기", func(): main.continue_game(si, tt), false, 16))
+		col.add_child(p)
+	box.add_child(col)
+	box.add_child(row([btn("돌아가기", func(): open_title(), true)]))
+	_focus_first()
+
 # ================= 세이브 슬롯 =================
 var del_ask := -1
 func _sbtn(t: String, fn: Callable, ghost: bool, fs := 14) -> Button:
@@ -526,7 +552,7 @@ func open_pause() -> void:
 func open_gate() -> void:
 	_no_title_grad(); _begin("gate", .7)
 	var G = game.G
-	box.add_child(h2("어디서부터 오를까요?"))
+	box.add_child(h2("어디서부터 오를까요?" if int(G.tier) == 0 else "%s · 어디서부터 오를까요?" % game.tier_name()))
 	box.add_child(lead("열어 둔 웨이포인트 층으로 바로 갈 수 있어요."))
 	var items: Array = []
 	var go = func(f):
@@ -537,6 +563,15 @@ func open_gate() -> void:
 		if f == G.resume: continue
 		items.append(btn("%d층 웨이포인트" % f, go.bind(f), true))
 	box.add_child(row(items))
+	if int(G.cowQ) == 1 and int(G.cowF) > 0:
+		# 괴생물이 나타난 층: 혼자 붉게 빛난다
+		var cb = btn("%d층 · 정체 모를 기운" % int(G.cowF), go.bind(int(G.cowF)))
+		var cs = btn_sb(false); cs.bg_color = Color(.55, .12, .1); cs.border_color = Color(1, .55, .4); cs.set_border_width_all(2); cs.shadow_color = Color(1, .3, .2, .7); cs.shadow_size = 14
+		for k in ["normal", "hover", "pressed", "focus"]: cb.add_theme_stylebox_override(k, cs)
+		cb.add_theme_color_override("font_color", Color(1, .92, .85))
+		var hb = row([cb]); box.add_child(hb)
+		var tw := cb.create_tween().set_loops()
+		tw.tween_property(cb, "modulate", Color(1.35, 1.1, 1.0), .7); tw.tween_property(cb, "modulate", Color(1, 1, 1), .7)
 	var backf = func():
 		hide_all(); game.set_state("play")
 	box.add_child(row([btn("돌아가기", backf, true)]))
@@ -546,13 +581,25 @@ func open_gate() -> void:
 func open_end() -> void:
 	_no_title_grad(); _begin("end")
 	var G = game.G; var P = game.P; var win: bool = game.end_win
-	box.add_child(h2("졸업 시험 합격!" if win else "쓰러졌습니다"))
+	box.add_child(h2(("%s 정복!" % game.tier_name()) if win else "쓰러졌습니다"))
+	if win and int(G.tier) < 2 and int(G.tierMax) > int(G.tier):
+		var nt = label("%s 단계가 열렸어요 · 몬스터 레벨이 %d층부터 다시 시작돼요" % [game.tier_name(int(G.tier) + 1), 101 + 100 * int(G.tier)], 17, Color(D.TIERS[int(G.tier) + 1].color), display)
+		nt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER; box.add_child(nt)
 	box.add_child(lead("흑마법사 벨로르를 물리치고 탑을 되찾았어요." if win else "%d층에서 정신을 잃었어요. 교수님들이 마을로 데려와 주지만, 들고 있던 금화 절반(%d)은 잃어버려요." % [G.floor, G.gold / 2]))
 	box.add_child(stats([["도달한 층", "%d층" % G.floor], ["레벨", P.lv], ["처치", G.kills], ["금화", G.gold]]))
 	var items: Array = []
 	if not win and G.sb == null: items.append(btn("마을에서 다시 일어나기", func():
 		hide_all(); game.revive()))
-	items.append(btn("처음 화면으로" if win else "처음부터 다시", func(): main.to_title(false), true))
+	if win:
+		var nxt: int = int(G.tier) + 1
+		if nxt <= 2 and int(G.tierMax) >= nxt:
+			var gonext = func():
+				hide_all(); game.switch_tier(nxt); main.hud.build_buttons()
+			items.append(btn("%s 시작" % game.tier_name(nxt), gonext))
+		var gotown = func():
+			hide_all(); game.go_town(false); main.hud.build_buttons()
+		items.append(btn("마을로 돌아가기", gotown, true))
+	else: items.append(btn("처음부터 다시", func(): main.to_title(false), true))
 	box.add_child(row(items))
 	_focus_first()
 
@@ -562,7 +609,9 @@ func open_talk(n) -> void:
 
 func _render_talk() -> void:
 	_begin("talk", .45, BoxContainer.ALIGNMENT_CENTER)
-	var n = talk_npc; var lines: Array = D.TALK[n.id]
+	var n = talk_npc
+	var ckey: String = game.cow_talk_key() if n.id == "guide" else ""
+	var lines: Array = D.TALK[ckey] if ckey != "" else D.TALK[n.id]
 	var tb = PanelContainer.new(); var st = sb(Color("#1b1526"), 10, LINE, 1, Vector4(14, 14, 14, 14)); st.border_color = Color(.89, .69, .29, .5); st.border_width_top = 1
 	tb.add_theme_stylebox_override("panel", st); _center(tb)
 	var h = HBoxContainer.new(); h.add_theme_constant_override("separation", 14); tb.add_child(h)
@@ -600,7 +649,10 @@ func _render_talk() -> void:
 				talk_page += 1; _render_talk()))
 		else:
 			game.G.talkSeen[n.id] = 1
-			btns.append(btn("알겠습니다", close_talk))
+			if ckey == "cow_q" or ckey == "cow_open":
+				btns.append(btn("알겠습니다", func():
+					game.cow_talk_done(ckey); close_talk()))
+			else: btns.append(btn("알겠습니다", close_talk))
 	var rr = HBoxContainer.new(); rr.alignment = BoxContainer.ALIGNMENT_END; rr.add_theme_constant_override("separation", 10)
 	for b in btns: rr.add_child(b)
 	v.add_child(rr)

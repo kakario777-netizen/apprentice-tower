@@ -56,9 +56,16 @@ func fresh_p() -> Dictionary:
 func fresh_g(diff: String) -> Dictionary:
 	return {corpses = [], anims = [], debris = [], floor = 0, resume = 1, diff = diff, state = "play", enemies = [], shots = [], eshots = [], zones = [],
 		fx = [], rings = [], bolts = [], drops = [], texts = [], chests = [], npcs = [], portal = null,
-		gold = 0, kills = 0, banner = {text = "", t = 0.0}, pendingLv = 0, flowT = 0.0, bossMax = 0.0, time = 0.0, coneT = 0.0, talkSeen = {}, lights = [], cone = null,
+		gold = 0, kills = 0, banner = {text = "", t = 0.0}, pendingLv = 0, flowT = 0.0, bossMax = 0.0, time = 0.0, coneT = 0.0, talkSeen = {}, lights = [], cone = null, tier = 0, tierMax = 0, tiers = {}, cowQ = 0, cowF = 0, redPortal = null, herds = [],
 		sb = null, shake = 0.0, lvDelay = 0.0, revT = 0.0, goldPulse = 0.0, bagNew = false, nearItem = null, portalT = 0.0,
 		runSeed = randi() % 1000000, waypoints = [1], killsBy = {}, shop = [], stash = null, pull = null, townRet = null, cleared = [], fcache = {}, fcacheOrder = []}
+
+# 몬스터·드랍이 쓰는 '레벨 층': 단계마다 +100(나이트메어 1층 = 노말 101층 몬스터). 토끼 동산은 그 단계의 85층쯤
+func lvf() -> int:
+	if G.floor == D.COW: return 85 + 100 * int(G.tier)
+	return G.floor + 100 * int(G.tier)
+
+func tier_name(t := -1) -> String: return D.TIERS[clampi(t if t >= 0 else int(G.tier), 0, 2)].name
 
 func diff_d() -> Dictionary:
 	for d in D.DIFFICULTIES:
@@ -127,9 +134,11 @@ func save() -> void:
 	var pd = {}
 	for k in ["lv", "xp", "next", "prim", "subs", "sec", "secOrder", "pass", "fusion", "active", "pot", "bag", "bagMax", "eq", "stones", "name", "potMax"]: pd[k] = P[k]
 	var ret: int = int(G.townRet.floor) if G.townRet != null else 0
+	G.tiers[str(G.tier)] = tier_snap()
 	var f = FileAccess.open(slot_path(slot), FileAccess.WRITE)
 	if f:
-		f.store_string(JSON.stringify({v = 2, diff = G.diff, gold = G.gold, kills = G.kills, resume = G.resume, talkSeen = G.talkSeen, P = pd, floor = G.floor, runSeed = G.runSeed, waypoints = G.waypoints, killsBy = G.killsBy, retFloor = ret, cleared = G.cleared, at = Time.get_unix_time_from_system()}))
+		f.store_string(JSON.stringify({v = 3, diff = G.diff, gold = G.gold, kills = G.kills, resume = G.resume, talkSeen = G.talkSeen, P = pd, floor = G.floor, runSeed = G.runSeed, waypoints = G.waypoints, killsBy = G.killsBy, retFloor = ret, cleared = G.cleared,
+			tier = G.tier, tierMax = G.tierMax, tiers = G.tiers, cowQ = G.cowQ, cowF = G.cowF, at = Time.get_unix_time_from_system()}))
 		f.close(); saved.emit()
 
 static func migrate_old() -> void:
@@ -170,7 +179,33 @@ func _fix_ints(d) -> void:
 	for k in d.keys():
 		if d[k] is float: d[k] = int(d[k])
 
-func load_game(sv: Dictionary, slot_i := -1) -> void:
+# 단계마다 따로 가는 것: 오른 층·웨이포인트·잡은 보스·있던 곳
+func tier_snap() -> Dictionary:
+	return {resume = G.resume, waypoints = G.waypoints.duplicate(), cleared = G.cleared.duplicate(), floor = G.floor if G.floor != D.COW else 0,
+		retFloor = int(G.townRet.floor) if G.townRet != null else 0, done = G.tiers.get(str(G.tier), {}).get("done", false)}
+
+func tier_apply(t: int, snap) -> void:
+	G.tier = t
+	if snap == null or not (snap is Dictionary): snap = {resume = 1, waypoints = [1], cleared = [], floor = 0, retFloor = 0}
+	G.resume = int(snap.get("resume", 1)); G.waypoints = []; G.cleared = []
+	for w in snap.get("waypoints", [1]): G.waypoints.append(int(w))
+	for c in snap.get("cleared", []): G.cleared.append(int(c))
+	var rf := int(snap.get("retFloor", 0))
+	G.townRet = {floor = rf} if rf > 0 and rf != D.COW else null
+	G.fcache = {}; G.fcacheOrder = []
+
+func tier_done(t: int) -> bool: return bool(G.tiers.get(str(t), {}).get("done", false))
+
+# 다른 단계로 갈아타기(이 단계의 진행은 저장해 두고)
+func switch_tier(t: int) -> void:
+	G.tiers[str(G.tier)] = tier_snap()
+	tier_apply(t, G.tiers.get(str(t), null))
+	G.tiers[str(t)] = tier_snap()
+	P.hp = P.maxhp; P.mp = P.maxmp
+	go_town(false)
+	G.banner = {text = "%s · 마법학교 앞마당" % tier_name(), t = 3.0}
+
+func load_game(sv: Dictionary, slot_i := -1, want_tier := -1) -> void:
 	no_save = false
 	if slot_i >= 0: slot = slot_i
 	G = fresh_g(sv.diff); P = fresh_p()
@@ -198,8 +233,18 @@ func load_game(sv: Dictionary, slot_i := -1) -> void:
 			if D.boss_kind(f) != "": G.cleared.append(f)
 	G.waypoints = []
 	for w in sv.get("waypoints", [1]): G.waypoints.append(int(w))
-	recalc(); P.hp = P.maxhp; P.mp = P.maxmp
+	G.tier = int(sv.get("tier", 0)); G.tierMax = int(sv.get("tierMax", 0)); G.cowQ = int(sv.get("cowQ", 0)); G.cowF = int(sv.get("cowF", 0))
+	G.tiers = sv.get("tiers", {})
 	var fl := int(sv.get("floor", 0))
+	if want_tier >= 0 and want_tier != G.tier:
+		# 이어하기에서 다른 단계를 골랐다: 그 단계가 있던 곳에서
+		G.tiers[str(G.tier)] = tier_snap()
+		var snap = G.tiers.get(str(want_tier), null)
+		tier_apply(want_tier, snap)
+		fl = int(snap.get("floor", 0)) if snap is Dictionary else 0
+	if fl == D.COW: fl = 0                       # 토끼 동산에서 껐으면 마을에서
+	if tier_done(G.tier) and want_tier >= 0: fl = 0; G.townRet = null   # 다 깬 단계는 마을에서
+	recalc(); P.hp = P.maxhp; P.mp = P.maxmp
 	if fl > 0:
 		# 껐다 켜도 그 층에서 다시 시작(같은 시드라 같은 구조)
 		G.floor = fl; gen_floor(); ui.emit("buttons"); set_state("play")
@@ -208,14 +253,14 @@ func load_game(sv: Dictionary, slot_i := -1) -> void:
 
 func clear_level() -> void:
 	G.corpses = []; G.anims = []; G.debris = []; G.chests = []; G.enemies = []; G.shots = []; G.eshots = []; G.zones = []; G.drops = []; G.fx = []
-	G.rings = []; G.bolts = []; G.texts = []; G.bossMax = 0.0; G.lights = []; G.cone = null
+	G.rings = []; G.bolts = []; G.texts = []; G.bossMax = 0.0; G.lights = []; G.cone = null; G.herds = []; G.redPortal = null
 
 # ================= 맵 =================
 func go_town(first: bool) -> void:
 	G.floor = 0; G.portal = null; G.stash = null; G.pull = null
 	clear_level(); mg = MapGen.new(); mg.gen_town()
 	roll_shop()
-	P.vx = 0.0; P.vy = 0.0; P.ward = 0.0
+	P.vx = 0.0; P.vy = 0.0; P.ward = 0.0; P.poisonT = 0.0; P.slowT = 0.0
 	var t = mg.town
 	G.npcs = [
 		{id = "guide", name = "루멘 교수", x = t.guide.x, y = t.guide.y, trim = "#e3b04b"},
@@ -230,6 +275,7 @@ func go_town(first: bool) -> void:
 		if mg.hits(G.portal.x, G.portal.y, 14): G.portal.x = fo.x - 80
 		if not first:
 			P.x = G.portal.x; P.y = G.portal.y + 40           # 포탈에서 걸어 나온다
+	if G.cowQ >= 3 and mg.town.has("redp"): G.redPortal = {x = mg.town.redp.x, y = mg.town.redp.y, born = G.time - 1.0, red = true}
 	G.banner = {text = "마법학교 앞마당" if first else "마을로 돌아왔다", t = 2.4}
 	P.hp = P.maxhp; P.mp = P.maxmp
 	level_changed = true
@@ -259,7 +305,7 @@ func floor_name(f: int) -> String:
 
 # 층 상태 기억: 다녀온 층은 몬스터·상자·떨어진 물건·밝힌 지도가 그대로(껐다 켜야 새로 생김)
 func stash_floor() -> void:
-	if G.floor <= 0 or G.sb != null: return
+	if G.floor <= 0 or G.floor == D.COW or G.sb != null: return
 	var main_mg = mg; var en = G.enemies; var ch = G.chests; var dr = G.drops; var co = G.corpses
 	if G.stash != null:      # 테라스에 있었으면 본층 상태를 기억
 		main_mg = G.stash.mg; en = G.stash.enemies; ch = G.stash.chests; dr = G.stash.drops; co = G.stash.corpses
@@ -281,10 +327,12 @@ func restore_floor() -> bool:
 	return true
 
 func gen_floor() -> void:
+	if G.floor == D.COW:
+		gen_cow(); return
 	if restore_floor(): return
 	clear_level(); P.vx = 0.0; P.vy = 0.0; G.npcs = []; G.portal = null; G.stash = null; G.pull = null
 	var kind := D.boss_kind(G.floor)
-	seed(G.runSeed * 131 + G.floor * 7919)
+	seed(G.runSeed * 131 + G.floor * 7919 + int(G.tier) * 104729)
 	mg = MapGen.new()
 	if G.floor == D.ROOF:
 		# 옥상: 탁 트인 하늘 아래 최종 보스
@@ -322,6 +370,7 @@ func gen_floor() -> void:
 				var t2 = pick_type(); var ex2: float = (r.x + rnd(2, r.w - 2)) * T; var ey2: float = (r.y + rnd(2, r.h - 2)) * T
 				if not mg.hits(ex2, ey2, D.MONSTERS[t2].r * 1.4):
 					spawn_elite(t2, ex2, ey2); break
+		if G.cowQ == 1 and G.floor == G.cowF and mg.stairs != null: spawn_cow_quest()
 		G.chests = []
 		for i in range(1, mg.rooms.size()):
 			var r: Dictionary = mg.rooms[i]
@@ -340,6 +389,88 @@ func gen_floor() -> void:
 		if mg.hits(G.portal.x, G.portal.y, 14): G.portal.x = P.x + 70
 	mg.reveal(P.x, P.y); mg.build_flow(P.x, P.y)
 	level_changed = true
+
+# ================= 토끼 동산(디아블로 카우 레벨) =================
+func enter_cow() -> void:
+	G.townRet = null; G.portal = null
+	G.floor = D.COW; gen_floor(); ui.emit("buttons"); set_state("play"); save()
+
+func _rabbit(t: String, x: float, y: float, scale := 1.0) -> Dictionary:
+	var e := spawn_enemy(t, x, y, scale)
+	e.spd *= rnd(.95, 1.1)
+	return e
+
+func gen_cow() -> void:
+	clear_level(); P.vx = 0.0; P.vy = 0.0; G.npcs = []; G.stash = null; G.pull = null
+	randomize()                                 # 들어갈 때마다 모양·왕 자리가 바뀜
+	mg = MapGen.new(); mg.gen_meadow()
+	P.x = mg.start.x; P.y = mg.start.y
+	# 돌아가는 붉은 포탈(출발점 옆)
+	G.portal = {x = P.x - 60, y = P.y - 10, resume = 0, red = true, born = G.time - 1.0}
+	if mg.hits(G.portal.x, G.portal.y, 14): G.portal.x = P.x + 60
+	# 무리: 여러 마리가 붙어 다닌다
+	G.herds = []
+	var nh := ri(9, 12)
+	for h in nh:
+		var c: Vector2 = mg.far_cell(mg.start, 560.0)
+		var herd = {x = c.x, y = c.y, tx = c.x, ty = c.y, t = rnd(0, 4), aggro = false}
+		G.herds.append(herd)
+		for k in ri(6, 10):
+			var off := Vector2(rnd(-60, 60), rnd(-45, 45))
+			if mg.hits(c.x + off.x, c.y + off.y, 16): off = Vector2(rnd(-20, 20), rnd(-20, 20))
+			var e := _rabbit("rabbit", c.x + off.x, c.y + off.y)
+			e.herd = h; e.hoff = off
+	# 토끼왕: 멀리 어딘가(무리 하나가 호위)
+	var kc: Vector2 = mg.far_cell(mg.start, 900.0)
+	var king := _rabbit("rabbit_king", kc.x, kc.y, 14.0)
+	king.isBoss = true; king.named = true; king.slam = true; king.t2 = 3.0; king.name = "만렙 토끼왕"
+	king.dmg *= 2.2; king.r = 26.0; king.xp *= 20
+	G.bossMax = king.max
+	var kh = {x = kc.x, y = kc.y, tx = kc.x, ty = kc.y, t = 99.0, aggro = false}
+	G.herds.append(kh); king.herd = G.herds.size() - 1; king.hoff = Vector2.ZERO
+	for k in 8:
+		var a := k * TAU / 8; var off := Vector2(cos(a) * 70, sin(a) * 52)
+		var e := _rabbit("rabbit", kc.x + off.x, kc.y + off.y); e.herd = king.herd; e.hoff = off
+	G.banner = {text = "토끼 동산 · %s" % tier_name(), t = 3.0}
+	mg.build_flow(P.x, P.y); level_changed = true
+
+# 괴생물 퀘스트: 그 층 끝(계단 앞)에 서 있는 만렙 토끼. 그 단계 옥상 흑마법사보다 조금 약하게
+func spawn_cow_quest() -> void:
+	var st = mg.stairs
+	var x: float = st.x; var y: float = st.y + 70
+	if mg.hits(x, y, 24): y = st.y + 40
+	var e := spawn_enemy("rabbit", x, y, 1.0)
+	var lf100: int = 100 + 100 * int(G.tier)
+	var bd: Dictionary = D.BOSSES[15]
+	var hp: float = bd.hp * diff_d().hp * (1 + .25 * (lf100 - 1)) / (1 + .25 * 14) * .8
+	e.hp = hp; e.max = hp
+	e.dmg = bd.dmg * diff_d().dmg * (1 + .1 * (lf100 - 1)) / (1 + .1 * 14) * .8
+	e.xp = int(120 * (1 + .3 * (lf100 - 5) / 5.0) * .6)
+	e.isBoss = true; e.named = true; e.slam = true; e.t2 = 2.5; e.cowq = true; e.r = 22.0; e.spd *= 1.1
+	e.name = "정체 모를 괴생물 · 만렙 토끼"; e.tint = "#ffd8d0"
+	G.bossMax += e.max
+
+# 루멘 교수: 노말을 깬 뒤 괴생물 퀘스트 → 토끼 동산
+func cow_talk_key() -> String:
+	if int(G.tierMax) < 1: return ""
+	match int(G.cowQ):
+		0: return "cow_q"
+		1: return "cow_wait"
+		2: return "cow_open"
+		_: return "cow_done"
+
+func cow_talk_done(key: String) -> void:
+	if key == "cow_q":
+		G.cowQ = 1
+		var f := 0
+		while f == 0 or D.boss_kind(f) != "" or f % 10 == 1: f = ri(3, 96)
+		G.cowF = f
+		toast.emit("탑 문 웨이포인트에 빛나는 %d층이 생겼어요" % f)
+	elif key == "cow_open":
+		G.cowQ = 3
+		G.redPortal = {x = mg.town.redp.x, y = mg.town.redp.y, born = G.time, red = true}
+		toast.emit("마을 서쪽에 붉은 포탈이 열렸어요")
+	save()
 
 const NAMED_PRE := ["피에 굶주린", "썩은 왕관의", "검은 안개의", "울부짖는", "저주받은", "뼈를 씹는", "불타는 눈의", "굶주린 그림자"]
 
@@ -360,11 +491,12 @@ func spawn_floor_boss(kind: String, x: float, y: float) -> Dictionary:
 		bd = [D.BOSSES[5], D.BOSSES[10], D.BOSSES[15]][(f / 20 - 1) % 3]; base_f = [5, 10, 15][(f / 20 - 1) % 3]
 	else:
 		var k: int = pick([5, 10]); bd = D.BOSSES[k]; base_f = k
-	var hm: float = (1 + .25 * (f - 1)) / (1 + .25 * (base_f - 1)) * (1.5 if kind == "tier" else 1.0)
-	var dm: float = (1 + .1 * (f - 1)) / (1 + .1 * (base_f - 1))
+	var lf: int = lvf()
+	var hm: float = (1 + .25 * (lf - 1)) / (1 + .25 * (base_f - 1)) * (1.5 if kind == "tier" else 1.0)
+	var dm: float = (1 + .1 * (lf - 1)) / (1 + .1 * (base_f - 1))
 	var b := spawn_boss(bd, x, y, bd.hp * diff_d().hp * hm)
 	b.split = false; b.dmg *= dm; b.shield *= hm; b.shieldMax *= hm
-	b.xp = int(120 * (1 + .3 * (f - 5) / 5.0))
+	b.xp = int(120 * (1 + .3 * (lf - 5) / 5.0))
 	if kind == "tier": b.name = "%s · 계층 수호자" % bd.name
 	elif kind == "sub": b.name = "%s의 그림자" % bd.name if f > base_f else bd.name
 	return b
@@ -401,9 +533,10 @@ func pick_type() -> String:
 # ================= 적 =================
 func spawn_enemy(type: String, x: float, y: float, scale := 1.0) -> Dictionary:
 	# 층 + 내 레벨(아주 조금: 레벨당 생명 +3%·피해 +2%)
-	var d: Dictionary = D.MONSTERS[type]; var f: float = (1 + .25 * (G.floor - 1)) * diff_d().hp * (1 + .03 * (P.lv - 1))
+	var lf: int = lvf()
+	var d: Dictionary = D.MONSTERS[type]; var f: float = (1 + .25 * (lf - 1)) * diff_d().hp * (1 + .03 * (P.lv - 1))
 	var e = {id = nid(), type = type, d = d, x = x, y = y, r = float(d.r), hp = d.hp * f * scale, max = d.hp * f * scale, spd = d.spd * .92 * rnd(.9, 1.1),
-		vx = 0.0, vy = 0.0, dmg = d.dmg * (1 + .1 * (G.floor - 1)) * diff_d().dmg * (1 + .02 * (P.lv - 1)), xp = int(round(d.xp * (1 + .3 * (G.floor - 1)))),
+		vx = 0.0, vy = 0.0, dmg = d.dmg * (1 + .1 * (lf - 1)) * diff_d().dmg * (1 + .02 * (P.lv - 1)), xp = int(round(d.xp * (1 + .3 * (lf - 1)))),
 		cd = rnd(.6, d.get("cd", 1)), atkCd = 0.0, shield = d.get("shield", 0) * f, shieldMax = d.get("shield", 0) * f,
 		slowT = 0.0, frozenT = 0.0, fearT = 0.0, burnT = 0.0, burnDps = 0.0, aggro = false, flash = 0.0, wob = randf() * TAU, side = 1 if randf() < .5 else -1,
 		dead = false, isBoss = false, boss = "", atkT = 0.0, hitT = 0.0, at = 0.0, anim = "stance"}
@@ -508,28 +641,46 @@ func kill_enemy(e: Dictionary) -> void:
 	if roll < .10: G.drops.append({x = e.x, y = e.y, kind = "hp", t = 0.0, id = nid()})
 	elif roll < .25: G.drops.append({x = e.x, y = e.y, kind = "mp", t = 0.0, id = nid()})
 	if randf() < .5 or e.isBoss:
-		G.drops.append({x = e.x + rnd(-8, 8), y = e.y + rnd(-8, 8), kind = "gold", v = max(1, int(round((300 + G.floor * 30 if e.isBoss else (ri(2, 6) + G.floor) * 4) * diff_d().reward * (1 + P.st.gold) * GOLD_RATE))), t = 0.0, vx = rnd(-90, 90), vy = rnd(-90, 90), h = 0.0, vh = rnd(70, 120), id = nid()})
-	if not e.isBoss and G.floor >= 20 and randf() < (.006 if G.floor >= 50 else .003): drop_stone(e.x, e.y, 1)
+		G.drops.append({x = e.x + rnd(-8, 8), y = e.y + rnd(-8, 8), kind = "gold", v = max(1, int(round((300 + lvf() * 30 if e.isBoss else (ri(2, 6) + lvf()) * 4) * diff_d().reward * (1 + P.st.gold) * GOLD_RATE))), t = 0.0, vx = rnd(-90, 90), vy = rnd(-90, 90), h = 0.0, vh = rnd(70, 120), id = nid()})
+	if not e.isBoss and lvf() >= 20 and randf() < (.006 if lvf() >= 50 else .003): drop_stone(e.x, e.y, 1)
 	# 한 층을 다 돌아야 3~4개 주울까 말까
 	if not e.isBoss and not e.get("elite", false) and e.xp > 1 and randf() < (.035 if (e.type == "demon" or e.type == "mage") else .022): drop_item(e.x, e.y)
 	if e.get("elite", false):
 		# 유니크 몬스터: 장비 1~2개(좋은 등급 쪽으로) + 낮은 확률로 강화석
 		drop_item(e.x - 8, e.y, roll_rarity(3.0, "magic"))
 		if randf() < .2: drop_item(e.x + 8, e.y, "", 2.0)
-		var ep: float = .08 if G.floor < 10 else (.3 if G.floor < 30 else .45)
-		if randf() < ep: drop_stone(e.x, e.y, 2 if (G.floor >= 40 and randf() < .2) else 1)
+		var ep: float = .08 if lvf() < 10 else (.3 if lvf() < 30 else .45)
+		if randf() < ep: drop_stone(e.x, e.y, 2 if (lvf() >= 40 and randf() < .2) else 1)
+	if e.get("cowq", false):
+		# 괴생물(만렙 토끼) 처치 → 마을로 가는 포탈
+		G.cowQ = 2; G.eshots = []
+		G.portal = {x = e.x, y = e.y - 10, resume = G.floor, born = G.time}
+		if mg.hits(G.portal.x, G.portal.y, 14): G.portal = {x = P.x, y = P.y - 50, resume = G.floor, born = G.time}
+		G.banner = {text = "괴생물을 처치했다! 포탈이 열렸다", t = 3.0}
+		toast.emit("마을로 돌아가 루멘 교수에게 알려 주세요")
+		for i in 2: drop_item(e.x + rnd(-14, 14), e.y + rnd(-6, 6), roll_rarity(5.0, "magic"))
+		save(); return
+	if e.type == "rabbit_king":
+		G.eshots = []
+		G.banner = {text = "토끼왕을 쓰러뜨렸다! · 토끼 동산 정복", t = 3.4}
+		# 왕의 드랍은 80층 보스 수준
+		var f80: int = 80 + 100 * int(G.tier)
+		for i in 3:
+			if i < 2 or randf() < .5: drop_item(e.x + rnd(-16, 16), e.y + rnd(-8, 8), roll_rarity(5.0, "magic", f80))
+		if randf() < .6: drop_stone(e.x, e.y + 10, ri(1, 2))
+		return
 	var boss_loot: bool = e.isBoss and (not e.split or not _other_boss_alive(e))
 	if boss_loot:
 		var fin: bool = G.floor == D.ROOF
 		drop_item(e.x - 10, e.y, "unique" if fin else roll_rarity(5.0, "magic"))
 		if randf() < .5: drop_item(e.x + 10, e.y, "", 2.5)
 		# 강화석: 초반엔 귀하게, 30층부터는 보스가 거의 항상 1~3개
-		if G.floor < 10:
+		if lvf() < 10:
 			if randf() < .3: drop_stone(e.x, e.y + 10, 1)
-		elif G.floor < 30:
+		elif lvf() < 30:
 			if randf() < .8: drop_stone(e.x, e.y + 10, ri(1, 2))
 		else: drop_stone(e.x, e.y + 10, ri(1, 3))
-	if e.isBoss and not _other_boss_alive(null): boss_cleared()
+	if e.isBoss and G.floor != D.COW and not _other_boss_alive(null): boss_cleared()
 
 func _other_boss_alive(ex) -> bool:
 	for o in G.enemies:
@@ -543,6 +694,9 @@ func boss_cleared() -> void:
 		for e in G.enemies:
 			if not e.dead: kill_enemy(e)
 		G.banner = {text = "흑마법사를 쓰러뜨렸다!", t = 3.0}
+		var snap := tier_snap(); snap.done = true; G.tiers[str(G.tier)] = snap
+		if int(G.tier) >= int(G.tierMax) and G.tierMax < 2: G.tierMax = int(G.tier) + 1
+		save()
 		get_tree().create_timer(3.0).timeout.connect(func(): game_over(true))
 		return
 	if not G.floor in G.cleared: G.cleared.append(G.floor)
@@ -620,13 +774,30 @@ func upd_enemy(e: Dictionary, dt: float) -> void:
 	if e.frozenT > 0:
 		e.frozenT -= dt; e.vx = 0.0; e.vy = 0.0; return
 	e.slowT -= dt; e.fearT -= dt
-	if e.get("named", false):
+	if e.get("slam", false):
+		e.t2 -= dt
+		if e.t2 <= 0 and e.aggro and hyp(P.x - e.x, P.y - e.y) < 150:
+			e.t2 = rnd(3.5, 5.0); G.zones.append({kind = "warn", x = e.x, y = e.y, r = 95.0, life = .9, max = .9, dmg = e.dmg * 1.2})
+	elif e.get("named", false):
 		e.t1 -= dt
 		if e.t1 <= 0:
 			e.t1 = 7.0; ring(e.x, e.y, 10, 70, .5, e.d.color)
 			for i in 2:
 				var a = rnd(0, TAU); var s = spawn_enemy(e.type, e.x + cos(a) * 50, e.y + sin(a) * 50); s.aggro = true; s.xp = 1
 	var dx: float = P.x - e.x; var dy: float = P.y - e.y; var d: float = max(1.0, hyp(dx, dy))
+	if e.has("herd") and int(e.herd) < G.herds.size():
+		var hd: Dictionary = G.herds[e.herd]
+		if e.aggro: hd.aggro = true
+		elif hd.aggro: e.aggro = true
+		elif (d < 330 and mg.los(e.x, e.y, P.x, P.y)) or d < 160:
+			e.aggro = true; hd.aggro = true
+		else:
+			var gx0: float = hd.x + e.hoff.x - e.x; var gy0: float = hd.y + e.hoff.y - e.y; var gl0 := hyp(gx0, gy0)
+			var tv := Vector2.ZERO
+			if gl0 > 6: tv = Vector2(gx0, gy0) / gl0 * min(e.spd * .45, gl0 * 2.0)
+			var k0 = 1.0 - exp(-3.0 * dt)
+			e.vx += (tv.x - e.vx) * k0; e.vy += (tv.y - e.vy) * k0; mg.move(e, e.vx * dt, e.vy * dt)
+			return
 	if not e.aggro:
 		if (d < 360 and mg.los(e.x, e.y, P.x, P.y)) or d < 150: e.aggro = true
 		else: return
@@ -697,7 +868,7 @@ func attack_of(id: String) -> Dictionary:
 		"chain":
 			a.dps = (14 + 8 * p + lvb * 3) * might; a.manaps = (8 + 2.4 * p) * thrift; a.range = 240.0
 		"cone":
-			a.dps = (12 + 7 * p + lvb * 3) * might; a.manaps = (8 + 2.2 * p) * thrift; a.range = 190.0
+			a.dps = (12 + 7 * p + lvb * 3) * might; a.manaps = (8 + 2.2 * p) * thrift; a.range = 152.0
 		_:
 			a.dps = (16 + 8 * p + lvb * 3) * might; a.manaps = (9 + 2.6 * p) * thrift; a.range = 360.0
 	return a
@@ -930,7 +1101,7 @@ func gain_xp(n: float) -> void:
 
 # 레벨업 충격파(원작처럼): 주변 적 모두에게 한 번에 큰 피해 + 밀쳐내기
 func levelup_blast() -> void:
-	var R := 230.0; var dmg: float = (30 + 8 * P.lv + 5 * G.floor) * (1 + P.st.dmg)
+	var R := 230.0; var dmg: float = (30 + 8 * P.lv + 5 * lvf()) * (1 + P.st.dmg)
 	sfx.emit("boom"); rumble.emit(200, .8); G.shake = .3
 	ring(P.x, P.y, 10, R, .55, "#ffe49a"); ring(P.x, P.y, 6, R * .7, .4, "#fff6d8"); ring(P.x, P.y, 20, R * 1.1, .7, "#e3b04b")
 	fx_anim("fx_blast", P.x, P.y + 10, 150, .6)
@@ -1141,11 +1312,13 @@ func make_item(rar: String, lvl: int, base_id := "") -> Dictionary:
 
 # 등급 굴리기(디아블로식): 저층은 노말·매직이 대부분, 레어는 가끔, 세트·유니크는 50~60층쯤부터 보일 듯 말 듯
 # luck: 보스·유니크 몬스터·상자는 좋은 등급 확률을 몇 배로
-func roll_rarity(luck := 1.0, min_rar := "normal") -> String:
-	var f: float = max(1, G.floor)
-	var pu: float = (.0006 if f < 20 else (.002 if f < 50 else min(.03, .008 + (f - 50) * .0004))) * luck
-	var ps: float = (.001 if f < 15 else (.005 if f < 40 else min(.035, .012 + (f - 40) * .0004))) * luck
-	var pr: float = min(.22, .03 + f * .0016) * luck
+# 단계(나이트메어·헬)는 레벨 층이 100씩 높아 1층부터 다시 차근차근 오르고, 상한도 단계마다 조금씩 높다
+func roll_rarity(luck := 1.0, min_rar := "normal", f_over := -1) -> String:
+	var f: float = max(1, lvf() if f_over < 0 else f_over)
+	var tb: float = 1.0 + .5 * int(G.tier)
+	var pu: float = (.0006 if f < 20 else (.002 if f < 50 else min(.03 * tb, .008 + (f - 50) * .0004))) * luck
+	var ps: float = (.001 if f < 15 else (.005 if f < 40 else min(.035 * tb, .012 + (f - 40) * .0004))) * luck
+	var pr: float = min(.22 * (1 + .25 * int(G.tier)), .03 + f * .0016) * luck
 	var pm: float = min(.5, .26 + f * .0025) * sqrt(luck)
 	var r := randf(); var out := "normal"
 	if r < pu: out = "unique"
@@ -1156,7 +1329,7 @@ func roll_rarity(luck := 1.0, min_rar := "normal") -> String:
 	return out
 
 func drop_item(x: float, y: float, rar := "", luck := 1.0) -> Dictionary:
-	var it = make_item(rar if rar != "" else roll_rarity(luck), G.floor)
+	var it = make_item(rar if rar != "" else roll_rarity(luck), lvf())
 	G.drops.append({id = nid(), x = x, y = y, kind = "item", it = it, t = 0.0, vx = rnd(-80, 80), vy = rnd(-80, 80), h = 0.0, vh = rnd(100, 150)})
 	if it.rar in ["set", "unique"]: toast.emit("%s 아이템이 떨어졌다!" % D.RAR[it.rar].name)
 	return it
@@ -1222,10 +1395,10 @@ func buy(id: String) -> void:
 # ================= 층 이동 / 종료 =================
 func open_chest(c: Dictionary) -> void:
 	c.open = true; sfx.emit("chest"); ring(c.x, c.y, 4, 34, .35, "#ffd76a"); burst(c.x, c.y - 6, "#ffd76a", 18, 140, .5, 2.5)
-	var n = ri(5, 9); var v: int = max(1, int(round((6 + G.floor * 3) * diff_d().reward * GOLD_RATE)))
+	var n = ri(5, 9); var v: int = max(1, int(round((6 + lvf() * 3) * diff_d().reward * GOLD_RATE)))
 	for i in n: G.drops.append({id = nid(), x = c.x, y = c.y + 6, kind = "gold", v = v, t = .5, vx = rnd(-130, 130), vy = rnd(-40, 150), h = 8.0, vh = rnd(140, 220)})
 	if randf() < .18: drop_item(c.x, c.y, "", 1.5)
-	if G.floor >= 25 and randf() < .05: drop_stone(c.x, c.y, 1)
+	if lvf() >= 25 and randf() < .05: drop_stone(c.x, c.y, 1)
 	var r = randf()
 	if r < .45: G.drops.append({id = nid(), x = c.x, y = c.y, kind = pick(["pothp", "pothp", "potmp"]), t = 0.0, vx = rnd(-60, 60), vy = rnd(40, 90), h = 0.0, vh = 110.0})
 	elif r < .55: G.drops.append({id = nid(), x = c.x, y = c.y, kind = "scroll", t = 0.0, vx = rnd(-60, 60), vy = rnd(40, 90), h = 0.0, vh = 110.0})
@@ -1261,9 +1434,10 @@ func _portal_go() -> void:
 	if G.portal.get("back", false):
 		portal_back(); return
 	if G.portal.get("tp", false):
-		G.townRet = {floor = G.floor, live = true, mg = mg, enemies = G.enemies, chests = G.chests, drops = G.drops, corpses = G.corpses, stash = G.stash, px = G.portal.ox, py = G.portal.oy}
+		G.townRet = {floor = G.floor, live = true, mg = mg, enemies = G.enemies, chests = G.chests, drops = G.drops, corpses = G.corpses, stash = G.stash, px = G.portal.ox, py = G.portal.oy, herds = G.herds, bossMax = G.bossMax}
 	else: stash_floor()
-	G.resume = max(G.resume, G.portal.resume); go_town(false)
+	if G.floor != D.COW and int(G.portal.resume) != D.COW: G.resume = max(G.resume, int(G.portal.resume))
+	go_town(false)
 
 # 마을의 포탈 → 떠났던 그 자리로(꺼졌다 켜진 뒤라면 그 층 처음 자리로)
 func portal_back() -> void:
@@ -1272,10 +1446,11 @@ func portal_back() -> void:
 	if r.get("live", false):
 		clear_level()
 		G.floor = int(r.floor); mg = r.mg; G.enemies = r.enemies; G.chests = r.chests; G.drops = r.drops; G.corpses = r.corpses; G.stash = r.stash
+		G.herds = r.get("herds", []); G.bossMax = r.get("bossMax", 0.0)
 		P.x = r.px; P.y = r.py; P.vx = 0.0; P.vy = 0.0
 		G.portal = {x = r.px, y = r.py - 34, vis = true, born = G.time, close_at = G.time + 1.0}
 		mg.dirty = true; mg.build_flow(P.x, P.y); level_changed = true
-		G.banner = {text = "%s · 포탈로 돌아왔다" % ("옥상" if G.floor == D.ROOF else "%d층" % G.floor), t = 2.0}
+		G.banner = {text = "%s · 포탈로 돌아왔다" % ("토끼 동산" if G.floor == D.COW else ("옥상" if G.floor == D.ROOF else "%d층" % G.floor)), t = 2.0}
 	else:
 		G.floor = int(r.floor); gen_floor()
 	ring(P.x, P.y, 4, 40, .5, "#7fb2ff")
@@ -1307,7 +1482,6 @@ var end_win := false
 func game_over(win: bool) -> void:
 	end_win = win
 	set_state("win" if win else "dead")
-	if win: clear_save()
 	ui.emit("end")
 
 func revive() -> void:
@@ -1423,6 +1597,20 @@ func update(dt: float) -> void:
 	if G.portal != null and G.pull == null and not G.portal.get("vis", false) and G.time - G.portal.get("born", -9.0) > .5 and hyp(P.x - G.portal.x, P.y - (G.portal.y + 8)) < 30:
 		sfx.emit("portal")
 		G.pull = {t = 0.0, fx = P.x, fy = P.y, tx = G.portal.x, ty = G.portal.y - 4, what = "portal", dur = 1.1}
+	for hd in G.herds:
+		if hd.aggro: continue
+		hd.t -= dt
+		if hd.t <= 0:
+			hd.t = rnd(3.0, 7.0)
+			var a := rnd(0, TAU); var L := rnd(40, 140)
+			var nx: float = hd.x + cos(a) * L; var ny: float = hd.y + sin(a) * L
+			if not mg.hits(nx, ny, 40): hd.tx = nx; hd.ty = ny
+		var ddx: float = hd.tx - hd.x; var ddy: float = hd.ty - hd.y; var dl := hyp(ddx, ddy)
+		if dl > 2:
+			hd.x += ddx / dl * min(28.0 * dt, dl); hd.y += ddy / dl * min(28.0 * dt, dl)
+	if G.floor == 0 and G.redPortal != null and G.pull == null and hyp(P.x - G.redPortal.x, P.y - (G.redPortal.y + 8)) < 30:
+		sfx.emit("portal")
+		G.pull = {t = 0.0, fx = P.x, fy = P.y, tx = G.redPortal.x, ty = G.redPortal.y - 4, what = "cow", dur = 1.1}
 	for k in P.secCd.keys(): P.secCd[k] = max(0.0, P.secCd[k] - dt)
 	var stas = in_stasis(P)
 	P.mp = min(P.maxmp, P.mp + (8 * (1 + .25 * P["pass"].get("calm", 0) + P.st.regen) + .3 * P.lv + (10 if stas else 0)) * dt)
@@ -1452,11 +1640,12 @@ func update(dt: float) -> void:
 			var what: String = G.pull.what; G.pull = null
 			match what:
 				"gate":
-					if G.waypoints.size() > 1 and not active_list().is_empty():
+					if (G.waypoints.size() > 1 or int(G.cowQ) == 1) and not active_list().is_empty():
 						P.x = mg.gate.x; P.y = mg.gate.y + 60; set_state("gate"); ui.emit("gate")
 					else:
 						P.x = mg.gate.x; P.y = mg.gate.y + 60; enter_tower()
 				"portal": _portal_go()
+				"cow": enter_cow()
 				"stairs": next_floor()
 				"down": prev_floor()
 				"door": enter_terrace()
@@ -1710,7 +1899,7 @@ func sand_boss(f: int) -> void:
 func roll_shop() -> void:
 	# 마을에 올 때마다 바뀌는 싼 장비 몇 개(옵션 적은 마법 등급)
 	G.shop = []
-	var lv: int = max(1, G.resume - 3)
+	var lv: int = max(1, G.resume - 3 + 100 * int(G.tier))
 	for i in 4:
 		var it := make_item("magic" if i < 3 else pick(["magic", "magic", "rare"]), lv)
 		it.value = item_value(it)

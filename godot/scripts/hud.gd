@@ -314,7 +314,9 @@ class HudDraw extends Control:
 		text(Vector2(cx + bw + 22, Tp + 11), "%d/%d" % [floori(P.mp), P.maxmp], 10, Color("#b8ccff"), HORIZONTAL_ALIGNMENT_LEFT)
 		if G.goldPulse > 0: G.goldPulse -= 1.0 / 60
 		var gp: float = max(0.0, G.goldPulse)
-		var info = "%s · %s · 금화 %d%s" % [("옥상" if G.floor == D.ROOF else "%d층" % G.floor) if G.floor else "마을", game.act_name(), G.gold, " · 샌드박스" if G.sb != null else ""]
+		var wh: String = ("토끼 동산" if G.floor == D.COW else ("옥상" if G.floor == D.ROOF else "%d층" % G.floor)) if G.floor else "마을"
+		if int(G.get("tier", 0)) > 0: wh = "%s %s" % [game.tier_name(), wh]
+		var info = "%s · %s · 금화 %d%s" % [wh, game.act_name(), G.gold, " · 샌드박스" if G.sb != null else ""]
 		if hud.main.show_fps: text(Vector2(ins.l + 100, Tp + 12), "%d FPS" % Engine.get_frames_per_second(), 11, Color(1, 1, 1, .7), HORIZONTAL_ALIGNMENT_LEFT)
 		text(Vector2(cx, Tp + 34), info, 11 + int(round(gp * 5)), Color("#fff3c4") if gp > 0 else Color("#e8dcc6"))
 		# 미니맵 표시
@@ -330,7 +332,7 @@ class HudDraw extends Control:
 			draw_colored_polygon(PackedVector2Array([dp + dl * 6, dp + dl.rotated(2.4) * 4, dp + dl.rotated(-2.4) * 4]), Color(1, 1, 1, .9))
 			draw_circle(dp, 2.8, Color("#7fe0ff")); draw_arc(dp, 3.2, 0, TAU, 16, Color.WHITE, 1.0, true)
 		# 보스 체력
-		var bosses: Array = G.enemies.filter(func(e): return e.isBoss)
+		var bosses: Array = G.enemies.filter(func(e): return e.isBoss and (e.aggro or not (e.has("herd") or e.get("cowq", false))))
 		if bosses.size():
 			var tot = 0.0; var sh = 0.0; var shm = 0.0
 			for e in bosses:

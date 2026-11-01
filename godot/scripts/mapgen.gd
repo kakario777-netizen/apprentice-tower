@@ -203,6 +203,11 @@ func gen_town() -> void:
 		for ii in range(cx - 16, cx - 6):
 			if Vector2(ii + .5, jj + .5).distance_to(smith / T) < 3.6: map[jj * MW + ii] = 0
 	start = Vector2(cx * T, (cy + 9) * T)
+	# 서쪽 끝: 토끼 동산으로 가는 붉은 포탈 자리(늘 비워 둠)
+	var redp := Vector2((cx - 15) * T, (cy + 1) * T)
+	for jj in range(cy - 3, cy + 5):
+		for ii in range(cx - 19, cx - 11):
+			if Vector2(ii + .5, jj + .5).distance_to(redp / T) < 2.8: map[jj * MW + ii] = 0
 	# 흙길: 문→분수, 분수→상점, 분수→루멘 교수, 분수→남쪽 시작점, 상점↔루멘 교수 바깥 고리
 	var path := PackedByteArray(); path.resize(MW * MH); path.fill(0)
 	var curve := func(a: Vector2, b: Vector2, bend: float, wd: float):
@@ -229,7 +234,7 @@ func gen_town() -> void:
 			if Vector2(ii + .5, jj + .5).distance_to(fountain / T) < 4.2: path[jj * MW + ii] = 1
 	# 상인 미라는 매대 왼쪽 앞에 선다(매대에 가려 허리가 잘리지 않게)
 	var merchant := shop + Vector2(-64, 34)
-	town = {x0 = x0, y0 = y0, w = w, h = h, path = path, cx = cx, cy = cy, guide = guide, shop = merchant, stall = shop, smith = smith, fountain = fountain}
+	town = {x0 = x0, y0 = y0, w = w, h = h, path = path, cx = cx, cy = cy, guide = guide, shop = merchant, stall = shop, smith = smith, fountain = fountain, redp = redp}
 	obst.append({x = fountain.x, y = fountain.y, r = 46.0})
 	obst.append({x = shop.x - 18, y = shop.y + 8, r = 22.0}); obst.append({x = shop.x + 18, y = shop.y + 8, r = 22.0})
 	decor.append({kind = "fountain", pos = fountain})
@@ -259,7 +264,7 @@ func gen_town() -> void:
 		var ti := ri(x0 + 2, x0 + w - 3); var tj := ri(y0 + 3, y0 + h - 3)
 		if at(ti, tj) != 0 or path[tj * MW + ti] or at(ti, tj + 1) != 0: continue
 		var p := Vector2((ti + .5) * T, (tj + .5) * T)
-		if p.distance_to(fountain) < 150 or p.distance_to(shop) < 90 or p.distance_to(guide) < 90 or p.distance_to(smith) < 120 or p.distance_to(merchant) < 80 or p.distance_to(start) < 80 or p.distance_to(gate) < 260: continue
+		if p.distance_to(fountain) < 150 or p.distance_to(redp) < 110 or p.distance_to(shop) < 90 or p.distance_to(guide) < 90 or p.distance_to(smith) < 120 or p.distance_to(merchant) < 80 or p.distance_to(start) < 80 or p.distance_to(gate) < 260: continue
 		var far := true
 		for o in obst:
 			if Vector2(o.x, o.y).distance_to(p) < 70: far = false
@@ -271,12 +276,105 @@ func gen_town() -> void:
 		var ti := ri(x0, x0 + w); var tj := ri(y0, y0 + h)
 		if at(ti, tj) != 0 or path[tj * MW + ti]: continue
 		if Vector2((ti + .5) * T, (tj + .5) * T).distance_to(gate) < 220: continue     # 탑 입구 앞은 깨끗하게
+		if Vector2((ti + .5) * T, (tj + .5) * T).distance_to(redp) < 70: continue
 		decor.append({kind = "prop", p = pick(PL), pos = Vector2((ti + rnd(.1, .9)) * T, (tj + rnd(.1, .9)) * T), s = .8})
 	# 등불: 길가를 따라
 	for q in [[fountain + Vector2(-110, -40), 0], [fountain + Vector2(110, 60), 0], [shop + Vector2(-60, 50), 0], [guide + Vector2(60, -40), 0]]:
 		var p: Vector2 = q[0]
 		if not solid_at(p.x, p.y): torches.append({pos = p, wall = false, lamp = true})
 	build_flow(start.x, start.y)
+
+# ---------------- 토끼 동산(디아블로 카우 레벨) ----------------
+# 크기는 늘 같고 모양만 매번 다름: 여러 갈래로 뻗은 너른 풀밭 + 군데군데 나무 섬. 둘레는 숲.
+var open_cells: Array = []
+func gen_meadow() -> void:
+	_reset(); floor_no = 150
+	var B := 4
+	# 무작위로 걷는 일꾼 여럿이 둥글게 파 나간다(서로 이어지게 같은 자리에서 출발)
+	var c0 := Vector2i(ri(B + 8, MW - B - 9), ri(B + 8, MH - B - 9))
+	var pts: Array = [c0]
+	var target := int((MW - 2 * B) * (MH - 2 * B) * .5)
+	var dug := 0; var guard := 0
+	while dug < target and guard < 4000:
+		guard += 1
+		var p: Vector2i = pts[randi() % pts.size()]
+		var a := randf() * TAU; var L := ri(4, 9)
+		var q := Vector2i(clampi(p.x + int(cos(a) * L), B + 3, MW - B - 4), clampi(p.y + int(sin(a) * L), B + 3, MH - B - 4))
+		var r := rnd(2.2, 4.6)
+		for jj in range(int(q.y - r) - 1, int(q.y + r) + 2):
+			for ii in range(int(q.x - r) - 1, int(q.x + r) + 2):
+				if ii <= B or jj <= B or ii >= MW - B - 1 or jj >= MH - B - 1: continue
+				if Vector2(ii - q.x, jj - q.y).length() < r and map[jj * MW + ii] == 1:
+					map[jj * MW + ii] = 0; dug += 1
+		pts.append(q)
+	# 둘레를 부드럽게(세포 자동자 두 번)
+	for it in 2:
+		var nm := map.duplicate()
+		for j in range(1, MH - 1):
+			for i in range(1, MW - 1):
+				var n := 0
+				for dv in DIR8:
+					if at(i + dv.x, j + dv.y) == 1: n += 1
+				if map[j * MW + i] == 1 and n <= 3: nm[j * MW + i] = 0
+				elif map[j * MW + i] == 0 and n >= 6: nm[j * MW + i] = 1
+		map = nm
+	# 나무 섬(몇 칸짜리 숲 덩어리) — 넓은 곳에만
+	for k in ri(8, 13):
+		var ci := ri(B + 4, MW - B - 5); var cj := ri(B + 4, MH - B - 5)
+		var ok := true
+		for dj in range(-3, 4):
+			for di in range(-3, 4):
+				if at(ci + di, cj + dj) != 0: ok = false
+		if not ok or Vector2(ci - c0.x, cj - c0.y).length() < 6: continue
+		for dj in range(0, ri(1, 3)):
+			for di in range(0, ri(1, 3)): map[(cj + dj) * MW + ci + di] = 1
+	# 출발점에서 닿는 곳만 남기기
+	var st := c0
+	if map[st.y * MW + st.x] == 1:
+		for j in MH:
+			for i in MW:
+				if map[j * MW + i] == 0: st = Vector2i(i, j)
+	var reach := PackedByteArray(); reach.resize(MW * MH); reach.fill(0)
+	var q2: Array = [st]; reach[st.y * MW + st.x] = 1
+	while q2.size():
+		var c: Vector2i = q2.pop_back()
+		for dv in DIR4:
+			var n2: Vector2i = c + dv
+			if at(n2.x, n2.y) == 0 and reach[n2.y * MW + n2.x] == 0:
+				reach[n2.y * MW + n2.x] = 1; q2.append(n2)
+	open_cells = []
+	var mnx := MW; var mny := MH; var mxx := 0; var mxy := 0
+	for j in MH:
+		for i in MW:
+			if map[j * MW + i] == 0 and reach[j * MW + i] == 0: map[j * MW + i] = 1
+			elif map[j * MW + i] == 0:
+				open_cells.append(Vector2i(i, j)); mnx = min(mnx, i); mny = min(mny, j); mxx = max(mxx, i); mxy = max(mxy, j)
+	rooms.append(_room(mnx, mny, mxx - mnx + 1, mxy - mny + 1, true))
+	seen.fill(1)
+	start = Vector2((st.x + .5) * T, (st.y + .5) * T)
+	var path := PackedByteArray(); path.resize(MW * MH); path.fill(0)
+	town = {x0 = 7, y0 = 7, w = MW - 14, h = MH - 14, path = path, cx = st.x, cy = st.y, meadow = true}
+	# 꽃·풀·바위
+	const PL := ["flower1", "flower2", "fern1", "leaf1", "grass1", "grass3", "rock1", "shrub1", "flower1", "grass1"]
+	for k in 90:
+		var c: Vector2i = open_cells[randi() % open_cells.size()]
+		var p := Vector2((c.x + rnd(.1, .9)) * T, (c.y + rnd(.1, .9)) * T)
+		if p.distance_to(start) < 90: continue
+		decor.append({kind = "prop", p = pick(PL), pos = p, s = .8})
+	# 화톳불 몇 개(달빛 아래 붉게)
+	for k in 7:
+		var c: Vector2i = open_cells[randi() % open_cells.size()]
+		var p := Vector2((c.x + .5) * T, (c.y + .5) * T)
+		if not hits(p.x, p.y, 20): torches.append({pos = p, wall = false, lamp = true}); obst.append({x = p.x, y = p.y, r = 12.0})
+	build_flow(start.x, start.y)
+
+func far_cell(from: Vector2, min_d: float) -> Vector2:
+	for k in 200:
+		var c: Vector2i = open_cells[randi() % open_cells.size()]
+		var p := Vector2((c.x + .5) * T, (c.y + .5) * T)
+		if p.distance_to(from) >= min_d and not hits(p.x, p.y, 24): return p
+	var c2: Vector2i = open_cells[randi() % open_cells.size()]
+	return Vector2((c2.x + .5) * T, (c2.y + .5) * T)
 
 # ---------------- 탑의 층(몬스터·상자는 game.gd 에서) ----------------
 func gen_floor(fl: int, boss: bool, want_door := false) -> void:

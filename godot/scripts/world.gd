@@ -278,7 +278,9 @@ func _build_forest() -> void:
 			if mg.gate != null and absf((i + .5) * 32 - mg.gate.x) < 230 and j * 32 - mg.gate.y > -110 and j * 32 - mg.gate.y < 140: continue
 			var h = MapGen.hash2(i, j); var edge = mg.wall_bits(i, j) >= 0
 			# 진짜 나무 모델은 크고 무거우니 둘레에 듬성듬성(가장자리는 한 칸 걸러, 안쪽은 더 드물게)
-			if edge and (i + j) % 2 == 1: continue
+			if t.get("meadow", false):
+				if not edge or (i + j) % 3 != 0: continue      # 토끼 동산은 넓으니 가장자리만 듬성듬성
+			elif edge and (i + j) % 2 == 1: continue
 			if not edge and not (i % 3 == 0 and j % 2 == 0 and h % 2 == 0): continue
 			var p = Vector2((i + .5) * 32 + ((h >> 3) % 9 - 4) * 2, (j + .85) * 32)
 			var south := false   # 마을보다 아래(카메라 쪽)면 키 큰 나무가 캐릭터를 가리므로 덤불만
