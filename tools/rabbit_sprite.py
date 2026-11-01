@@ -5,7 +5,7 @@
 - rabbit.png / rabbit_king.png(금빛 털 + 왕관) + meta.json 에 항목 추가
 python3 tools/rabbit_sprite.py
 """
-import json, math, os, numpy as np
+import json, math, os, numpy as np, cv2
 from PIL import Image, ImageDraw, ImageFilter
 from scipy import ndimage
 
@@ -104,13 +104,65 @@ def paste_rot(base, part, cx, by, ang, scale=1.0):
     px = cx - p.width / 2 - rx / SS * scale; py = by - p.height / 2 - ry / SS * scale
     base.alpha_composite(p, (int(round(px)), int(round(py))))
 
-def head_of(c, H):
-    ys, xs = np.nonzero(H)
+def head_of(c, H, prev=None):
+    # 뿔 덩어리들 중 맨 위쪽 무리. 서 있는 자세의 머리 자리(prev)가 있으면 그 근처 무리를 고름(위로 든 도끼 자루 등은 버림)
+    lab, n = ndimage.label(H)
+    comps = []
+    for i in range(1, n + 1):
+        ys, xs = np.nonzero(lab == i)
+        if len(xs) >= 6: comps.append((ys.mean(), xs.mean(), ys, xs))
+    if not comps: return None
+    sel = []
+    if prev is not None:
+        near = [cc for cc in comps if abs(cc[1] - prev[0]) < 60 and abs(cc[0] - prev[1]) < 60]
+        if near:
+            # 가장 큰 뿔 덩어리와 그 짝(가까운 것)
+            big = max(near, key=lambda cc: len(cc[3]))
+            sel = [cc for cc in near if abs(cc[1] - big[1]) < 45 and abs(cc[0] - big[0]) < 30]
+    if not sel:
+        top = min(cc[0] for cc in comps); sel = [cc for cc in comps if cc[0] < top + 40]
+    ys = np.concatenate([cc[2] for cc in sel]); xs = np.concatenate([cc[3] for cc in sel])
     if len(xs) < 8: return None
     return float(xs.mean()), float(np.percentile(ys, 35)), float(xs.max() - xs.min())
 
+TS = 30      # 본(머리) 반쪽 크기
+def gray(c):
+    g = (.3 * c[..., 0] + .59 * c[..., 1] + .11 * c[..., 2]) * (c[..., 3] / 255.0)
+    return g.astype(np.float32)
+
+def make_tmpl(c, inf, ox, oy):
+    hx, hy, sp = inf; cx, cy = int(hx), int(hy + 10)
+    g = gray(c); hgt, wid = g.shape
+    x0, y0 = max(0, cx - TS), max(0, cy - TS); x1, y1 = min(wid, cx + TS), min(hgt, cy + TS)
+    t = g[y0:y1, x0:x1].copy(); m = (c[y0:y1, x0:x1, 3] > 100).astype(np.uint8)
+    return {"t": t, "m": m, "off": (cx - x0, cy - y0), "cell": (cx + ox, cy + oy), "sp": sp}
+
+def locate(c, H, ox, oy, T):
+    if T is None: return head_of(c, H)
+    g = gray(c); hgt, wid = g.shape; th, tw = T["t"].shape
+    ex, ey = T["cell"][0] - ox, T["cell"][1] - oy          # 서 있을 때 머리 자리(이 장 좌표)
+    R = 85
+    sx0 = int(max(0, ex - R - T["off"][0])); sy0 = int(max(0, ey - R - T["off"][1]))
+    sx1 = int(min(wid, ex + R + (tw - T["off"][0]))); sy1 = int(min(hgt, ey + R + (th - T["off"][1])))
+    win = g[sy0:sy1, sx0:sx1]
+    if win.shape[0] < th or win.shape[1] < tw: return head_of(c, H)
+    res = cv2.matchTemplate(win, T["t"], cv2.TM_CCORR_NORMED, mask=T["m"])
+    res = np.nan_to_num(res, nan=0.0, posinf=0.0, neginf=0.0)
+    _, score, _, loc = cv2.minMaxLoc(res)
+    cx = sx0 + loc[0] + T["off"][0]; cy = sy0 + loc[1] + T["off"][1]
+    if score < .82: return head_of(c, H, (ex, ey - 10))
+    return float(cx), float(cy - 10), T["sp"]
+
 def build(king):
     fr = SRC['fr']; out_frames = []; last = {}
+    tmpls = {}
+    for d8 in range(8):
+        f0 = fr[d8 * 8]
+        if f0 is None: continue
+        c0 = SHEET[f0[2]:f0[2] + f0[4], f0[1]:f0[1] + f0[3]].copy()
+        inf = head_of(c0, horn_mask(c0))
+        if inf is None: continue
+        tmpls[d8] = make_tmpl(c0, inf, f0[5], f0[6])
     heads = head_imgs(king); crown = crown_img(30)
     for idx, f in enumerate(fr):
         if f is None:
@@ -118,18 +170,37 @@ def build(king):
         pg, x, y, w, h, ox, oy = f
         c = SHEET[y:y + h, x:x + w].copy()
         H = horn_mask(c)
-        info = head_of(c, H)
-        anim_dir = idx // 8
-        if info is None: info = last.get(anim_dir % 8)
-        else: last[anim_dir % 8] = info
+        # 머리 위치: 서 있는 자세(방향마다 첫 장)에서 뿔로 찾은 소 머리를 본으로, 모든 장에서 그 머리 모양을 찾아냄(템플릿 매칭)
+        row = idx // 8; d8 = row % 8
+        info = locate(c, H, ox, oy, tmpls.get(d8))
+        if info is None: info = last.get(row)
+        last[row] = info
+        # 소 머리를 뿔째 통째로 지우기(어차피 토끼 머리로 덮음): 머리 둘레 네모(뿔 끝까지), 도끼날(회색 쇠)은 남김
+        if info is not None:
+            hx0, hy0, sp0 = info
+            half = min(40, max(24, sp0 / 2 + 6))
+            yy, xx = np.mgrid[0:h, 0:w]
+            R = ((xx - hx0) / half) ** 2 + ((yy - (hy0 + 2)) / 24.0) ** 2 < 1.0        # 머리 둘레 타원(어깨는 안 깎이게)
+            near = (xx - hx0) ** 2 + (yy - hy0) ** 2 < 75 ** 2
+            H = H & near                                                          # 뿔 끝은 색으로(타원 밖이어도)
+            rr, gg, bb = c[..., 0], c[..., 1], c[..., 2]
+            mx_ = np.maximum(np.maximum(rr, gg), bb); mn_ = np.minimum(np.minimum(rr, gg), bb)
+            metal = ((mx_ - mn_) / (mx_ + 1e-6) < .1) & (mx_ > 110)
+            H = H | ndimage.binary_dilation(H, iterations=3) & (c[..., 3] > 0) | (R & ~metal)
         # 뿔 지우기 + 구멍 메우기
         body = (c[..., 3] > 30) & ~H
         holes = ndimage.binary_fill_holes(body) & ~body
         c[H, 3] = 0
         if holes.any():
-            blur = np.stack([ndimage.uniform_filter(c[..., k] * (c[..., 3] > 30), 5) for k in range(3)], -1)
-            wgt = ndimage.uniform_filter((c[..., 3] > 30).astype(np.float32), 5)[..., None] + 1e-6
-            c[holes, :3] = (blur / wgt)[holes]; c[holes, 3] = 255
+            # 구멍은 가장 가까운 살갗 색으로 채움
+            _, (iy, ix) = ndimage.distance_transform_edt(~((c[..., 3] > 30) & ~H), return_indices=True)
+            c[holes, :3] = c[iy[holes], ix[holes], :3]; c[holes, 3] = 255
+        # 떨어져 나간 작은 조각(뿔 끝 등)은 지움
+        lab2, n2 = ndimage.label(c[..., 3] > 30)
+        if n2 > 1:
+            sz = ndimage.sum(np.ones_like(lab2), lab2, range(1, n2 + 1)); big = np.argmax(sz) + 1
+            for i in range(1, n2 + 1):
+                if i != big and sz[i - 1] < 220: c[lab2 == i, 3] = 0
         c = recolor(c, king)
         im = Image.new('RGBA', (w, h + PAD), (0, 0, 0, 0))
         im.paste(Image.fromarray(c.astype(np.uint8), 'RGBA'), (0, PAD))
