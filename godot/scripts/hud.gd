@@ -77,7 +77,9 @@ func inset() -> Dictionary:
 	var sa = DisplayServer.get_display_safe_area(); var ss = DisplayServer.screen_get_size()
 	if ss.x <= 0 or OS.get_name() != "Android": return {t = 0.0, r = 0.0, b = 0.0, l = 0.0}
 	var k = vs.x / ss.x
-	return {t = sa.position.y * k, l = sa.position.x * k, r = (ss.x - sa.end.x) * k, b = (ss.y - sa.end.y) * k}
+	# 카메라 구멍(펀치홀) 때문에 한쪽 여백이 크게 잡히는 폰(갤럭시 울트라 등): 구멍은 작으니 여백은 조금만
+	var cap := 12.0
+	return {t = min(cap, sa.position.y * k), l = min(cap, sa.position.x * k), r = min(cap, (ss.x - sa.end.x) * k), b = min(cap, (ss.y - sa.end.y) * k)}
 
 func show_saving() -> void:
 	if game.no_save: return
