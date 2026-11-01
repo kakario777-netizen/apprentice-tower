@@ -383,6 +383,18 @@ static func glow_tex() -> Texture2D:
 		_glow_tex = t
 	return _glow_tex
 
+static var _shaft_tex: ImageTexture
+static func shaft_tex() -> ImageTexture:
+	if _shaft_tex == null:
+		var img := Image.create(64, 64, false, Image.FORMAT_RGBA8)
+		for j in 64:
+			for i in 64:
+				var u := (i + .5) / 64.0; var v := (j + .5) / 64.0
+				var a: float = pow(sin(PI * u), 1.6) * smoothstep(0.0, .35, v) * (1.0 - smoothstep(.6, 1.0, v))
+				img.set_pixel(i, j, Color(1, 1, 1, a))
+		_shaft_tex = ImageTexture.create_from_image(img)
+	return _shaft_tex
+
 func glow_quad(col: Color, size: float) -> MeshInstance3D:
 	var q = QuadMesh.new(); q.size = Vector2(size, size)
 	var m = StandardMaterial3D.new()
@@ -450,17 +462,18 @@ func _build_alcoves() -> void:
 func _entrance_glow(x0: float, zb: float, zf: float, col: Color, up: bool, k := 1.0) -> void:
 	var cx: float = x0 + 1
 	var nodes: Array = []
-	var g = glow_quad(Color(col, .55 * k), 2.6); g.position = Vector3(cx, (WALLZ * .9 if up else .2), zb + .3); add_child(g); nodes.append(g)
-	var g2 = glow_quad(Color(col, .35 * k), 4.2); g2.position = Vector3(cx, .6, zf + .2); add_child(g2); nodes.append(g2)
-	# 빛줄기(입구에서 바닥으로 쏟아지는 세로 판 두 장)
-	var gr := Gradient.new(); gr.set_color(0, Color(col, .0)); gr.add_point(.35, Color(col, .32 * k)); gr.set_color(gr.get_point_count() - 1, Color(col, 0))
-	var gt := GradientTexture2D.new(); gt.gradient = gr; gt.fill_from = Vector2(0, 0); gt.fill_to = Vector2(1, 0); gt.width = 64; gt.height = 4
+	# 테라스는 벽이 낮아서 빛도 낮고 작게(그대로 두면 벽 위로 네모난 빛판이 드러남)
+	var hz: float = (LOWZ * 1.35 / WALLZ) if mg.terrace else 1.0
+	if mg.terrace: k *= .55
+	var g = glow_quad(Color(col, .55 * k), 2.6 * (.7 if mg.terrace else 1.0)); g.position = Vector3(cx, (WALLZ * .9 * hz if up else .2), zb + .3); add_child(g); nodes.append(g)
+	var g2 = glow_quad(Color(col, .35 * k), 4.2 * (.7 if mg.terrace else 1.0)); g2.position = Vector3(cx, .6 * hz, zf + .2); add_child(g2); nodes.append(g2)
+	# 빛줄기(입구에서 바닥으로 쏟아지는 세로 판 두 장) — 가장자리가 사방으로 부드럽게 사라지게
 	var sm := StandardMaterial3D.new(); sm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; sm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	sm.blend_mode = BaseMaterial3D.BLEND_MODE_ADD; sm.albedo_texture = gt; sm.cull_mode = BaseMaterial3D.CULL_DISABLED; sm.no_depth_test = false
+	sm.blend_mode = BaseMaterial3D.BLEND_MODE_ADD; sm.albedo_texture = shaft_tex(); sm.albedo_color = Color(col, .32 * k); sm.cull_mode = BaseMaterial3D.CULL_DISABLED; sm.no_depth_test = false
 	for side in [-.35, .35]:
-		var q := QuadMesh.new(); q.size = Vector2(2.6, 1.9)
+		var q := QuadMesh.new(); q.size = Vector2(2.6, 1.9 * hz)
 		var mi := MeshInstance3D.new(); mi.mesh = q; mi.material_override = sm
-		mi.position = Vector3(cx + side, .95, zf + .9); mi.rotation = Vector3(-.5, side * .6, 0); add_child(mi); nodes.append(mi)
+		mi.position = Vector3(cx + side, .95 * hz, zf + .9); mi.rotation = Vector3(-.5, side * .6, 0); add_child(mi); nodes.append(mi)
 	# 떠오르는 빛 알갱이
 	var pt := CPUParticles3D.new(); var pq := QuadMesh.new(); pq.size = Vector2(.06, .06)
 	var pm := StandardMaterial3D.new(); pm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; pm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA

@@ -451,19 +451,45 @@ func _staff_tip(P, G, dt: float) -> void:
 	tip_glow.position = pos; tip_core.position = pos + Vector3(0, 0, .01)
 	tip_light.position = pos + Vector3(0, 0, .3); tip_light.light_color = col; tip_light.light_energy = 1.4 * tip_a * pulse
 
+# 마법 보호막: 몸 전체를 덮는 아주 투명한 돔(가장자리만 은은히 빛나고, 맞으면 번쩍)
+const DOME_SH := """
+shader_type spatial;
+render_mode unshaded, blend_add, cull_back, depth_draw_never;
+uniform vec4 col : source_color = vec4(.5, .75, 1.0, 1.0);
+uniform float amt = 1.0;
+uniform float hit = 0.0;
+void fragment() {
+	float f = 1.0 - abs(dot(normalize(NORMAL), normalize(VIEW)));
+	float rim = pow(f, 2.6);
+	vec2 g = UV * vec2(28.0, 14.0);
+	float lines = smoothstep(.94, 1.0, abs(sin(g.x * 3.1416 + TIME * .5))) + smoothstep(.94, 1.0, abs(sin(g.y * 3.1416 - TIME * .8)));
+	float a = (.025 + rim * .5 + lines * rim * .25) * amt + hit * (.08 + rim * .45);
+	ALBEDO = col.rgb + vec3(hit * .6);
+	ALPHA = clamp(a, 0.0, 1.0);
+}
+"""
+var dome: MeshInstance3D
+var dome_a := 0.0
+var dome_hit := 0.0
+var dome_last := 0.0
 func _ward(P, G) -> void:
-	var M = Actor.meta()
-	if P.ward > 0 and M.has("fx_shield"):
-		var m: Dictionary = M.fx_shield; var A: Dictionary = m.anims.idle
-		var fr = int(G.time * 1000 / A.dur * A.frames) % int(A.frames)
-		var k: float = 40.0 / m.get("hgt", m.ch) * UP
-		var mat: StandardMaterial3D = ward_q.material_override
-		mat.uv1_scale = Vector3(1.0 / A.frames, 1, 1); mat.uv1_offset = Vector3(float(fr) / A.frames, 0, 0)
-		mat.albedo_color = Color(1, 1, 1, .75)
-		(ward_q.mesh as QuadMesh).size = Vector2(m.cw * k, m.ch * k)
-		ward_q.position = w3(P.x, P.y + 4, (m.anchor[1] - m.ch / 2.0) * k) + Vector3((m.cw / 2.0 - m.anchor[0]) * k, 0, .05)
-		ward_q.visible = true
-	else: ward_q.visible = false
+	ward_q.visible = false
+	if dome == null:
+		var sm := SphereMesh.new(); sm.radius = .78; sm.height = 2.3; sm.radial_segments = 32; sm.rings = 16
+		var m := ShaderMaterial.new(); var sh := Shader.new(); sh.code = DOME_SH; m.shader = sh; m.render_priority = 3
+		dome = MeshInstance3D.new(); dome.mesh = sm; dome.material_override = m; dome.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(dome)
+	var dt: float = get_process_delta_time()
+	dome_a = move_toward(dome_a, 1.0 if P.ward > 0 else 0.0, dt * (6.0 if P.ward > 0 else 3.0))
+	if P.ward < dome_last - .01: dome_hit = 1.0          # 막이 공격을 받아냄
+	dome_last = P.ward; dome_hit = max(0.0, dome_hit - dt * 4.0)
+	dome.visible = dome_a > .01
+	if not dome.visible: return
+	dome.position = player.position + Vector3(0, .95, 0)
+	var pul: float = 1.0 + .03 * sin(G.time * 3.0)
+	dome.scale = Vector3(pul, 1.0, pul) * (.85 + .15 * dome_a)
+	var dm: ShaderMaterial = dome.material_override
+	dm.set_shader_parameter("amt", dome_a); dm.set_shader_parameter("hit", dome_hit)
 	if P.hardenT > 0:
 		(harden_q.mesh as QuadMesh).size = Vector2(1.3, 1.9)
 		(harden_q.material_override as StandardMaterial3D).albedo_color = Color(.8, .95, 1, .5)

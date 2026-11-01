@@ -6,6 +6,7 @@ signal toast(msg: String)
 signal ui(what: String)        # "buttons" "belt" "bag" "levelup" "end" "state" "talk"
 signal rumble(ms: int, strength: float)
 const GOLD_RATE := .1   # 떨어지는 금화 양(예전의 1/10)
+const BOSS_HP := 20.0   # 보스 체력 배수(너무 빨리 녹는다는 의견 → 20배)
 signal sfx(name: String)        # 효과음
 signal saved                    # 저장할 때마다(오른쪽 위 "자동 저장 중…")
 
@@ -424,7 +425,7 @@ func gen_cow() -> void:
 	var kc: Vector2 = mg.far_cell(mg.start, 900.0)
 	var king := _rabbit("rabbit_king", kc.x, kc.y, 14.0)
 	king.isBoss = true; king.named = true; king.slam = true; king.t2 = 3.0; king.name = "만렙 토끼왕"
-	king.dmg *= 2.2; king.r = 26.0; king.xp *= 20
+	king.dmg *= 2.2; king.r = 26.0; king.xp *= 20; king.hp *= BOSS_HP; king.max *= BOSS_HP
 	G.bossMax = king.max
 	var kh = {x = kc.x, y = kc.y, tx = kc.x, ty = kc.y, t = 99.0, aggro = false}
 	G.herds.append(kh); king.herd = G.herds.size() - 1; king.hoff = Vector2.ZERO
@@ -442,7 +443,7 @@ func spawn_cow_quest() -> void:
 	var e := spawn_enemy("rabbit", x, y, 1.0)
 	var lf100: int = 100 + 100 * int(G.tier)
 	var bd: Dictionary = D.BOSSES[15]
-	var hp: float = bd.hp * diff_d().hp * (1 + .25 * (lf100 - 1)) / (1 + .25 * 14) * .8
+	var hp: float = bd.hp * diff_d().hp * (1 + .25 * (lf100 - 1)) / (1 + .25 * 14) * .8 * BOSS_HP
 	e.hp = hp; e.max = hp
 	e.dmg = bd.dmg * diff_d().dmg * (1 + .1 * (lf100 - 1)) / (1 + .1 * 14) * .8
 	e.xp = int(120 * (1 + .3 * (lf100 - 5) / 5.0) * .6)
@@ -481,6 +482,7 @@ func spawn_floor_boss(kind: String, x: float, y: float) -> Dictionary:
 		var t := pick_type()
 		var e := spawn_enemy(t, x, y, 9.0)
 		e.isBoss = true; e.named = true; e.split = false; e.name = "%s %s" % [pick(NAMED_PRE), D.MONSTERS[t].name]
+		e.hp *= BOSS_HP; e.max *= BOSS_HP
 		e.r *= 1.35; e.dmg *= 1.6; e.xp *= 12; e.aggro = true; e.t1 = 3.0
 		G.bossMax += e.max
 		return e
@@ -494,7 +496,7 @@ func spawn_floor_boss(kind: String, x: float, y: float) -> Dictionary:
 	var lf: int = lvf()
 	var hm: float = (1 + .25 * (lf - 1)) / (1 + .25 * (base_f - 1)) * (1.5 if kind == "tier" else 1.0)
 	var dm: float = (1 + .1 * (lf - 1)) / (1 + .1 * (base_f - 1))
-	var b := spawn_boss(bd, x, y, bd.hp * diff_d().hp * hm)
+	var b := spawn_boss(bd, x, y, bd.hp * diff_d().hp * hm * BOSS_HP)
 	b.split = false; b.dmg *= dm; b.shield *= hm; b.shieldMax *= hm
 	b.xp = int(120 * (1 + .3 * (lf - 5) / 5.0))
 	if kind == "tier": b.name = "%s · 계층 수호자" % bd.name

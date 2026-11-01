@@ -668,6 +668,12 @@ func _run_fxtest() -> void:
 	P.active = "storm"; test_inp = {mx = 0.0, my = 0.0, firing = true, ang = 0.0}
 	await _frames(12); await _snap("f5_storm")
 	test_inp = null; await _frames(4)
+	P.sec.ward = 1; P.secOrder.append("ward"); game.cast_sec("ward"); await _frames(20); await _snap("f9_ward")
+	if game.mg.door == null: game.mg.door = {x = P.x, y = P.y, found = true, alcove = false, kind = "door"}
+	game.enter_terrace(); await _frames(4)
+	if game.mg.door != null:
+		P.x = game.mg.door.x; P.y = game.mg.door.y + 150
+	await _frames(14); await _snap("f10_terrace")
 	game.go_town(false); await _frames(6)
 	ui.open_bag(true); await _frames(4); await _snap("f6_sell")
 	ui.bag_sel = {from = "bag", i = 1}; ui._render_bag(); await _frames(4); await _snap("f7_sell_sel")
