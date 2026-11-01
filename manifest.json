@@ -1,0 +1,79 @@
+[
+ {
+  "slug": "evil-rabbit-creature",
+  "licenses": [],
+  "author": "Benjinsmith",
+  "desc": "  A 3D model of an evil rabbit.  The goal was to create something recognisable from nature, yet something that was warped, made evil or abominable. \n The textures are done in a painterly style, with subtle details on large areas punctuated by bright contrast in some places. \n Stats: 602 triangles 512x Texture \n Includes: Rabbit Model Diffuse Texture 3 Animations: Idle, Run, and Attack \n",
+  "files": [
+   "Rabbit.blend",
+   "Rabbit_Diffuse_Map.png",
+   "Rend_05.png",
+   "Rend_06.png",
+   "Rend_07.png",
+   "cc-by.png",
+   "Rend_05.png",
+   "Rend_06.png",
+   "Rend_07.png",
+   "Rend_05.png",
+   "Rend_06.png",
+   "Rend_07.png"
+  ]
+ },
+ {
+  "slug": "generic-rabbit-obj",
+  "licenses": [],
+  "author": "Djsedj",
+  "desc": "  Important to note is that the mouth is pretty rough (no teeth, tongue or anything). This model is actually a by-product of me designing an actual character earlier. Too bad that character's jaws don't suit a regular lagomorph... \n",
+  "files": [
+   "bunny.obj",
+   "bunny_4.png",
+   "cc0.png",
+   "bunny_4.png",
+   "bunny_4.png"
+  ]
+ },
+ {
+  "slug": "rabbit-0",
+  "licenses": [],
+  "author": "CDmir",
+  "desc": "  This model created for the wonderful world of  Kelgar . \n The model is rigged and animated and comes with diffuse texture and normalmap.  Ready to use ingame. \n All textures is packed into blend file. \n",
+  "files": [
+   "cc0.png",
+   "rabbit (Case Conflict).png",
+   "rabbit-FBX.7z",
+   "rabbit.blend",
+   "rabbit (Case Conflict).png",
+   "rabbit (Case Conflict).png",
+   "rabbit-guarding.gif",
+   "rabbit-run.gif",
+   "rabbit-sitting.gif"
+  ]
+ },
+ {
+  "slug": "low-poly-rabbit",
+  "licenses": [],
+  "author": "Mathilde_Lea",
+  "desc": "  Low Poly Bunny made in Blender. \n",
+  "files": [
+   "bunny_0.zip",
+   "cc-by_0.png",
+   "screenshot_2022-07-23_222558.png",
+   "screenshot_2022-07-23_222608.png",
+   "screenshot_2022-07-23_222558.png",
+   "screenshot_2022-07-23_222608.png",
+   "screenshot_2022-07-23_222558.png",
+   "screenshot_2022-07-23_222608.png"
+  ]
+ },
+ {
+  "slug": "5-low-poly-animals",
+  "licenses": [],
+  "author": "quaternius",
+  "desc": "  5 low poly animated animals. \n   \n Consider supporting me on patreon!  \n  https://www.patreon.com/quaternius  \n",
+  "files": [
+   "Animals Pack by Quaternius.zip",
+   "cc0.png",
+   "FINALRENDER.gif"
+  ]
+ }
+]
