@@ -934,7 +934,7 @@ func _render_bag() -> void:
 				var bi = P.bag[i]; var slot: String = bi.slot
 				if slot == "ring":
 					slot = "ring1" if P.eq.ring1 == null else ("ring2" if P.eq.ring2 == null else ("ring1" if Game.sum_score(P.eq.ring1) <= Game.sum_score(P.eq.ring2) else "ring2"))
-				bag_sel = {from = "bag", i = i}; _equip(slot); return
+				bag_sel = {from = "bag", i = i}; _equip(slot, true); return
 			bag_sel = {from = "bag", i = i}; _render_bag())
 		b.set_meta("key", "bag:%d" % i); bg_.add_child(b)
 	gsc.add_child(bg_); c2.add_child(gsc)
@@ -1149,8 +1149,14 @@ func _dbl(key: String) -> bool:
 	tap_key = "" if yes else key; tap_t = now
 	return yes
 
-func _equip(slot: String) -> void:
-	game.equip(bag_sel.i, slot); bag_sel = {from = "eq", slot = slot}; _render_bag()
+func _equip(slot: String, quick := false) -> void:
+	game.equip(bag_sel.i, slot); bag_sel = {from = "eq", slot = slot}
+	if quick:
+		# 두 번 눌러 착용: 선택·테두리를 비워서, 그 칸으로 밀려온 다른 물건이 선택된 것처럼 보이지 않게
+		bag_sel = null; tap_key = ""
+		var fo = get_viewport().gui_get_focus_owner()
+		if fo: fo.release_focus()
+	_render_bag()
 
 # ================= 탭 창(디아블로식): 능력치 · 가방 · 마법 · 기록 · 설정 =================
 const TABS := [["stats", "능력치"], ["bag", "가방"], ["magic", "마법"], ["record", "기록"], ["settings", "설정"]]

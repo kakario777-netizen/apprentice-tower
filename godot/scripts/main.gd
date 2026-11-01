@@ -39,6 +39,8 @@ var samples_dir := ""
 var lvtest := false
 var fxtest := false
 var tiertest := false
+var roomtest := false
+var terrtest := false
 
 func _ready() -> void:
 	Ui.init_fonts()
@@ -51,6 +53,7 @@ func _ready() -> void:
 		autosave_min = cfg.get_value("game", "autosave", 5)
 		snd.music_vol = cfg.get_value("sound", "music", .7); snd.sfx_vol = cfg.get_value("sound", "sfx", .9)
 	Game.migrate_old()
+	if OS.has_feature("mobile"): Input.emulate_touch_from_mouse = false     # 폰: 터치→마우스→터치로 한 번 더 들어오는 가짜 터치 막기
 	get_viewport().scaling_3d_scale = quality
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--shot="): shot_path = a.substr(7)
@@ -61,6 +64,8 @@ func _ready() -> void:
 		elif a == "--lvtest": lvtest = true
 		elif a == "--fxtest": fxtest = true
 		elif a == "--tiertest": tiertest = true
+		elif a == "--roomtest": roomtest = true
+		elif a == "--terrtest": terrtest = true
 		elif a.begins_with("--seed="): seed(int(a.substr(7)))
 	add_child(game)
 	World.set_fog(PackedByteArray())
@@ -82,10 +87,12 @@ func _ready() -> void:
 	_title_scene()
 	ui.open_title()
 	if test_floor > 0 or shot_mode != "": _test_setup()
-	if samples_dir != "" and not fxtest and not tiertest: _run_samples()
+	if samples_dir != "" and not fxtest and not tiertest and not roomtest and not terrtest: _run_samples()
 	if lvtest: _run_lvtest()
 	if fxtest: _run_fxtest()
 	if tiertest: _run_tiertest()
+	if roomtest: _run_roomtest()
+	if terrtest: _run_terrtest()
 
 func _setup_env(town: bool) -> void:
 	var mg := game.mg
@@ -218,6 +225,7 @@ func _notification(what: int) -> void:
 		if not _back() and what == NOTIFICATION_WM_CLOSE_REQUEST: get_tree().quit()
 		elif what == NOTIFICATION_WM_GO_BACK_REQUEST and game.G != null and game.G.state == "title": get_tree().quit()
 	elif what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+		if hud: hud.clear_input()          # 가려진 동안 뗀 손가락이 계속 눌린 걸로 남지 않게
 		if game.G != null and game.G.state == "play" and shot_path == "" and not bench: open_pause()
 		game.save()
 
@@ -737,3 +745,59 @@ func _run_tiertest() -> void:
 	continue_game(4, 0); await _frames(10); await _snap("t15_normal_town")
 	print("after load normal: tier=", G.tier if game.G else -1, " floor=", game.G.floor, " resume=", game.G.resume, " cowQ=", game.G.cowQ)
 	print("TIERTEST done"); get_tree().quit()
+
+# 방 꾸미기 확인(개발용): --samples=DIR --roomtest
+func _run_roomtest() -> void:
+	DirAccess.make_dir_recursive_absolute(samples_dir)
+	await _frames(10)
+	new_game("norm", 4); await _frames(4)
+	var P = game.P; var G = game.G
+	P.prim.arcane = 2; P.active = "arcane"; G.sb = {god = true, mana = true, nocd = true, still = true}
+	var seen := {}
+	for f in [3, 7, 12, 16, 23, 27, 33, 38, 44, 48, 52, 57]:
+		G.resume = f; game.enter_tower(f); await _frames(3)
+		G.enemies = []
+		for r in game.mg.rooms:
+			var th: String = r.get("theme", "plain")
+			if th == "plain" and seen.has("plain"): continue
+			if seen.get(th, 0) >= 2: continue
+			seen[th] = seen.get(th, 0) + 1
+			P.x = r.cx; P.y = r.cy + 30; game.mg.reveal(P.x, P.y); game.mg.dirty = true
+			for rr in game.mg.rooms:
+				if Game.hyp(rr.cx - P.x, rr.cy - P.y) < 400: game.mg.reveal(rr.cx, rr.cy)
+			await _frames(8); await _snap("r_%s_%d_f%d" % [th, seen[th], f])
+		if seen.size() >= 7 and seen.values().min() >= 2: break
+	print("ROOMTEST done ", seen); get_tree().quit()
+
+# 테라스 확인(개발용): --samples=DIR --terrtest
+func _run_terrtest() -> void:
+	DirAccess.make_dir_recursive_absolute(samples_dir)
+	await _frames(10)
+	new_game("norm", 4); await _frames(4)
+	var P = game.P; var G = game.G
+	P.prim.arcane = 2; P.active = "arcane"; G.sb = {god = true, mana = true, nocd = true, still = false}
+	# 던전 쪽 문(동·서·남쪽) 찾기
+	var found := 0
+	for f in range(2, 40):
+		G.resume = f; game.enter_tower(f); await _frames(2)
+		var d = game.mg.door
+		if d != null and d.get("side", "") != "" and found < 2:
+			found += 1; G.enemies = []
+			P.x = d.x - d.dx * 70; P.y = d.y - d.dy * 70; game.mg.reveal(P.x, P.y); game.mg.dirty = true
+			await _frames(8); await _snap("t_door_%s_f%d" % [d.side, f])
+		if found >= 2: break
+	var evs := ["survive", "corpse", "named", "empty", "fight", "quiet"]
+	var dirs := ["n", "e", "s", "w", "e", "s"]
+	for i in evs.size():
+		G.resume = 5; game.enter_tower(5); await _frames(2)
+		var dd: Dictionary = game.mg.door if game.mg.door != null else {}
+		game.mg.door = {x = P.x, y = P.y, dir = dirs[i], dx = 0.0, dy = -1.0, kind = "door"}
+		game.enter_terrace(evs[i]); await _frames(4)
+		var r: Dictionary = game.mg.rooms[0]
+		if evs[i] == "survive":
+			await _frames(200)
+		else: await _frames(20)
+		await _snap("t_ter_%s_%s" % [dirs[i], evs[i]])
+		print("TERR ", dirs[i], " ", evs[i], " shape=", r.get("shape", ""), " size=", r.w, "x", r.h, " door=", game.mg.door.get("side", "n"))
+		game.leave_terrace(); await _frames(2)
+	print("TERRTEST done"); get_tree().quit()

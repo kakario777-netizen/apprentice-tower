@@ -25,6 +25,8 @@ var boss_room = false
 var terrace := false            # 야외 테라스 맵
 var door = null                 # 테라스로 나가는 문 / 테라스에서 돌아오는 문 {x,y,found}
 var alcoves: Array = []         # 벽을 판 자리 {tx, ty0, depth, kind}
+var sidedoors: Array = []       # 동·서·남쪽 벽에 뚫은 문 {x,y,side,dx,dy,kind}
+var tdir := "s"                 # 테라스가 탑에서 뻗어 나간 쪽
 var down = null                 # 내려가는 계단(올라와서 도착한 자리 뒤 벽) {x,y,found}
 var dirty := true                 # 안개·미니맵 다시 그리기
 
@@ -73,7 +75,7 @@ func _reset() -> void:
 	seen = PackedByteArray(); seen.resize(MW * MH); seen.fill(0)
 	flow = PackedInt32Array(); flow.resize(MW * MH); flow.fill(-1)
 	rooms = []; torches = []; decor = []; obst = []; town = null; gate = null; stairs = null; boss_room = false
-	terrace = false; door = null; alcoves = []; down = null
+	terrace = false; door = null; alcoves = []; down = null; sidedoors = []
 	dirty = true
 
 func carve(x: int, y: int, w: int, h: int) -> void:
@@ -448,6 +450,12 @@ func gen_floor(fl: int, boss: bool, want_door := false) -> void:
 		for c in on:
 			if c.id != start_c.id: rooms.append(c.room)
 		for r in rooms: carve(r.x, r.y, r.w, r.h)
+		# 방마다 쓰임새(연구실·숙소·감옥·서고·창고·의식실)와 모양(기둥·모서리 깎기) — 통로는 그 뒤에 뚫어서 늘 이어짐
+		for i in rooms.size():
+			var r: Dictionary = rooms[i]
+			r.theme = _pick_theme(r) if i > 0 else "plain"
+			if r.theme in ["plain", "storage", "ritual"] and r.w >= 12 and r.h >= 9 and randf() < .45: _shape_pillars(r)
+			elif randf() < .4: _shape_octagon(r, ri(2, 3))
 		for e in edges: corridor_adj(e[0].room, e[1].room, e[0].gy == e[1].gy)
 		# 올라온 계단: 벽을 팔 수 있는 방을 시작 방으로 삼고, 그 북쪽 벽 계단 앞에서 시작 — 다시 내려갈 수 있다
 		for idx in rooms.size():
@@ -476,9 +484,20 @@ func gen_floor(fl: int, boss: bool, want_door := false) -> void:
 			if stairs != null: break
 		if stairs == null: stairs = {x = far.cx, y = far.cy, found = false, alcove = false}
 		if want_door:
-			for r in order.slice(1):
-				if stairs.get("alcove", false) and absf(r.cx - stairs.x) < 1 and absf(r.cy - stairs.y) < r.h * T: continue
-				door = carve_alcove(r, 1, "door")
+			# 테라스로 나가는 문: 탑의 동·서·남·북 맨 끝 방의 바깥 벽에만
+			var dirs := ["n", "e", "w", "s"]; dirs.shuffle()
+			for dname in dirs:
+				var cand: Array = rooms.slice(1)
+				match dname:
+					"n": cand.sort_custom(func(a, b): return a.y < b.y)
+					"s": cand.sort_custom(func(a, b): return a.y + a.h > b.y + b.h)
+					"e": cand.sort_custom(func(a, b): return a.x + a.w > b.x + b.w)
+					"w": cand.sort_custom(func(a, b): return a.x < b.x)
+				for r in cand.slice(0, 2):
+					if stairs.get("alcove", false) and absf(r.cx - stairs.x) < r.w * T and absf(r.cy - stairs.y) < r.h * T and dname == "n": continue
+					door = carve_side_door(r, dname, "door")
+					if door != null:
+						door.dir = dname; break
 				if door != null: break
 	_decorate()
 
@@ -499,6 +518,52 @@ func carve_alcove(r: Dictionary, depth: int, kind: String):
 		return {x = (x + 1) * T, y = r.y * T, found = false, alcove = true, kind = kind}
 	return null
 
+# 동·서·남쪽 벽에 2칸 너비 문(바깥으로 2칸 짜리 통로)을 뚫는다
+const SIDE_D := {n = Vector2i(0, -1), e = Vector2i(1, 0), w = Vector2i(-1, 0), s = Vector2i(0, 1)}
+func carve_side_door(r: Dictionary, side: String, kind: String):
+	if side == "n": return carve_alcove(r, 1, kind)
+	var d: Vector2i = SIDE_D[side]
+	var cands: Array = []
+	if side == "e" or side == "w":
+		for j in range(r.y + 2, r.y + r.h - 3): cands.append(j)
+	else:
+		for i in range(r.x + 2, r.x + r.w - 3): cands.append(i)
+	cands.shuffle()
+	for c in cands:
+		var cells: Array = []
+		var inside: Array = []
+		if side == "e":
+			for k in [0, 1]:
+				for q in [0, 1]: cells.append(Vector2i(r.x + r.w + q, c + k))
+				inside.append(Vector2i(r.x + r.w - 1, c + k))
+		elif side == "w":
+			for k in [0, 1]:
+				for q in [1, 2]: cells.append(Vector2i(r.x - q, c + k))
+				inside.append(Vector2i(r.x, c + k))
+		else:
+			for k in [0, 1]:
+				for q in [0, 1]: cells.append(Vector2i(c + k, r.y + r.h + q))
+				inside.append(Vector2i(c + k, r.y + r.h - 1))
+		var ok := true
+		for cc in cells:
+			if cc.x < 2 or cc.y < 2 or cc.x > MW - 3 or cc.y > MH - 3 or at(cc.x, cc.y) != 1: ok = false
+			# 바로 옆이 다른 바닥이면(다른 방·통로와 붙음) 안 됨
+			for dv in DIR4:
+				var nb: Vector2i = cc + dv
+				if at(nb.x, nb.y) == 0 and not (nb in inside): ok = false
+		for ii in inside:
+			if at(ii.x, ii.y) != 0: ok = false
+		if not ok: continue
+		for cc in cells: map[cc.y * MW + cc.x] = 0
+		var pos: Vector2
+		if side == "e": pos = Vector2((r.x + r.w) * T, (c + 1) * T)
+		elif side == "w": pos = Vector2(r.x * T, (c + 1) * T)
+		else: pos = Vector2((c + 1) * T, (r.y + r.h) * T)
+		var dd := {x = pos.x, y = pos.y, found = false, alcove = false, side = side, dx = float(d.x), dy = float(d.y), kind = kind}
+		sidedoors.append(dd)
+		return dd
+	return null
+
 # 보스를 쓰러뜨리면 보스 방 북쪽 벽에 계단이 열린다
 func open_boss_stairs() -> void:
 	var r: Dictionary = rooms[0]
@@ -508,28 +573,62 @@ func open_boss_stairs() -> void:
 	dirty = true
 
 # ---------------- 야외 테라스 ----------------
-func gen_terrace(fl: int, roof := false) -> void:
-	_reset(); floor_no = fl; terrace = true
-	var w := ri(30, 40) if not roof else 30; var h := ri(16, 22) if not roof else 22; var x := MW / 2 - w / 2; var y := MH / 2 - h / 2
-	carve(x, y, w, h); rooms.append(_room(x, y, w, h, true))
-	# 화단·기둥
-	for k in ri(3, 6):
-		var px := ri(x + 3, x + w - 5); var py := ri(y + 3, y + h - 5)
-		for j in 2:
-			for i in 2: map[(py + j) * MW + px + i] = 1
+const OPP := {n = "s", s = "n", e = "w", w = "e"}
+func gen_terrace(fl: int, roof := false, dir := "s") -> void:
+	_reset(); floor_no = fl; terrace = true; tdir = dir
+	var w: int; var h: int
+	if roof:
+		w = 30; h = 22
+	elif dir == "e" or dir == "w":
+		w = ri(14, 22); h = ri(20, 30)             # 동·서: 세로로 긴 테라스
+	else:
+		w = ri(26, 42); h = ri(12, 19)             # 남·북: 가로로 긴 테라스
+	var x := MW / 2 - w / 2; var y := MH / 2 - h / 2
+	carve(x, y, w, h); var R := _room(x, y, w, h, true); rooms.append(R)
+	var shape: String = "rect" if roof else pick(["rect", "round", "L", "cross", "garden", "pillars"])
+	R.shape = shape
+	var back: String = OPP[dir]
+	match shape:
+		"round":
+			for j in range(y, y + h):
+				for i in range(x, x + w):
+					var dx := (i + .5 - (x + w / 2.0)) / (w / 2.0); var dy := (j + .5 - (y + h / 2.0)) / (h / 2.0)
+					if dx * dx + dy * dy > 1.08: map[j * MW + i] = 1
+		"L":
+			# 탑 쪽(문 쪽)이 아닌 모서리 하나를 막는다
+			var qx := x if randf() < .5 else x + w / 2; var qy := y if back == "s" else y + h / 2
+			if back == "n": qy = y + h / 2
+			for j in range(qy, qy + h / 2):
+				for i in range(qx, qx + w / 2): map[j * MW + i] = 1
+		"cross":
+			var cw := w / 3; var ch := h / 3
+			for q in [[x, y], [x + w - cw, y], [x, y + h - ch], [x + w - cw, y + h - ch]]:
+				for j in range(q[1], q[1] + ch):
+					for i in range(q[0], q[0] + cw): map[j * MW + i] = 1
+		"garden":
+			for py in range(y + 3, y + h - 4, 5):
+				for px in range(x + 3, x + w - 4, 6):
+					for j in 2:
+						for i in 3: map[(py + j) * MW + px + i] = 1
+		"pillars":
+			for py in range(y + 2, y + h - 2, 4):
+				for px in range(x + 3, x + w - 2, 5): map[py * MW + px] = 1
 	seen.fill(1)
 	if roof:
-		start = Vector2(rooms[0].cx, (y + h - 3) * T)
+		start = Vector2(R.cx, (y + h - 3) * T)
 	else:
-		door = carve_alcove(rooms[0], 1, "back")
-		if door == null: door = {x = rooms[0].cx, y = (y + 1) * T, found = true, alcove = false, kind = "back"}
-		start = Vector2(door.x, door.y + 44)
+		door = carve_side_door(R, back, "back")
+		if door == null and back != "n": door = carve_alcove(R, 1, "back")
+		if door == null: door = {x = R.cx, y = (y + 1) * T, found = true, alcove = false, kind = "back"}
+		var dv: Vector2 = Vector2(door.get("dx", 0.0), door.get("dy", -1.0))
+		start = Vector2(door.x, door.y) - dv * 46
+		if solid_at(start.x, start.y): start = Vector2(R.cx, R.cy)
 	for c in [[x + 1, y + 1], [x + w - 2, y + 1], [x + 1, y + h - 2], [x + w - 2, y + h - 2]]:
-		torches.append({pos = Vector2((c[0] + .5) * T, (c[1] + .5) * T), wall = false, lamp = true})
+		if at(c[0], c[1]) == 0: torches.append({pos = Vector2((c[0] + .5) * T, (c[1] + .5) * T), wall = false, lamp = true})
 	const PL := ["flower1", "flower2", "fern1", "shrub1", "shrub2", "grass1", "grass3", "rock1", "rock2"]
 	for k in 30:
 		var p := Vector2((x + rnd(1, w - 1)) * T, (y + rnd(2, h - 1)) * T)
-		if not hits(p.x, p.y, 8): decor.append({kind = "prop", p = pick(PL), pos = p, s = .8})
+		if not hits(p.x, p.y, 8) and (door == null or p.distance_to(Vector2(door.x, door.y)) > 60): decor.append({kind = "prop", p = pick(PL), pos = p, s = .8})
 	build_flow(start.x, start.y)
 
 func near_alcove(p: Vector2, r := 80.0) -> bool:
@@ -549,6 +648,181 @@ func near_opening(r: Dictionary, p: Vector2, rad := 2) -> bool:
 			if i < r.x or i >= r.x + r.w or j < r.y or j >= r.y + r.h: return true
 	return false
 
+const THEME_W := {plain = 28, lab = 14, dorm = 12, prison = 10, library = 14, storage = 12, ritual = 8}
+func _pick_theme(r: Dictionary) -> String:
+	var tot := 0
+	for k in THEME_W: tot += THEME_W[k]
+	for tries in 4:
+		var x := randi() % tot
+		for k in THEME_W:
+			x -= THEME_W[k]
+			if x < 0:
+				if k in ["dorm", "prison", "library", "lab"] and (r.w < 10 or r.h < 8): break
+				return k
+	return "plain"
+
+func _shape_pillars(r: Dictionary) -> void:
+	r.shape = "pillars"
+	for py in range(r.y + 3, r.y + r.h - 2, 4):
+		for px in range(r.x + 3, r.x + r.w - 2, 4):
+			map[py * MW + px] = 1
+
+func _shape_octagon(r: Dictionary, c: int) -> void:
+	r.shape = "octagon"
+	for j in c:
+		for i in c - j:
+			for q in [[r.x + i, r.y + j], [r.x + r.w - 1 - i, r.y + j], [r.x + i, r.y + r.h - 1 - j], [r.x + r.w - 1 - i, r.y + r.h - 1 - j]]:
+				map[q[1] * MW + q[0]] = 1
+
+# ---------- 방 꾸미기(3D 소품) ----------
+const FS := .74     # 가구 크기(사람 키에 맞춤)
+func _mdl(name: String, p: Vector2, rot := 0.0, sc := FS, r_obst := 0.0, h := 0.0) -> void:
+	decor.append({kind = "model", name = name, pos = p, rot = rot, s = sc, h = h})
+	if r_obst > 0: obst.append({x = p.x, y = p.y, r = r_obst})
+
+func _free(r: Dictionary, p: Vector2, rad: float) -> bool:
+	if solid_at(p.x, p.y) or near_alcove(p, 60) or near_opening(r, p, 2): return false
+	for o in obst:
+		if p.distance_to(Vector2(o.x, o.y)) < rad + o.r: return false
+	return true
+
+func _has_alcove(r: Dictionary) -> bool:
+	for a in alcoves:
+		if a.tx >= r.x - 1 and a.tx <= r.x + r.w and a.ty0 + a.depth == r.y: return true
+	return false
+
+# 북쪽 벽을 따라 늘어놓기(문·계단 자리는 비움)
+func _along_north(r: Dictionary, names: Array, step: float, rad: float, sc := FS) -> Array:
+	var out: Array = []
+	var x: float = r.x + 1.0
+	while x < r.x + r.w - 1:
+		var p := Vector2((x + step / 2.0) * T, (r.y + .45) * T)
+		if _free(r, p, rad):
+			_mdl(names[out.size() % names.size()], p, 0.0, sc, rad); out.append(p)
+		x += step
+	return out
+
+func _on_table(p: Vector2, hw: float, hd: float, h: float, items: Array, n: int) -> void:
+	for k in n:
+		_mdl(pick(items), p + Vector2(rnd(-hw, hw), rnd(-hd, hd)), rnd(0, TAU), FS * rnd(.9, 1.15), 0.0, h)
+
+func _decorate_theme(r: Dictionary) -> void:
+	var c := Vector2(r.cx, r.cy)
+	if r.theme == "prison" and _has_alcove(r): r.theme = "storage"      # 계단·문이 있는 벽엔 감방을 만들지 않음
+	match r.theme:
+		"lab":
+			# 연구실: 가운데 큰 탁자 + 약병·책·촛불, 벽에는 장식장과 약병 선반, 구석에 솥
+			if _free(r, c, 34):
+				_mdl("Table_Large", c, 0.0, FS, 30.0); _on_table(c, 22, 6, .81 * FS, ["Bottle_1", "Potion_1", "Potion_2", "Potion_4", "Book_5", "Scroll_2", "Candle_1", "SmallBottles_1"], ri(5, 8))
+				_mdl("Chair_1", c + Vector2(-20, 22), PI, FS, 0.0); _mdl("Chair_1", c + Vector2(18, 22), PI, FS, 0.0)
+			for p in _along_north(r, ["Cabinet", "Cabinet"], 2.4, 18):
+				if randf() < .7: _mdl("Shelf_Small_Bottles", p + Vector2(0, -3), 0.0, FS, 0.0, 1.0 * FS)
+			var cp := Vector2((r.x + 1.6) * T, (r.y + r.h - 1.8) * T)
+			if _free(r, cp, 20):
+				_mdl("Cauldron", cp, 0.0, FS * 1.1, 18.0); decor.append({kind = "glowpt", pos = cp, col = Color(.45, 1, .4), h = .55})
+			var bp := Vector2((r.x + r.w - 1.6) * T, (r.y + 2.2) * T)
+			if _free(r, bp, 12): _mdl("BookStand", bp, -PI / 2, FS, 10.0)
+			var sp := Vector2((r.x + r.w - 1.6) * T, (r.y + r.h - 1.8) * T)
+			if _free(r, sp, 12): _mdl("CandleStick_Stand", sp, 0.0, FS, 9.0)
+		"dorm":
+			# 오래된 숙소: 나무 바닥, 북쪽 벽에 침대 줄, 사이사이 협탁, 의자·통
+			r.wood = true
+			var x: float = r.x + 1.0; var k := 0
+			while x + 1.6 < r.x + r.w - 1:
+				var p := Vector2((x + .8) * T, (r.y + .95) * T)
+				if _free(r, p, 22):
+					_mdl("Bed_Twin1" if k % 2 == 0 else "Bed_Twin2", p, 0.0, FS, 0.0)
+					obst.append({x = p.x, y = p.y - 6, r = 18.0}); obst.append({x = p.x, y = p.y + 14, r = 16.0})
+					var ns := Vector2((x + 2.05) * T, (r.y + .45) * T)
+					if _free(r, ns, 9): _mdl("Nightstand_Shelf", ns, 0.0, FS, 8.0)
+					if randf() < .6: _mdl("Candle_1", ns + Vector2(rnd(-3, 3), 0), 0.0, FS, 0.0, 1.22 * FS)
+				x += 2.5; k += 1
+			for i in ri(2, 4):
+				var p := Vector2((r.x + rnd(1.5, r.w - 1.5)) * T, (r.y + rnd(3.2, r.h - 1.2)) * T)
+				if _free(r, p, 14): _mdl(pick(["Stool", "Stool", "Barrel", "Crate_Wooden", "Bucket_Wooden_1"]), p, rnd(0, TAU), FS, 10.0)
+			var cb := Vector2((r.x + r.w - .5) * T, (r.y + r.h / 2.0) * T)
+			if _free(r, cb, 16): _mdl("Cabinet", cb, -PI / 2, FS, 14.0)
+		"prison":
+			# 감옥: 북쪽 벽에 쇠창살 감방(한 칸만 열림), 안에는 사슬·양동이·뼈
+			var depth := 3; var cw := 3
+			var y1: float = (r.y + depth) * T
+			var ncell: int = (r.w - 1) / cw
+			var open_i: int = randi() % max(1, ncell)
+			for ci in ncell:
+				var x0: float = (r.x + .5 + ci * cw) * T; var x1: float = x0 + cw * T
+				if ci == open_i:
+					decor.append({kind = "bars", a = Vector2(x0, y1), b = Vector2(x0 + cw * T * .35, y1)}); _bar_obst(Vector2(x0, y1), Vector2(x0 + cw * T * .35, y1))
+					decor.append({kind = "bars", a = Vector2(x1 - cw * T * .3, y1), b = Vector2(x1, y1)}); _bar_obst(Vector2(x1 - cw * T * .3, y1), Vector2(x1, y1))
+				else:
+					decor.append({kind = "bars", a = Vector2(x0, y1), b = Vector2(x1, y1)}); _bar_obst(Vector2(x0, y1), Vector2(x1, y1))
+				decor.append({kind = "bars", a = Vector2(x1, r.y * T), b = Vector2(x1, y1)}); _bar_obst(Vector2(x1, r.y * T), Vector2(x1, y1))
+				var inn := Vector2((x0 + x1) / 2.0, (r.y + 1.3) * T)
+				_mdl("Chain_Coil", inn + Vector2(rnd(-12, 12), -8), rnd(0, TAU), FS, 0.0)
+				if randf() < .6: _mdl("Bucket_Wooden_1", inn + Vector2(rnd(-16, 16), 10), rnd(0, TAU), FS, 0.0)
+				if randf() < .7: decor.append({kind = "prop", p = pick(["bones1", "bones3", "skulls", "skeleton1"]), pos = inn + Vector2(rnd(-14, 14), rnd(0, 14)), s = .7})
+			decor.append({kind = "bars", a = Vector2((r.x + .5) * T, r.y * T), b = Vector2((r.x + .5) * T, y1)}); _bar_obst(Vector2((r.x + .5) * T, r.y * T), Vector2((r.x + .5) * T, y1))
+			for i in ri(1, 2):
+				var p := Vector2((r.x + rnd(1.5, r.w - 1.5)) * T, (r.y + rnd(depth + 1.5, r.h - 1)) * T)
+				if _free(r, p, 14): _mdl(pick(["Cage_Small", "Crate_Metal", "Barrel"]), p, rnd(0, TAU), FS, 12.0)
+		"library":
+			# 서고: 북쪽 벽 가득 책장, 옆벽 아치 선반, 가운데 독서 탁자
+			_along_north(r, ["Bookcase_2"], 1.0, 14)
+			if _free(r, c, 34):
+				_mdl("Table_Large", c, 0.0, FS, 30.0); _on_table(c, 22, 6, .81 * FS, ["Book_5", "Book_Stack_1", "Scroll_2", "Candle_1", "BookGroup_Medium_1"], ri(4, 7))
+				_mdl("Chair_1", c + Vector2(-18, -20), 0.0, FS, 0.0); _mdl("Chair_1", c + Vector2(16, 22), PI, FS, 0.0)
+			for sd in [-1, 1]:
+				var p := Vector2((r.x + (.45 if sd < 0 else r.w - .45)) * T, (r.y + r.h * .5) * T)
+				if _free(r, p, 14): _mdl("Shelf_Arch", p + Vector2(0, 0), PI / 2 * -sd, FS, 12.0, .61 * FS)
+			for i in ri(1, 3):
+				var p := Vector2((r.x + rnd(1.5, r.w - 1.5)) * T, (r.y + rnd(2.5, r.h - 1)) * T)
+				if _free(r, p, 10): _mdl(pick(["BookGroup_Medium_2", "Book_Stack_1", "BookStand"]), p, rnd(0, TAU), FS, 6.0)
+		"storage":
+			# 창고: 구석마다 상자·통 무더기
+			for corner in [Vector2(r.x + 1.3, r.y + 1.2), Vector2(r.x + r.w - 1.3, r.y + 1.2), Vector2(r.x + 1.3, r.y + r.h - 1.3), Vector2(r.x + r.w - 1.3, r.y + r.h - 1.3)]:
+				if randf() < .25: continue
+				for k in ri(2, 4):
+					var p: Vector2 = (corner + Vector2(rnd(-.7, .7), rnd(-.6, .6))) * T
+					if _free(r, p, 13): _mdl(pick(["Crate_Wooden", "Crate_Metal", "Barrel", "Barrel", "Pot_1", "Rope_1", "Bucket_Wooden_1"]), p, rnd(-.4, .4), FS, 13.0)
+			var bh := Vector2(r.cx, (r.y + .5) * T)
+			if _free(r, bh, 20): _mdl("Barrel_Holder", bh, 0.0, FS, 18.0)
+		"ritual":
+			# 의식실: 바닥에 붉은 마법진, 둘레에 촛대
+			decor.append({kind = "circle", pos = c, red = true})
+			for k in 6:
+				var a := k * TAU / 6 + .3
+				var p := c + Vector2(cos(a) * 70, sin(a) * 52)
+				if _free(r, p, 10): _mdl("CandleStick_Stand", p, 0.0, FS, 8.0)
+
+func _bar_obst(a: Vector2, b: Vector2) -> void:
+	var n: int = max(1, int(a.distance_to(b) / 12))
+	for i in n + 1:
+		var p := a.lerp(b, float(i) / n); obst.append({x = p.x, y = p.y, r = 7.0})
+
+# 방과 통로가 만나는 곳(북·동·서쪽)에 나무 문틀(가끔 열린 문짝)
+func _doorframes() -> void:
+	for r in rooms:
+		for side in ["n", "e", "w"]:
+			var run: Array = []
+			var cells: Array = []
+			if side == "n":
+				for i in range(r.x, r.x + r.w): cells.append(Vector2i(i, r.y - 1))
+			else:
+				var xx: int = r.x + r.w if side == "e" else r.x - 1
+				for j in range(r.y, r.y + r.h): cells.append(Vector2i(xx, j))
+			cells.append(Vector2i(-99, -99))
+			for cc in cells:
+				var open: bool = cc.x >= 0 and at(cc.x, cc.y) == 0
+				if open:
+					for a in alcoves:
+						if cc.x >= a.tx and cc.x < a.tx + 2 and cc.y >= a.ty0 and cc.y < a.ty0 + a.depth: open = false
+				if open: run.append(cc)
+				else:
+					if run.size() >= 2 and run.size() <= 3 and randf() < .65:
+						var m: Vector2 = (Vector2(run[0]) + Vector2(run[-1])) / 2.0 + Vector2(.5, .5)
+						var pos := Vector2(m.x * T, (r.y) * T) if side == "n" else Vector2((r.x + r.w if side == "e" else r.x) * T, m.y * T)
+						decor.append({kind = "doorframe", pos = pos, side = side, wd = run.size() * T, leaf = randf() < .6})
+					run = []
+
 func _decorate() -> void:
 	const PROPS := ["barrel1", "barrel2", "dcrate1", "dcrate2", "barrel1", "lectern1", "statue1", "statue2", "chain1", "dcrate2"]
 	const BONES := ["bones1", "bones2", "bones3", "bones4", "bones5", "skulls", "skeleton1", "skeleton2"]
@@ -558,7 +832,9 @@ func _decorate() -> void:
 			var tx: int = r.x + int(round((k + .5) * r.w / n)); var ty: int = r.y - 1
 			if at(tx, ty) == 1 and at(tx, ty + 1) == 0 and not near_alcove(Vector2((tx + .5) * T, r.y * T + 4), 40):
 				torches.append({pos = Vector2((tx + .5) * T, r.y * T), wall = true, lamp = false})
-		if not boss_room:
+		if not boss_room and r.get("theme", "plain") != "plain":
+			_decorate_theme(r)
+		elif not boss_room:
 			for k in ri(0, 3):
 				var p = Vector2((r.x + rnd(1.2, r.w - 1.2)) * T, (r.y + .75) * T)
 				var pn: String = pick(PROPS)
@@ -568,11 +844,13 @@ func _decorate() -> void:
 				if close or near_alcove(p) or near_opening(r, p): continue
 				decor.append({kind = "prop", p = pn, pos = p, s = .85 if pn.begins_with("statue") else .8})
 				if not pn.begins_with("chain"): obst.append({x = p.x, y = p.y, r = 14.0})
+		if r.get("theme", "plain") in ["lab", "library", "dorm"]: continue
 		for k in ri(2, 6):
 			if randf() < .55:
 				var p = Vector2((r.x + rnd(1, r.w - 1)) * T, (r.y + rnd(1, r.h - 1)) * T)
 				if near_alcove(p) or near_opening(r, p): continue
 				decor.append({kind = "prop", p = BONES[hash2(int(p.x), int(p.y)) % BONES.size()], pos = p, s = .75})
+	if not boss_room and not terrace: _doorframes()
 
 # 벽 칸의 테두리 비트: 1=북쪽이 바닥, 2=동, 4=남, 8=서. 바닥과 닿지 않은 벽은 -1
 func wall_bits(i: int, j: int) -> int:

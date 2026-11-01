@@ -227,8 +227,11 @@ func handle_input(ev: InputEvent) -> void:
 				pad_on = false; main.pad_mode(false)
 			if not playing(): return
 			if _hit_button(p): return
-			if p.x < vs.x / 2 and move_id < 0:
-				move_id = ev.index; mo = p; mc = p
+			if ev.index == move_id or ev.index == aim_id: return      # 같은 손가락이 두 번 들어온 것(흉내 이벤트) → 무시
+			# 왼쪽 절반은 이동만, 오른쪽 절반만 공격(왼쪽에 닿은 다른 손가락이 공격으로 잡히던 유령 터치 방지)
+			if p.x < vs.x / 2:
+				if move_id < 0:
+					move_id = ev.index; mo = p; mc = p
 			elif aim_id < 0:
 				aim_id = ev.index; ao = p; ac = p
 		else:

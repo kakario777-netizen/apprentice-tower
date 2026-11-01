@@ -57,7 +57,7 @@ func fresh_p() -> Dictionary:
 func fresh_g(diff: String) -> Dictionary:
 	return {corpses = [], anims = [], debris = [], floor = 0, resume = 1, diff = diff, state = "play", enemies = [], shots = [], eshots = [], zones = [],
 		fx = [], rings = [], bolts = [], drops = [], texts = [], chests = [], npcs = [], portal = null,
-		gold = 0, kills = 0, banner = {text = "", t = 0.0}, pendingLv = 0, flowT = 0.0, bossMax = 0.0, time = 0.0, coneT = 0.0, talkSeen = {}, lights = [], cone = null, tier = 0, tierMax = 0, tiers = {}, cowQ = 0, cowF = 0, redPortal = null, herds = [],
+		gold = 0, kills = 0, banner = {text = "", t = 0.0}, pendingLv = 0, flowT = 0.0, bossMax = 0.0, time = 0.0, coneT = 0.0, talkSeen = {}, lights = [], cone = null, tier = 0, tierMax = 0, tiers = {}, cowQ = 0, cowF = 0, redPortal = null, herds = [], tev = null,
 		sb = null, shake = 0.0, lvDelay = 0.0, revT = 0.0, goldPulse = 0.0, bagNew = false, nearItem = null, portalT = 0.0,
 		runSeed = randi() % 1000000, waypoints = [1], killsBy = {}, shop = [], stash = null, pull = null, townRet = null, cleared = [], fcache = {}, fcacheOrder = []}
 
@@ -375,9 +375,9 @@ func gen_floor() -> void:
 		G.chests = []
 		for i in range(1, mg.rooms.size()):
 			var r: Dictionary = mg.rooms[i]
-			if randf() > .4: continue
+			if randf() > .2: continue          # 상자: 방 다섯에 하나꼴
 			var cx: float = (r.x + pick([1.6, r.w - 1.6])) * T; var cy: float = (r.y + pick([1.6, r.h - 1.6])) * T
-			if hyp(cx - mg.stairs.x, cy - mg.stairs.y) < 70 or mg.near_alcove(Vector2(cx, cy)): continue
+			if hyp(cx - mg.stairs.x, cy - mg.stairs.y) < 70 or mg.near_alcove(Vector2(cx, cy)) or mg.hits(cx, cy, 16): continue
 			G.chests.append({x = cx, y = cy, open = false, t = 0.0, id = nid()})
 			mg.obst.append({x = cx, y = cy + 2, r = 16.0})         # 상자에 부딪힘
 		G.banner = {text = floor_name(G.floor), t = 2.2}
@@ -802,6 +802,19 @@ func upd_enemy(e: Dictionary, dt: float) -> void:
 			return
 	if not e.aggro:
 		if (d < 360 and mg.los(e.x, e.y, P.x, P.y)) or d < 150: e.aggro = true
+		elif e.get("wander", false):
+			# 혼자 어슬렁: 가끔 새 자리를 골라 천천히 걸어감
+			e.wt -= dt
+			if e.wt <= 0 or hyp(e.wx - e.x, e.wy - e.y) < 8:
+				e.wt = rnd(2.5, 5.0)
+				var a := rnd(0, TAU); var nx: float = e.x + cos(a) * rnd(60, 160); var ny: float = e.y + sin(a) * rnd(60, 160)
+				if not mg.hits(nx, ny, e.r): e.wx = nx; e.wy = ny
+			var gx0: float = e.wx - e.x; var gy0: float = e.wy - e.y; var gl0 := hyp(gx0, gy0)
+			var tv := Vector2.ZERO
+			if gl0 > 4: tv = Vector2(gx0, gy0) / gl0 * e.spd * .4
+			var k0 = 1.0 - exp(-3.0 * dt)
+			e.vx += (tv.x - e.vx) * k0; e.vy += (tv.y - e.vy) * k0; mg.move(e, e.vx * dt, e.vy * dt)
+			return
 		else: return
 	var sp: float = e.spd * (.5 if e.slowT > 0 else 1.0) * (.35 if in_stasis(e) else 1.0)
 	var goal: Vector2
@@ -1397,37 +1410,110 @@ func buy(id: String) -> void:
 # ================= 층 이동 / 종료 =================
 func open_chest(c: Dictionary) -> void:
 	c.open = true; sfx.emit("chest"); ring(c.x, c.y, 4, 34, .35, "#ffd76a"); burst(c.x, c.y - 6, "#ffd76a", 18, 140, .5, 2.5)
-	var n = ri(5, 9); var v: int = max(1, int(round((6 + lvf() * 3) * diff_d().reward * GOLD_RATE)))
-	for i in n: G.drops.append({id = nid(), x = c.x, y = c.y + 6, kind = "gold", v = v, t = .5, vx = rnd(-130, 130), vy = rnd(-40, 150), h = 8.0, vh = rnd(140, 220)})
+	# 금화: 한두 닢부터 우르르까지 들쭉날쭉(대부분 조금, 가끔 많이)
+	var rr := randf(); var n: int = ri(1, 2) if rr < .45 else (ri(3, 5) if rr < .8 else (ri(6, 10) if rr < .95 else ri(12, 18)))
+	if randf() < .15: n = 0
+	var v: int = max(1, int(round((6 + lvf() * 3) * diff_d().reward * GOLD_RATE * rnd(.6, 1.4))))
+	for i in n: G.drops.append({id = nid(), x = c.x, y = c.y + 6, kind = "gold", v = v, t = .5, vx = rnd(-130, 130) * (.5 + n / 18.0), vy = rnd(-40, 150) * (.5 + n / 18.0), h = 8.0, vh = rnd(140, 220)})
 	if randf() < .18: drop_item(c.x, c.y, "", 1.5)
 	if lvf() >= 25 and randf() < .05: drop_stone(c.x, c.y, 1)
 	var r = randf()
 	if r < .45: G.drops.append({id = nid(), x = c.x, y = c.y, kind = pick(["pothp", "pothp", "potmp"]), t = 0.0, vx = rnd(-60, 60), vy = rnd(40, 90), h = 0.0, vh = 110.0})
 	elif r < .55: G.drops.append({id = nid(), x = c.x, y = c.y, kind = "scroll", t = 0.0, vx = rnd(-60, 60), vy = rnd(40, 90), h = 0.0, vh = 110.0})
 
-func enter_terrace() -> void:
-	G.stash = {mg = mg, enemies = G.enemies, chests = G.chests, drops = G.drops, corpses = G.corpses, px = mg.door.x, py = mg.door.y + 48, portal = G.portal}
+# 바깥 테라스: 탑의 그 쪽(동서남북)으로 뻗은 야외 공간. 들어갈 때마다 가벼운 일이 있기도 하고 없기도 하다
+const TERRACE_EV := [["fight", 30], ["quiet", 14], ["survive", 15], ["corpse", 15], ["named", 15], ["empty", 11]]
+func enter_terrace(force_ev := "") -> void:
+	var dv := Vector2(mg.door.get("dx", 0.0), mg.door.get("dy", -1.0))
+	G.stash = {mg = mg, enemies = G.enemies, chests = G.chests, drops = G.drops, corpses = G.corpses, px = mg.door.x - dv.x * 48, py = mg.door.y - dv.y * 48, portal = G.portal}
 	G.enemies = []; G.chests = []; G.drops = []; G.corpses = []; G.shots = []; G.eshots = []; G.zones = []; G.portal = null
-	seed(G.runSeed * 131 + G.floor * 7919 + 77)
-	mg = MapGen.new(); mg.gen_terrace(G.floor)
-	var r: Dictionary = mg.rooms[0]
-	for k in min(10, 3 + G.floor / 4):
-		var t := pick_type(); var ex: float = (r.x + rnd(2, r.w - 2)) * T; var ey: float = (r.y + rnd(4, r.h - 2)) * T
-		if not mg.hits(ex, ey, D.MONSTERS[t].r) and hyp(ex - mg.start.x, ey - mg.start.y) > 150: spawn_enemy(t, ex, ey)
-	for k in ri(1, 2):
-		var cx: float = (r.x + rnd(2, r.w - 2)) * T; var cy: float = (r.y + r.h - 2) * T
-		if not mg.hits(cx, cy, 14):
-			G.chests.append({x = cx, y = cy, open = false, t = 0.0, id = nid()}); mg.obst.append({x = cx, y = cy + 2, r = 16.0})
+	var dir: String = mg.door.get("dir", "n")
 	randomize()
+	mg = MapGen.new(); mg.gen_terrace(G.floor, false, dir)
+	var r: Dictionary = mg.rooms[0]
+	var tot := 0
+	for e in TERRACE_EV: tot += e[1]
+	var roll := randi() % tot; var ev: String = "fight"
+	for e in TERRACE_EV:
+		roll -= e[1]
+		if roll < 0:
+			ev = e[0]; break
+	if ev == "survive" and G.floor < 3: ev = "fight"
+	if force_ev != "": ev = force_ev
+	var spot := func(min_d: float) -> Vector2:
+		for k in 60:
+			var p := Vector2((r.x + rnd(1.5, r.w - 1.5)) * T, (r.y + rnd(1.5, r.h - 1.5)) * T)
+			if not mg.hits(p.x, p.y, 16) and hyp(p.x - mg.start.x, p.y - mg.start.y) > min_d: return p
+		return Vector2(r.cx, r.cy)
+	var nm := {fight = "바깥 테라스", quiet = "바깥 테라스 · 고요한 바람", survive = "바깥 테라스 · 포위!", corpse = "바깥 테라스 · 누군가 쓰러져 있다", named = "바깥 테라스 · 무언가 배회한다", empty = "바깥 테라스 · 아무도 없다"}
+	match ev:
+		"fight", "quiet":
+			var n: int = min(10, 3 + G.floor / 4) if ev == "fight" else ri(2, 3)
+			for k in n:
+				var t := pick_type(); var p: Vector2 = spot.call(150.0)
+				spawn_enemy(t, p.x, p.y)
+			if ev == "fight":
+				for k in ri(1, 2):
+					var p: Vector2 = spot.call(90.0)
+					G.chests.append({x = p.x, y = p.y, open = false, t = 0.0, id = nid()}); mg.obst.append({x = p.x, y = p.y + 2, r = 16.0})
+		"survive":
+			G.tev = {kind = "survive", t = 60.0, delay = 2.5, sp = 0.0, sec = 61}
+		"corpse":
+			# 먼저 온 모험가의 유해: 장비·금화·물약이 흩어져 있다(상자 없음)
+			var c: Vector2 = spot.call(200.0)
+			mg.decor.append({kind = "prop", p = "skeleton1", pos = c, s = .85}); mg.decor.append({kind = "prop", p = "bones3", pos = c + Vector2(20, 10), s = .7})
+			for i in ri(1, 2): drop_item(c.x + rnd(-24, 24), c.y + rnd(-14, 14), "", 1.6)
+			for i in ri(3, 8): G.drops.append({id = nid(), x = c.x + rnd(-30, 30), y = c.y + rnd(-18, 18), kind = "gold", v = max(1, int(round((4 + lvf() * 2) * GOLD_RATE * 3))), t = .5})
+			if randf() < .7: G.drops.append({id = nid(), x = c.x + rnd(-20, 20), y = c.y + 18, kind = pick(["pothp", "potmp", "scroll"]), t = .5})
+			for k in ri(0, 2):
+				var p: Vector2 = spot.call(220.0); spawn_enemy(pick_type(), p.x, p.y)
+		"named":
+			var p: Vector2 = spot.call(220.0)
+			var e := spawn_elite(pick_type(), p.x, p.y); e.wander = true; e.wx = p.x; e.wy = p.y; e.wt = 0.0
+		"empty":
+			for k in 3:
+				var p: Vector2 = spot.call(80.0)
+				mg.decor.append({kind = "model", name = pick(["Bench", "Vase_2", "Barrel"]), pos = p, rot = rnd(0, TAU), s = .7}); mg.obst.append({x = p.x, y = p.y, r = 14.0})
 	P.x = mg.start.x; P.y = mg.start.y; P.vx = 0.0; P.vy = 0.0
-	G.banner = {text = "%d층 · 바깥 테라스" % G.floor, t = 2.0}
+	G.banner = {text = "%d층 · %s" % [G.floor, nm[ev]], t = 2.4}
+	if ev == "survive": toast.emit("60초 동안 버텨라!")
 	mg.build_flow(P.x, P.y); level_changed = true
+
+# 테라스 버티기: 60초 동안 사방에서 몰려온다. 버티면 보상
+func upd_terrace_event(dt: float) -> void:
+	var ev = G.get("tev")
+	if ev == null or G.stash == null: return
+	if ev.delay > 0:
+		ev.delay -= dt; return
+	ev.t -= dt
+	var sec: int = int(ceil(ev.t))
+	if sec != ev.sec and sec >= 0:
+		ev.sec = sec; G.banner = {text = "버티기 · %d초" % sec, t = 1.1}
+	ev.sp -= dt
+	if ev.sp <= 0 and ev.t > 3:
+		ev.sp = lerp(2.4, 1.1, 1.0 - ev.t / 60.0)
+		var r: Dictionary = mg.rooms[0]
+		for k in ri(1, 3):
+			for tries in 20:
+				var p := Vector2((r.x + rnd(1.5, r.w - 1.5)) * T, (r.y + rnd(1.5, r.h - 1.5)) * T)
+				if not mg.hits(p.x, p.y, 16) and hyp(p.x - P.x, p.y - P.y) > 220:
+					var e := spawn_enemy(pick_type(), p.x, p.y); e.aggro = true; e.xp = int(e.xp * .5)
+					smoke(p.x, p.y, 4); break
+	if ev.t <= 0:
+		G.tev = null
+		for e in G.enemies:
+			if not e.dead:
+				e.dead = true; smoke(e.x, e.y, 5)
+		G.banner = {text = "버텨냈다!", t = 2.6}; sfx.emit("levelup")
+		for i in 3: drop_item(P.x + rnd(-40, 40), P.y - 30 + rnd(-20, 20), "", 2.5)
+		for i in ri(6, 10): G.drops.append({id = nid(), x = P.x + rnd(-50, 50), y = P.y + rnd(-40, 30), kind = "gold", v = max(1, int(round((6 + lvf() * 3) * GOLD_RATE * 2))), t = .5, vx = rnd(-80, 80), vy = rnd(-60, 60), h = 4.0, vh = rnd(100, 160)})
+		G.drops.append({id = nid(), x = P.x, y = P.y + 30, kind = "pothp", t = .5})
 
 func leave_terrace() -> void:
 	var st = G.stash
 	if st == null: return
 	mg = st.mg; G.enemies = st.enemies; G.chests = st.chests; G.drops = st.drops; G.corpses = st.corpses; G.portal = st.portal
-	G.shots = []; G.eshots = []; G.zones = []; G.stash = null
+	G.shots = []; G.eshots = []; G.zones = []; G.stash = null; G.tev = null
 	P.x = st.px; P.y = st.py; P.vx = 0.0; P.vy = 0.0
 	mg.dirty = true; mg.build_flow(P.x, P.y); level_changed = true
 
@@ -1599,6 +1685,7 @@ func update(dt: float) -> void:
 	if G.portal != null and G.pull == null and not G.portal.get("vis", false) and G.time - G.portal.get("born", -9.0) > .5 and hyp(P.x - G.portal.x, P.y - (G.portal.y + 8)) < 30:
 		sfx.emit("portal")
 		G.pull = {t = 0.0, fx = P.x, fy = P.y, tx = G.portal.x, ty = G.portal.y - 4, what = "portal", dur = 1.1}
+	upd_terrace_event(dt)
 	for hd in G.herds:
 		if hd.aggro: continue
 		hd.t -= dt
@@ -1636,7 +1723,8 @@ func update(dt: float) -> void:
 		G.pull.t += dt
 		var dur: float = G.pull.get("dur", 1.0)
 		var k: float = min(1.0, G.pull.t / (dur * .92))
-		P.x = lerp(G.pull.fx, G.pull.tx, k); P.y = lerp(G.pull.fy, G.pull.ty, k); P.vx = 0.0; P.vy = -40.0; P.face = -PI / 2
+		var pf: float = G.pull.get("face", -PI / 2)
+		P.x = lerp(G.pull.fx, G.pull.tx, k); P.y = lerp(G.pull.fy, G.pull.ty, k); P.vx = cos(pf) * 40.0; P.vy = sin(pf) * 40.0; P.face = pf
 		_set_anim(P, "run"); P.at += dt * .85     # 실제로 한 걸음씩 걷는 동작
 		if G.pull.t >= dur:
 			var what: String = G.pull.what; G.pull = null
@@ -1657,6 +1745,13 @@ func update(dt: float) -> void:
 		for o in [[mg.stairs, "stairs"], [mg.down, "down"], [mg.door, "back" if mg.terrace else "door"]]:
 			var st = o[0]
 			if st == null: continue
+			if st.get("side", "") != "":
+				# 동·서·남쪽 문: 문턱에 닿으면 그쪽으로 걸어 나간다
+				if hyp(P.x - st.x, P.y - st.y) < 30:
+					sfx.emit("door")
+					G.pull = {t = 0.0, fx = P.x, fy = P.y, tx = st.x + st.dx * 46, ty = st.y + st.dy * 46, what = o[1], dur = 1.0, face = atan2(st.dy, st.dx)}
+					return
+				continue
 			var near: bool = hyp(P.x - st.x, P.y - st.y) < (44 if st.get("alcove", false) else 20) and P.y >= st.y - 4
 			if near and (st.get("alcove", false) or o[1] == "stairs"):
 				var stair: bool = o[1] == "stairs" or o[1] == "down"

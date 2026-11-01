@@ -136,6 +136,13 @@ func build(m: MapGen) -> void:
 	_build_props()
 	_build_torches()
 	_build_alcoves()
+	for sd in mg.sidedoors:
+		# 동·서·남쪽 문: 문 너머에서 새어 나오는 빛
+		var col := Color(1, .8, .5) if sd.kind == "back" else Color(.55, .72, 1)
+		var px: float = sd.x / 32.0 + sd.dx * 1.0; var pz: float = sd.y / 32.0 + sd.dy * 1.0
+		_entrance_sparkle(px, pz + .3, col, .9)
+		var L = add_light(Vector3(px, 1.0, pz), col, 4.5, 1.4)
+		if mg.town == null and not mg.terrace: fog_nodes.append([L, sd.x, sd.y])
 
 func update_fog() -> void:
 	for f in fog_nodes:
@@ -186,12 +193,18 @@ func _build_ground() -> void:
 		mf = pbr("forrest_ground_01", .35); mp = pbr("cobblestone_floor_001", .5)
 	elif mg.terrace: mf = pbr("stone_tiles", .4)
 	elif FLOOR_PBR != "": mf = pbr(FLOOR_PBR, .26 if FLOOR_PBR == "mossy_cobblestone" else .4)
+	var wood := {}     # 숙소 방: 나무 바닥
+	for r in mg.rooms:
+		if r.get("wood", false):
+			for j in range(r.y, r.y + r.h):
+				for i in range(r.x, r.x + r.w): wood[j * MapGen.MW + i] = true
 	for cy in range(0, MapGen.MH, CHUNK):
 		for cx in range(0, MapGen.MW, CHUNK):
 			var sf = SurfaceTool.new(); sf.begin(Mesh.PRIMITIVE_TRIANGLES)
 			var sp = SurfaceTool.new(); sp.begin(Mesh.PRIMITIVE_TRIANGLES)
 			var sp2 = SurfaceTool.new(); sp2.begin(Mesh.PRIMITIVE_TRIANGLES)
 			var nf = 0; var np = 0; var nf2 = 0
+			var sw2 = SurfaceTool.new(); sw2.begin(Mesh.PRIMITIVE_TRIANGLES); var nw = 0
 			for j in range(cy, min(cy + CHUNK, MapGen.MH)):
 				for i in range(cx, min(cx + CHUNK, MapGen.MW)):
 					var h = MapGen.hash2(i, j)
@@ -203,6 +216,8 @@ func _build_ground() -> void:
 							else:
 								_quad_floor(sf, i, j, _uv(h % 16, 16), _ao(i, j)); nf += 1
 						elif _stair_tile(i, j): continue
+						elif wood.has(j * MapGen.MW + i):
+							_quad_floor(sw2, i, j, _uv(h % 8, 16), _ao(i, j)); nw += 1
 						elif mg.terrace:
 							_quad_floor(sf, i, j, _uv(h % 10, 10), _ao(i, j)); nf += 1
 						elif FLOOR_TEX == "floor":
@@ -218,6 +233,7 @@ func _build_ground() -> void:
 			if nf: _add_mesh(sf, mf)
 			if np: _add_mesh(sp, mp)
 			if nf2: _add_mesh(sp2, pbr("brown_mud_leaves_01", .35))
+			if nw: _add_mesh(sw2, pbr("old_planks_02", .5))
 
 func _add_mesh(st: SurfaceTool, m: Material) -> MeshInstance3D:
 	var mi = MeshInstance3D.new()
@@ -324,8 +340,15 @@ func _build_props() -> void:
 		elif d.kind == "stall":
 			add_prop("stall", d.pos, 1.0)
 		elif d.kind == "model":
-			var md := Props3D.model(d.name, "prop", d.s); md.position = Vector3(d.pos.x / 32.0, 0, d.pos.y / 32.0); md.rotation.y = d.rot; add_child(md)
-		elif d.kind == "circle": _magic_circle(d.pos)
+			var md := Props3D.model(d.name, "prop", d.s); md.position = Vector3(d.pos.x / 32.0, d.get("h", 0.0), d.pos.y / 32.0); md.rotation.y = d.rot; add_child(md)
+			if mg.town == null: fog_nodes.append([md, d.pos.x, d.pos.y])
+		elif d.kind == "circle": _magic_circle(d.pos, d.get("red", false))
+		elif d.kind == "glowpt":
+			var g = glow_quad(Color(d.col, .6), 1.2); g.position = Vector3(d.pos.x / 32.0, d.h, d.pos.y / 32.0 + .05); add_child(g)
+			var L = add_light(Vector3(d.pos.x / 32.0, d.h + .6, d.pos.y / 32.0 + .3), d.col, 3.5, 1.2)
+			fog_nodes.append([g, d.pos.x, d.pos.y]); fog_nodes.append([L, d.pos.x, d.pos.y])
+		elif d.kind == "bars": _bars(d.a, d.b)
+		elif d.kind == "doorframe": _doorframe(d)
 
 # 강화 교수가 서 있는 바닥 마법진(천천히 도는 푸른 룬 고리)
 static var _circle_tex: ImageTexture
@@ -359,16 +382,59 @@ static func circle_tex() -> ImageTexture:
 	_circle_tex = ImageTexture.create_from_image(img)
 	return _circle_tex
 
-func _magic_circle(p: Vector2) -> void:
+static var _iron: StandardMaterial3D
+static func iron_mat() -> StandardMaterial3D:
+	if _iron == null:
+		_iron = StandardMaterial3D.new(); _iron.albedo_color = Color(.22, .21, .23); _iron.metallic = .8; _iron.roughness = .45
+	return _iron
+
+# 쇠창살(감옥): a→b 를 따라 세로 막대 + 위아래 가로대
+func _bars(a: Vector2, b: Vector2) -> void:
+	var A := Vector3(a.x / 32.0, 0, a.y / 32.0); var B := Vector3(b.x / 32.0, 0, b.y / 32.0)
+	var L := A.distance_to(B); var n: int = max(1, int(L / .22))
+	var root := Node3D.new(); add_child(root)
+	var cm := CylinderMesh.new(); cm.top_radius = .028; cm.bottom_radius = .028; cm.height = 1.25; cm.radial_segments = 6
+	var mm := MultiMesh.new(); mm.transform_format = MultiMesh.TRANSFORM_3D; mm.mesh = cm; mm.instance_count = n + 1
+	for i in n + 1:
+		mm.set_instance_transform(i, Transform3D(Basis(), A.lerp(B, float(i) / n) + Vector3(0, .625, 0)))
+	var mi := MultiMeshInstance3D.new(); mi.multimesh = mm; mi.material_override = iron_mat(); root.add_child(mi)
+	for y in [.12, 1.18]:
+		var bm := BoxMesh.new(); bm.size = Vector3(L + .06, .05, .05)
+		var rail := MeshInstance3D.new(); rail.mesh = bm; rail.material_override = iron_mat()
+		rail.position = (A + B) / 2.0 + Vector3(0, y, 0); rail.rotation.y = -atan2(B.z - A.z, B.x - A.x); root.add_child(rail)
+	fog_nodes.append([root, (a.x + b.x) / 2.0, (a.y + b.y) / 2.0])
+
+# 나무 문틀(+ 가끔 벽 쪽으로 열린 문짝): 북쪽은 가로, 동·서쪽은 세로로 걸침
+func _doorframe(d: Dictionary) -> void:
+	var root := Node3D.new(); add_child(root)
+	var wm = pbr("old_planks_02", .5)
+	var W: float = d.wd / 32.0; var H := 1.35
+	var p := Vector3(d.pos.x / 32.0, 0, d.pos.y / 32.0)
+	root.position = p
+	if d.side != "n": root.rotation.y = PI / 2
+	for sx in [-1, 1]:
+		var post := MeshInstance3D.new(); var bm := BoxMesh.new(); bm.size = Vector3(.16, H, .2); post.mesh = bm; post.material_override = wm
+		post.position = Vector3(sx * (W / 2.0 + .02), H / 2.0, 0); root.add_child(post)
+	var lin := MeshInstance3D.new(); var lb := BoxMesh.new(); lb.size = Vector3(W + .3, .16, .24); lin.mesh = lb; lin.material_override = wm
+	lin.position = Vector3(0, H + .06, 0); root.add_child(lin)
+	if d.get("leaf", false):
+		var leaf := MeshInstance3D.new(); var lfb := BoxMesh.new(); lfb.size = Vector3(W * .5, H * .95, .06); leaf.mesh = lfb; leaf.material_override = wm
+		var hinge := Node3D.new(); hinge.position = Vector3(-W / 2.0, 0, 0); hinge.rotation.y = -1.25; root.add_child(hinge)
+		leaf.position = Vector3(W * .25, H * .475, 0); hinge.add_child(leaf)
+	fog_nodes.append([root, d.pos.x, d.pos.y])
+
+func _magic_circle(p: Vector2, red := false) -> void:
 	var q = QuadMesh.new(); q.size = Vector2(3.4, 3.4); q.orientation = PlaneMesh.FACE_Y
 	var m = StandardMaterial3D.new(); m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA; m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	m.albedo_texture = circle_tex(); m.albedo_color = Color(.45, .75, 1.6, .95)
+	m.albedo_texture = circle_tex(); m.albedo_color = Color(1.6, .25, .2, .9) if red else Color(.45, .75, 1.6, .95)
 	var mi = MeshInstance3D.new(); mi.mesh = q; mi.material_override = m; mi.position = Vector3(p.x / 32.0, .03, p.y / 32.0)
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF; add_child(mi)
 	var tw = mi.create_tween().set_loops(); tw.tween_property(mi, "rotation:y", TAU, 24.0).from(0.0)
-	var g = glow_quad(Color(.4, .7, 1, .35), 3.6); g.position = Vector3(p.x / 32.0, .5, p.y / 32.0); add_child(g)
-	add_light(Vector3(p.x / 32.0, 1.2, p.y / 32.0), Color(.5, .75, 1), 5.0, 1.6)
+	var g = glow_quad(Color(1, .3, .25, .3) if red else Color(.4, .7, 1, .35), 3.6); g.position = Vector3(p.x / 32.0, .5, p.y / 32.0); add_child(g)
+	var L = add_light(Vector3(p.x / 32.0, 1.2, p.y / 32.0), Color(1, .35, .3) if red else Color(.5, .75, 1), 5.0, 1.6)
+	if mg.town == null:
+		for nd in [mi, g, L]: fog_nodes.append([nd, p.x, p.y])
 
 # ---------------- 빛 ----------------
 static var _glow_tex: Texture2D
@@ -465,6 +531,9 @@ func _entrance_glow(x0: float, zb: float, zf: float, col: Color, up: bool, k := 
 	# 테라스는 벽이 낮아서 빛도 낮고 작게(그대로 두면 벽 위로 네모난 빛판이 드러남)
 	var hz: float = (LOWZ * 1.35 / WALLZ) if mg.terrace else 1.0
 	if mg.terrace: k *= .55
+	if mg.terrace:
+		# 테라스(야외)는 빛판을 쓰지 않음 — 폰에서 벽에 걸려 네모나게 하얗게 뜨는 문제. 빛 알갱이와 은은한 조명만
+		_entrance_sparkle(cx, zf, col, k); return
 	var g = glow_quad(Color(col, .55 * k), 2.6 * (.7 if mg.terrace else 1.0)); g.position = Vector3(cx, (WALLZ * .9 * hz if up else .2), zb + .3); add_child(g); nodes.append(g)
 	var g2 = glow_quad(Color(col, .35 * k), 4.2 * (.7 if mg.terrace else 1.0)); g2.position = Vector3(cx, .6 * hz, zf + .2); add_child(g2); nodes.append(g2)
 	# 빛줄기(입구에서 바닥으로 쏟아지는 세로 판 두 장) — 가장자리가 사방으로 부드럽게 사라지게
@@ -486,6 +555,17 @@ func _entrance_glow(x0: float, zb: float, zf: float, col: Color, up: bool, k := 
 	var L = add_light(Vector3(cx, 1.3, zf + .4), col, 5.5, 1.6 * k); nodes.append(L)
 	if mg.town == null and not mg.terrace:
 		for nd in nodes: fog_nodes.append([nd, cx * 32, zf * 32])
+
+func _entrance_sparkle(cx: float, zf: float, col: Color, k: float) -> void:
+	var pt := CPUParticles3D.new(); var pq := QuadMesh.new(); pq.size = Vector2(.06, .06)
+	var pm := StandardMaterial3D.new(); pm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; pm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	pm.blend_mode = BaseMaterial3D.BLEND_MODE_ADD; pm.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED; pm.albedo_texture = glow_tex(); pm.albedo_color = Color(col, .8); pm.vertex_color_use_as_albedo = true
+	pq.material = pm; pt.mesh = pq; pt.amount = 16; pt.lifetime = 2.0; pt.preprocess = 2.0
+	pt.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX; pt.emission_box_extents = Vector3(.8, .1, .4)
+	pt.direction = Vector3(0, 1, .2); pt.spread = 25.0; pt.initial_velocity_min = .2; pt.initial_velocity_max = .4; pt.gravity = Vector3.ZERO
+	var cg := Gradient.new(); cg.set_color(0, Color(1, 1, 1, 0)); cg.add_point(.3, Color(1, 1, 1, 1)); cg.set_color(cg.get_point_count() - 1, Color(1, 1, 1, 0)); pt.color_ramp = cg
+	pt.position = Vector3(cx, .15, zf - .3); add_child(pt)
+	add_light(Vector3(cx, .9, zf + .3), col, 4.0, .9 * k)
 
 func _build_torches() -> void:
 	for t in mg.torches:
