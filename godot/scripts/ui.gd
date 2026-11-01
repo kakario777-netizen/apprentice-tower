@@ -159,31 +159,54 @@ func _begin(id: String, dim := .88, align := BoxContainer.ALIGNMENT_CENTER, left
 	box.alignment = align
 	var m: MarginContainer = scroll.get_node("m")
 	var ins: Dictionary = main.hud.inset()
-	var vs = get_viewport().get_visible_rect().size
-	m.custom_minimum_size = vs
+	var vs = uvs()
 	m.add_theme_constant_override("margin_left", int(max(16.0, ins.l) + (vs.x * .06 if left else 0.0)))
 	m.add_theme_constant_override("margin_right", int(max(16.0, ins.r)))
 	m.add_theme_constant_override("margin_top", int(20 + ins.t)); m.add_theme_constant_override("margin_bottom", int(20 + ins.b))
 	scroll.scroll_vertical = 0
-	# 화면 크기에 맞추기: 먼저 원래 크기로 놓고, 내용이 다 놓인 뒤 재서 줄인다
-	scale = Vector2.ONE; root.set_anchors_preset(Control.PRESET_FULL_RECT); root.offset_right = 0; root.offset_bottom = 0
-	fit_tok += 1; _fit(fit_tok)
+	_apply_scale()
+	m.custom_minimum_size = uvs()
 
-# 세로가 조금 넘치면 창 전체를 살짝 줄이고(최대 72%까지), 그래도 길면 남는 만큼은 위아래로 밀어서 보기
-var fit_tok := 0
-func _fit(tok: int) -> void:
-	for i in 2: await get_tree().process_frame
-	if tok != fit_tok or not root.visible: return
+# 화면 배율: 화면 크기(해상도)마다 한 번 정해 기억하고 모든 창에 똑같이 씀(창을 바꿀 때 흔들리지 않게).
+# 세로가 짧은 폰(갤럭시 울트라·폴드 커버 등)은 창 전체를 미리 줄여 두고, 그래도 긴 창은 위아래로 밀어서 봄
+const UI_REF_H := 480.0
+var ui_k := 1.0
+var ui_k_for := Vector2.ZERO
+func ui_scale() -> float:
 	var vs: Vector2 = get_viewport().get_visible_rect().size
-	var m: MarginContainer = scroll.get_node("m")
-	var need: float = box.get_combined_minimum_size().y + m.get_theme_constant("margin_top") + m.get_theme_constant("margin_bottom")
-	var needw: float = box.get_combined_minimum_size().x + m.get_theme_constant("margin_left") + m.get_theme_constant("margin_right")
-	var k: float = min(1.0, vs.y / max(1.0, need), vs.x / max(1.0, needw))
-	if k >= .995: return
-	if k < .64: return          # 많이 길면 줄이지 않고 그대로 위아래로 밀어서 보기(글씨가 너무 작아지지 않게)
+	if vs != ui_k_for:
+		ui_k_for = vs
+		ui_k = clamp(vs.y / UI_REF_H, .72, 1.0)      # 화면 크기가 바뀔 때(폴드 펼침·접음)만 다시 정함
+	return ui_k
+
+# 창 안에서 쓰는 화면 크기(배율을 뺀 크기)
+func uvs() -> Vector2: return get_viewport().get_visible_rect().size / ui_scale()
+
+func _apply_scale() -> void:
+	var k := ui_scale()
 	scale = Vector2(k, k)
-	root.set_anchors_preset(Control.PRESET_TOP_LEFT); root.position = Vector2.ZERO; root.size = vs / k
-	m.custom_minimum_size = vs / k
+	root.set_anchors_preset(Control.PRESET_TOP_LEFT); root.position = Vector2.ZERO; root.size = get_viewport().get_visible_rect().size / k
+
+# 손가락으로 끌어서 위아래 보기(버튼 위에서 시작해도). 끌었으면 손을 뗄 때 버튼이 눌리지 않게
+var drag_from := Vector2.ZERO
+var drag_on := false
+var dragging := false
+func _input(ev: InputEvent) -> void:
+	if not root.visible: return
+	if ev is InputEventScreenTouch:
+		if ev.pressed and ev.index == 0:
+			var sb_ := scroll.get_v_scroll_bar()
+			drag_from = ev.position; drag_on = sb_.max_value > sb_.page + 2; dragging = false      # 넘칠 때만
+		elif not ev.pressed and ev.index == 0:
+			drag_on = false
+			if dragging: get_viewport().set_input_as_handled()
+	elif ev is InputEventScreenDrag and ev.index == 0 and drag_on:
+		if not dragging and ev.position.distance_to(drag_from) > 14: dragging = true
+		if dragging:
+			scroll.scroll_vertical -= int(ev.relative.y / ui_scale())
+			get_viewport().set_input_as_handled()
+	elif ev is InputEventMouseButton and not ev.pressed and dragging:
+		get_viewport().set_input_as_handled(); dragging = false
 
 func _focus_first() -> void:
 	await get_tree().process_frame
@@ -201,7 +224,7 @@ func _collect_focus(n: Node, out: Array) -> void:
 
 func _center(c: Control, maxw := 760.0) -> Control:
 	c.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	var vs = get_viewport().get_visible_rect().size
+	var vs = uvs()
 	c.custom_minimum_size.x = min(maxw, vs.x - 32)
 	return c
 
@@ -229,7 +252,7 @@ func row(items: Array, center := true) -> HFlowContainer:
 	return r
 
 func cards(opts: Array, on_pick: Callable, maxw := 760.0) -> GridContainer:
-	var vs = get_viewport().get_visible_rect().size
+	var vs = uvs()
 	var g = GridContainer.new(); var w: float = min(maxw, vs.x - 32)
 	g.columns = clampi(int(w / 220), 1, max(1, opts.size()))
 	g.add_theme_constant_override("h_separation", 10); g.add_theme_constant_override("v_separation", 10)
@@ -269,7 +292,7 @@ func _title_block() -> Control:
 	var ver := "개발판"
 	if FileAccess.file_exists("res://version.txt"): ver = FileAccess.get_file_as_string("res://version.txt").strip_edges()
 	var vl = label("버전 %s" % ver, 12, Color(1, 1, 1, .55)); vl.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	vl.position = get_viewport().get_visible_rect().size - Vector2(110, 26); vl.name = "ver"
+	vl.position = uvs() - Vector2(110, 26); vl.name = "ver"
 	var oldv = root.get_node_or_null("ver")
 	if oldv: oldv.queue_free()
 	root.add_child(vl)
@@ -543,12 +566,13 @@ func open_pause() -> void:
 	var r = HFlowContainer.new(); r.alignment = FlowContainer.ALIGNMENT_CENTER; r.add_theme_constant_override("h_separation", 28); _center(r)
 	r.add_child(stats([["층", "%d / %d" % [G.floor, D.LAST_FLOOR] if G.floor else "마을 (다음 %d층)" % G.resume], ["난이도", game.diff_d().name], ["레벨", P.lv],
 		["생명", "%d / %d" % [ceili(P.hp), P.maxhp]], ["마나", "%d / %d" % [floori(P.mp), P.maxmp]], ["처치", G.kills], ["금화", G.gold]]))
-	var li = VBoxContainer.new(); li.add_theme_constant_override("separation", 4); li.custom_minimum_size.x = 280
+	var li = GridContainer.new(); li.columns = 2; li.add_theme_constant_override("h_separation", 6); li.add_theme_constant_override("v_separation", 4)    # 두 줄로(세로로 덜 길게)
 	var bx = func(v): return " (+%s 장비)" % str(v) if v else ""
 	var add = func(n: String, l: String):
 		var p = PanelContainer.new(); p.add_theme_stylebox_override("panel", sb(PANEL, 4, Color(0, 0, 0, 0), 0, Vector4(10, 6, 10, 6)))
 		var h = HBoxContainer.new(); p.add_child(h)
-		var a = label(n, 14); a.size_flags_horizontal = Control.SIZE_EXPAND_FILL; h.add_child(a); h.add_child(label(l, 14, MUTED)); li.add_child(p)
+		p.custom_minimum_size.x = 230
+		var a = label(n, 14); a.size_flags_horizontal = Control.SIZE_EXPAND_FILL; h.add_child(a); h.add_child(label(l, 13, MUTED)); li.add_child(p)
 	for id in D.PRIM_ORDER:
 		if P.prim[id]: add.call(D.PRIMARIES[id].name, "%d단계%s" % [P.prim[id], bx.call(P.bonus.prim.get(id, 0))])
 	if P.fusion != null: add.call(D.FUSIONS[P.fusion].name, "융합")
@@ -560,7 +584,7 @@ func open_pause() -> void:
 	r.add_child(li)
 	box.add_child(r)
 	# 크게 누르기 쉬운 "계속하기"
-	var cont = btn("계속하기", func(): main.resume()); cont.custom_minimum_size = Vector2(min(420.0, get_viewport().get_visible_rect().size.x - 60), 64)
+	var cont = btn("계속하기", func(): main.resume()); cont.custom_minimum_size = Vector2(min(420.0, uvs().x - 60), 64)
 	cont.add_theme_font_override("font", display); cont.add_theme_font_size_override("font_size", 24)
 	cont.size_flags_horizontal = Control.SIZE_SHRINK_CENTER; box.add_child(cont)
 	box.add_child(row([btn("가방", func(): open_bag(), true), btn("설정", func(): open_tab("settings"), true), btn("샌드박스", func(): open_sand(), true),
@@ -645,7 +669,7 @@ func _render_talk() -> void:
 		_render_enhance(); return
 	if false:
 		tx.text = "%s (가진 금화 %d)" % [lines[0], game.G.gold]
-		var g = GridContainer.new(); g.columns = 2 if get_viewport().get_visible_rect().size.x > 1000 else 1
+		var g = GridContainer.new(); g.columns = 2 if uvs().x > 1000 else 1
 		g.add_theme_constant_override("h_separation", 8); g.add_theme_constant_override("v_separation", 8)
 		for it in D.SHOP:
 			var p = PanelContainer.new(); p.add_theme_stylebox_override("panel", sb(PANEL, 6, LINE, 1, Vector4(10, 8, 10, 8))); p.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -682,7 +706,7 @@ func _render_talk() -> void:
 func _render_trade() -> void:
 	_begin("talk", .72, BoxContainer.ALIGNMENT_CENTER)
 	var G = game.G; var P = game.P
-	var vs = get_viewport().get_visible_rect().size
+	var vs = uvs()
 	var W: float = min(880.0, vs.x - 24)
 	var head = HBoxContainer.new(); _center(head, W)
 	var t = label("상인 미라의 가게", 22, GOLD, display); t.size_flags_horizontal = Control.SIZE_EXPAND_FILL; head.add_child(t)
@@ -692,11 +716,11 @@ func _render_trade() -> void:
 	# 왼쪽: 물약·주문서
 	var left = PanelContainer.new(); left.add_theme_stylebox_override("panel", sb(Color(.09, .07, .12, .92), 10, LINE, 1, Vector4(12, 12, 12, 12)))
 	left.size_flags_horizontal = Control.SIZE_EXPAND_FILL; left.size_flags_stretch_ratio = 1.0
-	var lv = VBoxContainer.new(); lv.add_theme_constant_override("separation", 8); left.add_child(lv)
+	var lv = VBoxContainer.new(); lv.add_theme_constant_override("separation", 5); left.add_child(lv)
 	lv.add_child(label("물약 · 주문서", 14, MUTED))
 	for it in D.SHOP:
 		var r = HBoxContainer.new(); r.add_theme_constant_override("separation", 10)
-		var ic = TextureRect.new(); ic.texture = load("res://ui/item_%s.png" % it.id); ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; ic.custom_minimum_size = Vector2(46, 46); r.add_child(ic)
+		var ic = TextureRect.new(); ic.texture = load("res://ui/item_%s.png" % it.id); ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; ic.custom_minimum_size = Vector2(38, 38); r.add_child(ic)
 		var nv = VBoxContainer.new(); nv.size_flags_horizontal = Control.SIZE_EXPAND_FILL; nv.add_theme_constant_override("separation", 0); r.add_child(nv)
 		nv.add_child(label(it.name, 15))
 		var dl = label("%s · %d/%d개" % [it.desc, P.pot.get(it.id, 0), game.pot_max(it.id)], 12, MUTED); dl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; nv.add_child(dl)
@@ -709,7 +733,7 @@ func _render_trade() -> void:
 	# 가방 늘리기
 	lv.add_child(HSeparator.new())
 	var br = HBoxContainer.new(); br.add_theme_constant_override("separation", 10)
-	var bi = TextureRect.new(); bi.texture = load("res://ui/bag.png"); bi.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; bi.custom_minimum_size = Vector2(46, 46); br.add_child(bi)
+	var bi = TextureRect.new(); bi.texture = load("res://ui/bag.png"); bi.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; bi.custom_minimum_size = Vector2(38, 38); br.add_child(bi)
 	var bv = VBoxContainer.new(); bv.size_flags_horizontal = Control.SIZE_EXPAND_FILL; bv.add_theme_constant_override("separation", 0); br.add_child(bv)
 	bv.add_child(label("가방 칸 늘리기 (+%d칸)" % D.BAG_STEP, 15)); bv.add_child(label("지금 %d칸 · 최대 %d칸" % [P.bagMax, D.BAG_LIMIT], 12, MUTED))
 	var bagf = func():
@@ -720,7 +744,7 @@ func _render_trade() -> void:
 	br.add_child(bb); lv.add_child(br)
 	# 물약 주머니 늘리기(물약 최대 소지 수 +1, 10개까지 · 비쌈)
 	var pr_ = HBoxContainer.new(); pr_.add_theme_constant_override("separation", 10)
-	var pi_ = TextureRect.new(); pi_.texture = load("res://ui/item_pothp.png"); pi_.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; pi_.custom_minimum_size = Vector2(46, 46); pr_.add_child(pi_)
+	var pi_ = TextureRect.new(); pi_.texture = load("res://ui/item_pothp.png"); pi_.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; pi_.custom_minimum_size = Vector2(38, 38); pr_.add_child(pi_)
 	var pv_ = VBoxContainer.new(); pv_.size_flags_horizontal = Control.SIZE_EXPAND_FILL; pv_.add_theme_constant_override("separation", 0); pr_.add_child(pv_)
 	var pmx: int = int(P.get("potMax", 5))
 	pv_.add_child(label("물약 주머니 늘리기 (+1개)", 15)); pv_.add_child(label("생명·마나 물약 각각 지금 %d개 · 최대 10개" % pmx, 12, MUTED))
@@ -734,13 +758,13 @@ func _render_trade() -> void:
 	# 오른쪽: 오늘의 장비(마을에 올 때마다 바뀜)
 	var right = PanelContainer.new(); right.add_theme_stylebox_override("panel", sb(Color(.09, .07, .12, .92), 10, LINE, 1, Vector4(12, 12, 12, 12)))
 	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL; right.size_flags_stretch_ratio = 1.15
-	var rv = VBoxContainer.new(); rv.add_theme_constant_override("separation", 8); right.add_child(rv)
+	var rv = VBoxContainer.new(); rv.add_theme_constant_override("separation", 5); right.add_child(rv)
 	rv.add_child(label("오늘의 장비 · 마을에 올 때마다 바뀌어요", 14, MUTED))
 	if G.shop.is_empty(): rv.add_child(label("오늘 물건은 다 팔렸어요.", 13, MUTED))
 	for i in G.shop.size():
 		var it = G.shop[i]
 		var r = HBoxContainer.new(); r.add_theme_constant_override("separation", 10)
-		var ic = TextureRect.new(); ic.texture = load(gear_path(it)); ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; ic.custom_minimum_size = Vector2(46, 46); r.add_child(ic)
+		var ic = TextureRect.new(); ic.texture = load(gear_path(it)); ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; ic.custom_minimum_size = Vector2(38, 38); r.add_child(ic)
 		var nv = VBoxContainer.new(); nv.size_flags_horizontal = Control.SIZE_EXPAND_FILL; nv.add_theme_constant_override("separation", 0); r.add_child(nv)
 		var inl = label("%s · %s %s" % [it.name, D.RAR[it.rar].name, D.slot_name(it.slot)], 14, Color(D.RAR[it.rar].color)); inl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; nv.add_child(inl)
 		var ms: Array = []
@@ -774,7 +798,7 @@ func _enh_items() -> Array:
 func _render_enhance() -> void:
 	_begin("talk", .72, BoxContainer.ALIGNMENT_CENTER)
 	var P = game.P
-	var vs = get_viewport().get_visible_rect().size
+	var vs = uvs()
 	var W: float = min(880.0, vs.x - 24)
 	var head = HBoxContainer.new(); _center(head, W)
 	var t = label("카엘 교수의 강화 마법진", 22, Color("#9fc8ff"), display); t.size_flags_horizontal = Control.SIZE_EXPAND_FILL; head.add_child(t)
@@ -902,7 +926,7 @@ func _render_bag() -> void:
 	var P = game.P; var G = game.G
 	box.add_child(_tradebar() if trade_bag else _tabbar("bag"))
 	# 화면 크기에 맞춰: 장비창 | 가방창 을 나란히, 자세히 보기는 밑(세로 여유가 있으면) 또는 옆
-	var vs = get_viewport().get_visible_rect().size; var ins: Dictionary = main.hud.inset()
+	var vs = uvs(); var ins: Dictionary = main.hud.inset()
 	var AW: float = vs.x - 32 - ins.l - ins.r; var AH: float = vs.y - 40 - ins.t - ins.b - 48
 	var EH: float = clamp(AH - 6, 250.0, 340.0); var EW: float = clamp(EH * .84, 230.0, 290.0)
 	var SL: float = clamp((EH - 70) / 5.2, 40.0, 54.0)          # 가방 칸 크기
@@ -1187,7 +1211,7 @@ func _pnl(pad := Vector4(14, 12, 14, 12)) -> StyleBoxFlat:
 	return st
 
 func _tabbar(active: String) -> Control:
-	var vs = get_viewport().get_visible_rect().size
+	var vs = uvs()
 	var bar = HBoxContainer.new(); bar.add_theme_constant_override("separation", 4); _center(bar, 1040)
 	for t in TABS:
 		var on: bool = t[0] == active
@@ -1336,7 +1360,7 @@ func _tab_settings(body: Control) -> void:
 		main.set_quality(q); open_tab("settings")
 	var qr: Array = []
 	for q in [[1.0, "선명하게"], [.85, "보통"], [.7, "가볍게"]]:
-		var b = _chip(HBoxContainer.new(), q[1], qf.bind(q[0]), absf(main.quality - q[0]) < .01)
+		var b = _chip(HBoxContainer.new(), q[1], qf.bind(q[0]), absf(main.quality - q[0]) < .01, false)
 		b.get_parent().remove_child(b); qr.append(b)
 	v.add_child(row(qr, false))
 	v.add_child(label("가볍게를 고르면 화면 해상도를 낮춰서 덜 뜨겁고 더 부드러워져요.", 12, MUTED))
@@ -1353,7 +1377,7 @@ func _tab_settings(body: Control) -> void:
 				if kk == "music": main.snd.set_music_vol(vv)
 				else: main.snd.sfx_vol = vv
 				main.save_settings(); open_tab("settings")
-			var b = _chip(HBoxContainer.new(), lv[1], setf.bind(lv[0]), absf(cur_v - lv[0]) < .05)
+			var b = _chip(HBoxContainer.new(), lv[1], setf.bind(lv[0]), absf(cur_v - lv[0]) < .05, false)
 			b.get_parent().remove_child(b); cr.append(b)
 		var hr = HBoxContainer.new(); hr.add_theme_constant_override("separation", 8)
 		var nl = label(kind[0], 14, INK); nl.custom_minimum_size.x = 60; hr.add_child(nl)
@@ -1364,7 +1388,7 @@ func _tab_settings(body: Control) -> void:
 		main.autosave_min = mn; main.autosave_t = 0.0; main.save_settings(); open_tab("settings")
 	var ar: Array = []
 	for mn in [5, 10, 15, 30]:
-		var b = _chip(HBoxContainer.new(), "%d분마다" % mn, af.bind(mn), main.autosave_min == mn)
+		var b = _chip(HBoxContainer.new(), "%d분마다" % mn, af.bind(mn), main.autosave_min == mn, false)
 		b.get_parent().remove_child(b); ar.append(b)
 	v.add_child(row(ar, false))
 	var al = label("정해 둔 간격마다, 그리고 화면을 끄거나 층을 오르거나 포탈을 타거나 일시정지할 때 저장돼요. (%d번 칸 · %s)" % [Game.slot + 1, String(game.P.get("name", ""))], 12, MUTED)
@@ -1443,15 +1467,19 @@ func open_sand() -> void:
 	if game.G.sb == null: game.G.sb = {god = false, mana = false, nocd = false, still = false}
 	game.set_state("sandbox"); _render_sand()
 
-func _chip(box_: Control, t: String, fn: Callable, pressed = null) -> Button:
+func _chip(box_: Control, t: String, fn: Callable, pressed = null, sand := true) -> Button:
 	var b = Button.new(); b.text = t; b.focus_mode = Control.FOCUS_ALL
 	var on: bool = pressed == true
 	var s = sb(GOLD if on else PANEL, 5, GOLD if on else LINE, 1, Vector4(11, 8, 11, 8))
 	for st in ["normal", "hover", "pressed"]: b.add_theme_stylebox_override(st, s)
 	b.add_theme_font_override("font", body); b.add_theme_font_size_override("font_size", 13)
 	for k in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]: b.add_theme_color_override(k, Color("#1b1206") if on else INK)
-	b.pressed.connect(func():
-		main.snd.play("click"); fn.call(); _render_sand())
+	if sand:
+		b.pressed.connect(func():
+			main.snd.play("click"); fn.call(); _render_sand())
+	else:
+		b.pressed.connect(func():
+			main.snd.play("click"); fn.call())          # 설정 화면 칩: 샌드박스로 넘어가지 않게
 	box_.add_child(b); return b
 
 func _grp(parent: Control, t: String) -> VBoxContainer:
