@@ -1,0 +1,24 @@
+name: 에셋 미리 받아보기
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/fetch_probe.py'
+
+permissions:
+  contents: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 tools/fetch_probe.py /tmp/probe
+      - run: |
+          cd /tmp/probe
+          git init -q -b asset-probe
+          git config user.name "asset-bot"; git config user.email "asset-bot@users.noreply.github.com"
+          git add -A && git commit -qm "probe $(date -u +%F)"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" asset-probe
