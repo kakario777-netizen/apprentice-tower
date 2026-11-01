@@ -165,6 +165,25 @@ func _begin(id: String, dim := .88, align := BoxContainer.ALIGNMENT_CENTER, left
 	m.add_theme_constant_override("margin_right", int(max(16.0, ins.r)))
 	m.add_theme_constant_override("margin_top", int(20 + ins.t)); m.add_theme_constant_override("margin_bottom", int(20 + ins.b))
 	scroll.scroll_vertical = 0
+	# 화면 크기에 맞추기: 먼저 원래 크기로 놓고, 내용이 다 놓인 뒤 재서 줄인다
+	scale = Vector2.ONE; root.set_anchors_preset(Control.PRESET_FULL_RECT); root.offset_right = 0; root.offset_bottom = 0
+	fit_tok += 1; _fit(fit_tok)
+
+# 세로가 조금 넘치면 창 전체를 살짝 줄이고(최대 72%까지), 그래도 길면 남는 만큼은 위아래로 밀어서 보기
+var fit_tok := 0
+func _fit(tok: int) -> void:
+	for i in 2: await get_tree().process_frame
+	if tok != fit_tok or not root.visible: return
+	var vs: Vector2 = get_viewport().get_visible_rect().size
+	var m: MarginContainer = scroll.get_node("m")
+	var need: float = box.get_combined_minimum_size().y + m.get_theme_constant("margin_top") + m.get_theme_constant("margin_bottom")
+	var needw: float = box.get_combined_minimum_size().x + m.get_theme_constant("margin_left") + m.get_theme_constant("margin_right")
+	var k: float = min(1.0, vs.y / max(1.0, need), vs.x / max(1.0, needw))
+	if k >= .995: return
+	if k < .64: return          # 많이 길면 줄이지 않고 그대로 위아래로 밀어서 보기(글씨가 너무 작아지지 않게)
+	scale = Vector2(k, k)
+	root.set_anchors_preset(Control.PRESET_TOP_LEFT); root.position = Vector2.ZERO; root.size = vs / k
+	m.custom_minimum_size = vs / k
 
 func _focus_first() -> void:
 	await get_tree().process_frame
@@ -1249,6 +1268,7 @@ func _tab_stats(body: Control) -> void:
 		if a.kind == "shot": _statrow(g2, a.name, "피해 %d~%d · 마나 %.1f" % [int(a.dmg[0]), int(a.dmg[1]), a.mana])
 		else: _statrow(g2, a.name, "초당 %d · 마나 %.1f/초" % [int(a.dps), a.manaps])
 	var g3: GridContainer = mk.call("마법 단계 (장비 포함)")
+	g3.columns = 4; g3.add_theme_constant_override("h_separation", 18)        # 두 줄씩 나란히(세로로 덜 길게)
 	for id in D.PRIM_ORDER:
 		if P.ep.get(id, 0) > 0:
 			var b: int = int(P.bonus.prim.get(id, 0))
