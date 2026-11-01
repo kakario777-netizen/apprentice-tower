@@ -7,3 +7,5 @@
 
 직접 만든 소리(tools/sfx_synth.py, 합성): arcane(보잉), fire(묵직한 발사), boom(폭발), frost(냉기 반복), creak(가벼운 나무 끼익)
   — fire·boom 에는 rubberduck(80 CC0 RPG SFX, 100 CC0 SFX)의 CC0 소리를 낮춰 섞음
+
+토끼 머리: OpenGameArt "Rabbit" — Čestmír Dammer (Kelgar 프로젝트), CC0. tools/rabbit_head 에 8방향으로 그려 미노타우로스 몸에 붙임(눈은 붉게)

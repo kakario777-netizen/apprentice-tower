@@ -1,5 +1,7 @@
 """미노타우로스 그림으로 '만렙 토끼'(디아블로 카우 자리) 만들기
-- 털을 하얗게(살짝 회색), 뿔을 지우고, 머리 위에 긴 토끼 귀를 그린다
+- 털을 토끼 털빛으로, 뿔을 지우고, 머리 자리에 진짜 토끼 머리(눈은 붉게)를 붙인다
+  토끼 머리: OpenGameArt 'Rabbit' (Čestmír Dammer / Kelgar, CC0) 를 8방향으로 그려 둔 rabbit_head/y*.png
+  (rabbit_head/render_head.gd 로 Godot 에서 다시 그릴 수 있음)
 - rabbit.png / rabbit_king.png(금빛 털 + 왕관) + meta.json 에 항목 추가
 python3 tools/rabbit_sprite.py
 """
@@ -27,20 +29,41 @@ def horn_mask(c):
     keep = np.zeros_like(m)
     for i in range(1, n + 1):
         if (lab == i).sum() >= 8: keep |= lab == i
-    rim = ndimage.binary_dilation(keep, iterations=2) & (lum < 115)      # 뿔 테두리의 어두운 선도 같이
+    rim = ndimage.binary_dilation(keep, iterations=3) & (lum < 130)      # 뿔 테두리의 어두운 선도 같이
     return keep | rim
 
 def recolor(c, king):
     rgb = c[..., :3]; a = c[..., 3:4]
     lum = (.3 * rgb[..., 0] + .59 * rgb[..., 1] + .11 * rgb[..., 2])[..., None]
-    l = 255 * (lum / 255) ** .72                       # 밝게
-    if king:
-        tint = np.array([1.08, .9, .6])               # 금빛 털
-        out = l * tint * .95 + rgb * .12
-    else:
-        tint = np.array([1.0, .98, .97])              # 하얀 털(살짝 따뜻하게)
-        out = l * tint * .9 + rgb * .1
+    l = 255 * (lum / 255) ** .8
+    tint = np.array([1.12, .9, .58]) if king else np.array([1.13, .96, .84])   # 금빛 / 토끼 털빛(머리와 맞춤)
+    out = l * tint * .92 + rgb * .1
     return np.concatenate([np.clip(out, 0, 255), a], -1)
+
+HEAD_DIR = os.path.join(os.path.dirname(__file__), 'rabbit_head')
+YAW = [90, 135, 180, 225, 270, 315, 0, 45]         # 그림 방향 0..7 → 토끼 머리를 그린 각도
+HS = .64                                             # 머리 그림 크기(256px → 128px)
+def head_imgs(king):
+    out = []
+    for yw in YAW:
+        im = Image.open(os.path.join(HEAD_DIR, 'y%d.png' % yw)).convert('RGBA')
+        a = np.array(im).astype(np.float32)
+        if king: a[..., :3] = np.clip(a[..., :3] * np.array([1.12, .95, .62]) * 1.05, 0, 255)
+        # 붉은 눈이 작아도 보이게 붉은 번짐
+        red = (a[..., 0] > 150) & (a[..., 1] < 90) & (a[..., 3] > 100)
+        if yw in (135, 180, 225):          # 뒷모습: 눈이 보이면 안 됨
+            a[red, 0] = a[red, 1] = a[red, 2] = 90.0; red[:] = False
+        if red.any():
+            g = ndimage.gaussian_filter(red.astype(np.float32), 3.0); g = g / max(1e-6, g.max())
+            a[..., 0] = np.clip(a[..., 0] + g * 160, 0, 255); a[..., 1] *= (1 - g * .6); a[..., 2] *= (1 - g * .6)
+        im = Image.fromarray(a.astype(np.uint8), 'RGBA')
+        im = im.resize((int(im.width * HS), int(im.height * HS)), Image.LANCZOS)
+        al = np.array(im)[..., 3] > 150; low = al.copy(); low[:int(im.height * .55)] = False
+        ys, xs = np.nonzero(low)
+        anc = (xs.mean(), ys.mean()) if len(xs) else (im.width / 2, im.height * .7)
+        ys2, xs2 = np.nonzero(al)
+        out.append((im, anc, ys2.min() if len(ys2) else 0))
+    return out
 
 def ear_img(L, W, king):
     """세로로 선 귀 하나(밑동이 아래 가운데)"""
@@ -88,7 +111,7 @@ def head_of(c, H):
 
 def build(king):
     fr = SRC['fr']; out_frames = []; last = {}
-    ear = ear_img(64, 17, king); crown = crown_img(30)
+    heads = head_imgs(king); crown = crown_img(30)
     for idx, f in enumerate(fr):
         if f is None:
             out_frames.append(None); continue
@@ -112,14 +135,12 @@ def build(king):
         im.paste(Image.fromarray(c.astype(np.uint8), 'RGBA'), (0, PAD))
         if info is not None:
             hx, hy, spread = info; hy += PAD
-            side = spread < 26                     # 옆모습: 귀가 겹쳐 보임
-            gap = 5 if side else min(13, spread * .22)
-            s = 1.0
-            for k, sgn in enumerate([-1, 1]):
-                a = sgn * (6 if side else 14) + (8 if side else 0)
-                paste_rot(im, ear, hx + sgn * gap, hy + 4, -a, s * (.92 if (side and k == 0) else 1.0))
+            hi, anc, top = heads[(idx // 8) % 8]
+            fx, fy = hx, hy + 22                       # 소 머리 얼굴 가운데쯤
+            px = int(round(fx - anc[0])); py = int(round(fy - anc[1]))
+            im.alpha_composite(hi, (max(0, px), max(0, py)))
             if king:
-                paste_rot(im, crown, hx, hy + 10, 0, 1.0)
+                paste_rot(im, crown, fx, fy - 20, 0, 1.0)
         im = im.resize((max(1, round(im.width * SC)), max(1, round(im.height * SC))), Image.LANCZOS)
         out_frames.append((im, ox * SC, (oy - PAD) * SC))
     # 선반식으로 다시 담기
