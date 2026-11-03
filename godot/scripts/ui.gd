@@ -57,7 +57,7 @@ static func btn_sb(ghost: bool, light := 0.0) -> StyleBoxFlat:
 	return s
 
 static func focus_sb() -> StyleBoxFlat:
-	var s = StyleBoxFlat.new(); s.draw_center = false; s.set_border_width_all(3); s.border_color = GOLD; s.set_corner_radius_all(8)
+	var s = StyleBoxFlat.new(); s.draw_center = false; s.set_border_width_all(3); s.border_color = Color("#fff4d2"); s.set_corner_radius_all(8)      # 금색 버튼 위에서도 보이게 밝은 테두리
 	s.expand_margin_left = 3; s.expand_margin_right = 3; s.expand_margin_top = 3; s.expand_margin_bottom = 3
 	return s
 
@@ -138,6 +138,7 @@ func _ready() -> void:
 	add_child(root)
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT); bg.color = Color(.035, .027, .055, .88); root.add_child(bg)
 	scroll.set_anchors_preset(Control.PRESET_FULL_RECT); scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.follow_focus = true          # 패드로 고르면 그 버튼이 보이게 저절로 밀림
 	root.add_child(scroll)
 	var center = MarginContainer.new(); center.size_flags_horizontal = Control.SIZE_EXPAND_FILL; center.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	center.name = "m"; scroll.add_child(center)
@@ -150,6 +151,12 @@ func hide_all() -> void:
 	cur = ""; root.visible = false
 
 func _begin(id: String, dim := .88, align := BoxContainer.ALIGNMENT_CENTER, left := false) -> void:
+	var sid := _scr_id(id)
+	re_idx = -1
+	var fo = get_viewport().gui_get_focus_owner()
+	if fo != null and sid == cur_scr and box.is_ancestor_of(fo):
+		var all: Array = []; _collect_focus(box, all, true); re_idx = all.find(fo)      # 같은 창을 다시 그리면 같은 자리 버튼으로
+	cur_scr = sid
 	cur = id; root.visible = true
 	for c in box.get_children():
 		box.remove_child(c); c.queue_free()      # 바로 떼어내야 같은 이름의 새 창과 엉키지 않는다
@@ -208,19 +215,150 @@ func _input(ev: InputEvent) -> void:
 	elif ev is InputEventMouseButton and not ev.pressed and dragging:
 		get_viewport().set_input_as_handled(); dragging = false
 
+var cur_scr := ""
+var re_idx := -1
+func _scr_id(id: String) -> String:
+	if id == "bag": return "bag:" + tab + (":trade" if trade_bag else "")
+	if id == "talk" and talk_npc != null: return "talk:" + String(talk_npc.id)
+	return id
+
 func _focus_first() -> void:
 	await get_tree().process_frame
+	var ri := re_idx; re_idx = -1
+	if ri >= 0:
+		var all: Array = []; _collect_focus(box, all, true)
+		if all.size():
+			ri = mini(ri, all.size() - 1)
+			for k in all.size():                  # 그 자리 버튼이 꺼져 있으면 가까운 다음(없으면 앞) 버튼
+				for j in [ri + k, ri - k]:
+					if j >= 0 and j < all.size() and not (all[j] is BaseButton and all[j].disabled):
+						all[j].grab_focus(); return
 	var cand: Array = []
 	_collect_focus(box, cand)
+	for c in cand:
+		if c.has_meta("def"):
+			c.grab_focus(); return
 	for c in cand:
 		if c is Card:
 			c.grab_focus(); return
 	if cand.size(): cand[0].grab_focus()
 
-func _collect_focus(n: Node, out: Array) -> void:
+func _focus_key(key: String) -> void:
+	await get_tree().process_frame
+	var all: Array = []; _collect_focus(box, all)
+	for c in all:
+		if c.has_meta("key") and c.get_meta("key") == key:
+			c.grab_focus(); return
+	_focus_first()
+
+func _collect_focus(n: Node, out: Array, with_off := false) -> void:
 	for c in n.get_children():
-		if c is Control and c.focus_mode == Control.FOCUS_ALL and c.visible and not (c is BaseButton and c.disabled): out.append(c)
-		_collect_focus(c, out)
+		if c is Control and c.focus_mode == Control.FOCUS_ALL and c.visible and (with_off or not (c is BaseButton and c.disabled)): out.append(c)
+		_collect_focus(c, out, with_off)
+
+# ================= 컨트롤러(패드)로 창 다루기 =================
+# 방향(십자키·왼쪽 스틱): 버튼 사이 이동(누르고 있으면 반복) · A 고르기 · B 뒤로 · LB/RB 탭 바꾸기 · 오른쪽 스틱 위아래 밀기
+var nav_dir := ""
+var nav_t := 0.0
+func pad_ui(st: Dictionary, hit: Callable, prev: Dictionary, dt: float) -> void:
+	var B: Dictionary = st.b
+	var v: Vector2 = st.l + Vector2((1 if B.get("right") else 0) - (1 if B.get("left") else 0), (1 if B.get("down") else 0) - (1 if B.get("up") else 0))
+	var d := ""
+	if v.length() > .55:
+		d = ("right" if v.x > 0 else "left") if absf(v.x) > absf(v.y) else ("down" if v.y > 0 else "up")
+	if d != nav_dir:
+		nav_dir = d; nav_t = .38
+		if d != "": _pad_nav(d)
+	elif d != "":
+		nav_t -= dt
+		if nav_t <= 0:
+			nav_t = .11; _pad_nav(d)
+	var sa = root.get_node_or_null("sellask")
+	if hit.call("b") or (hit.call("start") and cur in ["pause", "bag", "sand"]):
+		if cur == "level" and lv_sel != null: _lv_cancel(); return
+		back(); return
+	if hit.call("select") and cur == "bag" and sa == null:
+		close_bag(); return
+	if cur == "bag" and not trade_bag and sa == null:
+		if hit.call("lb"): _tab_step(-1); return
+		if hit.call("rb"): _tab_step(1); return
+	if hit.call("a"):
+		var fo = _owner()
+		if fo == null:
+			_focus_first(); return
+		if cur == "bag" and sa == null and fo.has_meta("key") and _bag_primary(String(fo.get_meta("key"))): return
+		_send("ui_accept", true)
+	elif not B.get("a", false) and prev.get("a", false):
+		_send("ui_accept", false)
+	# 오른쪽 스틱: 긴 창은 위아래로, 가방의 '자세히' 칸은 옆으로
+	var r: Vector2 = st.r
+	if absf(r.y) > .3: scroll.scroll_vertical += int(r.y * 900 * dt)
+	if absf(r.x) > .3 and cur == "bag":
+		var dsc = box.find_child("dsc", true, false)
+		if dsc: dsc.scroll_horizontal += int(r.x * 900 * dt)
+
+func _owner() -> Control:
+	var fo = get_viewport().gui_get_focus_owner()
+	if fo == null or not fo.is_visible_in_tree() or not root.is_ancestor_of(fo): return null
+	var sa = root.get_node_or_null("sellask")
+	if sa != null and not sa.is_ancestor_of(fo): return null
+	return fo
+
+func _send(action: String, on: bool) -> void:
+	var ev := InputEventAction.new(); ev.action = action; ev.pressed = on
+	Input.parse_input_event(ev)
+
+func _pad_nav(d: String) -> void:
+	if _owner() == null:
+		var sa = root.get_node_or_null("sellask")
+		if sa != null and sa.has_meta("yes") and is_instance_valid(sa.get_meta("yes")): sa.get_meta("yes").grab_focus()
+		elif cur == "map": pass
+		else: _focus_first()
+		return
+	_send("ui_" + d, true); _send("ui_" + d, false)
+
+func _tab_step(k: int) -> void:
+	var ids: Array = TABS.map(func(t): return t[0])
+	var i: int = (ids.find(tab) + k + ids.size()) % ids.size()
+	if ids[i] == "bag": want_key = "bag:0"
+	main.snd.play("book"); open_tab(ids[i])
+
+# 가방에서 A: 가방 물건은 바로 착용(가게에선 판매), 착용 칸은 벗기
+func _bag_primary(key: String) -> bool:
+	var P = game.P
+	if key.begins_with("bag:"):
+		var i := int(key.substr(4))
+		if i >= P.bag.size(): return true
+		bag_sel = {from = "bag", i = i}
+		if trade_bag:
+			_sell_ask(i); return true
+		var bi = P.bag[i]; var slot: String = bi.slot
+		if slot == "ring":
+			slot = "ring1" if P.eq.ring1 == null else ("ring2" if P.eq.ring2 == null else ("ring1" if Game.sum_score(P.eq.ring1) <= Game.sum_score(P.eq.ring2) else "ring2"))
+		main.snd.play("click")
+		game.equip(i, slot); bag_sel = null; want_key = key; _render_bag(); return true
+	if key.begins_with("eq:"):
+		var k := key.substr(3)
+		if P.eq.get(k) == null: return true
+		main.snd.play("click")
+		if trade_bag:
+			_unequip_sel(); return true
+		if game.unequip(k): bag_sel = null
+		want_key = key; _render_bag(); return true
+	return false
+
+# 패드로 가방 칸에 올라가면 그 물건을 자세히 보여 줌
+func _pad_hover(key: String) -> void:
+	if not main.hud.pad_on: return
+	var P = game.P; var ns = null
+	if key.begins_with("bag:"):
+		var i := int(key.substr(4))
+		if i < P.bag.size(): ns = {from = "bag", i = i}
+	elif key.begins_with("eq:"):
+		var k := key.substr(3)
+		if P.eq.get(k) != null: ns = {from = "eq", slot = k}
+	if str(ns) == str(bag_sel): return
+	bag_sel = ns; want_key = key; _render_bag.call_deferred()
 
 func _center(c: Control, maxw := 760.0) -> Control:
 	c.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
@@ -249,6 +387,12 @@ func row(items: Array, center := true) -> HFlowContainer:
 	var r = HFlowContainer.new(); r.add_theme_constant_override("h_separation", 10); r.add_theme_constant_override("v_separation", 10)
 	r.alignment = FlowContainer.ALIGNMENT_CENTER if center else FlowContainer.ALIGNMENT_BEGIN
 	for i in items: r.add_child(i)
+	# 패드 ←→ 는 같은 줄 버튼끼리만(위의 큰 버튼으로 튀지 않게)
+	var bs: Array = items.filter(func(x): return x is BaseButton)
+	for k in bs.size():
+		if bs.size() < 2: break
+		bs[k].focus_neighbor_left = NodePath("../" + String(bs[maxi(k - 1, 0)].name))
+		bs[k].focus_neighbor_right = NodePath("../" + String(bs[mini(k + 1, bs.size() - 1)].name))
 	return r
 
 func cards(opts: Array, on_pick: Callable, maxw := 760.0) -> GridContainer:
@@ -273,6 +417,7 @@ func stats(pairs: Array) -> GridContainer:
 
 # ================= 타이틀 =================
 func open_title() -> void:
+	tab_ret = ""; trade_bag = false
 	_begin("start", 0.0, BoxContainer.ALIGNMENT_CENTER, true)
 	bg.color = Color(0, 0, 0, 0)
 	var grad = TextureRect.new(); grad.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -473,7 +618,7 @@ func _tw() -> Tween:
 
 func open_level() -> void:
 	_no_title_grad(); _begin("level", 0.0)
-	lv_sel = null; lv_busy = false
+	lv_sel = null; lv_busy = false; re_idx = -1
 	var bm := blur_mat(); bg.material = bm; bg.color = Color.WHITE
 	bm.set_shader_parameter("amt", 0.0); _tw().tween_method(func(v): bm.set_shader_parameter("amt", v), 0.0, 1.0, .45)
 	var G = game.G; var P = game.P
@@ -587,8 +732,17 @@ func open_pause() -> void:
 	var cont = btn("계속하기", func(): main.resume()); cont.custom_minimum_size = Vector2(min(420.0, uvs().x - 60), 64)
 	cont.add_theme_font_override("font", display); cont.add_theme_font_size_override("font_size", 24)
 	cont.size_flags_horizontal = Control.SIZE_SHRINK_CENTER; box.add_child(cont)
-	box.add_child(row([btn("가방", func(): open_bag(), true), btn("설정", func(): open_tab("settings"), true), btn("샌드박스", func(): open_sand(), true),
-		btn("처음 화면으로", func(): main.to_title(), true)]))
+	var bagf = func():
+		open_bag(); tab_ret = "pause"
+	var setf = func():
+		trade_bag = false; open_tab("settings"); tab_ret = "pause"
+	var mapf = func():
+		hide_all(); game.set_state("play"); open_map()
+	var its: Array = [btn("가방", bagf, true), btn("설정", setf, true)]
+	if G.floor > 0: its.append(btn("지도", mapf, true))
+	its.append_array([btn("샌드박스", func(): open_sand(), true), btn("처음 화면으로", func(): main.to_title(), true)])
+	box.add_child(row(its))
+	if main.hud.pad_on: box.add_child(lead("START 계속하기 · SELECT 가방 · L3 지도 · B 닫기"))
 	_focus_first()
 
 # ================= 탑 문(웨이포인트) =================
@@ -610,7 +764,7 @@ func open_gate() -> void:
 		# 괴생물이 나타난 층: 혼자 붉게 빛난다
 		var cb = btn("%d층 · 정체 모를 기운" % int(G.cowF), go.bind(int(G.cowF)))
 		var cs = btn_sb(false); cs.bg_color = Color(.55, .12, .1); cs.border_color = Color(1, .55, .4); cs.set_border_width_all(2); cs.shadow_color = Color(1, .3, .2, .7); cs.shadow_size = 14
-		for k in ["normal", "hover", "pressed", "focus"]: cb.add_theme_stylebox_override(k, cs)
+		for k in ["normal", "hover", "pressed"]: cb.add_theme_stylebox_override(k, cs)
 		cb.add_theme_color_override("font_color", Color(1, .92, .85))
 		var hb = row([cb]); box.add_child(hb)
 		var tw := cb.create_tween().set_loops()
@@ -688,8 +842,9 @@ func _render_talk() -> void:
 	else:
 		if talk_page < lines.size() - 1:
 			btns.append(btn("그만 들을게요", close_talk, true))
-			btns.append(btn("다음", func():
-				talk_page += 1; _render_talk()))
+			var nb = btn("다음", func():
+				talk_page += 1; _render_talk())
+			nb.set_meta("def", true); btns.append(nb)
 		else:
 			game.G.talkSeen[n.id] = 1
 			if ckey == "cow_q" or ckey == "cow_open":
@@ -895,7 +1050,8 @@ func close_talk() -> void:
 var trade_bag := false     # 상인 미라와 거래 중에 연 가방이면 팔기 가능
 func open_bag(trading := false) -> void:
 	if game.G == null: return
-	trade_bag = trading
+	trade_bag = trading; tab_ret = ""
+	if main.hud.pad_on: want_key = "bag:0"
 	bag_sel = null; open_tab("bag")
 
 func _sel_item():
@@ -921,6 +1077,8 @@ func _render_bag() -> void:
 	var keep_focus = ""
 	var fo = get_viewport().gui_get_focus_owner()
 	if fo and fo.has_meta("key"): keep_focus = fo.get_meta("key")
+	if want_key != "":
+		keep_focus = want_key; want_key = ""
 	_begin("bag", .9, BoxContainer.ALIGNMENT_BEGIN)
 	game.recalc()
 	var P = game.P; var G = game.G
@@ -954,6 +1112,7 @@ func _render_bag() -> void:
 			var ph = TextureRect.new(); ph.texture = load("res://ui/slot_%s.png" % ("ring" if k.begins_with("ring") else k)); ph.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 			ph.position = Vector2(sz * .12, sz * .06); ph.size = Vector2(sz * .76, sz * .76); ph.mouse_filter = Control.MOUSE_FILTER_IGNORE; b.add_child(ph)
 		b.position = Vector2(POS[k].x * EW - sz / 2, POS[k].y * EH - sz / 2); b.set_meta("key", "eq:" + k); lay.add_child(b)
+		b.focus_entered.connect(_pad_hover.bind("eq:" + k))
 	wrap.add_child(ep)
 	# 오른쪽: 가방창(칸은 상점에서 금화로 늘릴 수 있음)
 	var ip = PanelContainer.new(); ip.add_theme_stylebox_override("panel", _pnl(Vector4(12, 8, 12, 10)))
@@ -966,7 +1125,7 @@ func _render_bag() -> void:
 	for pid in ["pothp", "potmp", "scroll"]:
 		var ic_ = TextureRect.new(); ic_.texture = load("res://ui/item_%s.png" % pid); ic_.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; ic_.custom_minimum_size = Vector2(22, 22); ph_.add_child(ic_)
 		ph_.add_child(label("%d/%d" % [P.pot.get(pid, 0), game.pot_max(pid)], 13, INK))
-	var gsc = ScrollContainer.new(); gsc.custom_minimum_size = Vector2(IW - 24, EH - 78); gsc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	var gsc = ScrollContainer.new(); gsc.follow_focus = true; gsc.custom_minimum_size = Vector2(IW - 24, EH - 78); gsc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	var bg_ = GridContainer.new(); bg_.columns = cols; bg_.add_theme_constant_override("h_separation", 5); bg_.add_theme_constant_override("v_separation", 5)
 	for i in P.bagMax:
 		var it = P.bag[i] if i < P.bag.size() else null
@@ -980,6 +1139,7 @@ func _render_bag() -> void:
 				bag_sel = {from = "bag", i = i}; _equip(slot, true); return
 			bag_sel = {from = "bag", i = i}; _render_bag())
 		b.set_meta("key", "bag:%d" % i); bg_.add_child(b)
+		b.focus_entered.connect(_pad_hover.bind("bag:%d" % i))
 	gsc.add_child(bg_); c2.add_child(gsc)
 	wrap.add_child(ip)
 	# 자세히
@@ -1001,7 +1161,7 @@ func _render_bag() -> void:
 		if tot.is_empty(): es.add_child(label("착용한 장비가 없어요.", 12, MUTED))
 		for k in tot.keys(): es.add_child(label(D.mod_text({k = k, v = snappedf(tot[k], .01)}), 13, INK))
 		dv.add_child(es)
-		var p = label("아이템을 누르면 자세히, 두 번 누르면 바로 착용·벗기", 12, MUTED); dv.add_child(p)
+		var p = label("아이템에 올리면 자세히 · A 로 바로 착용·벗기" if main.hud.pad_on else "아이템을 누르면 자세히, 두 번 누르면 바로 착용·벗기", 12, MUTED); dv.add_child(p)
 		if not trade_bag: dv.add_child(label("장비 판매는 마을의 상인 미라와 거래할 때만 돼요.", 12, MUTED))
 	else:
 		dv.add_child(label(iname(it), 16, Color(D.RAR[it.rar].color), display))
@@ -1093,7 +1253,7 @@ func _render_bag() -> void:
 		if c is Label:
 			c.autowrap_mode = TextServer.AUTOWRAP_OFF; c.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS; c.custom_minimum_size.x = colw; c.clip_text = true
 		colv.add_child(c); used += hgt
-	var dsc = ScrollContainer.new(); dsc.custom_minimum_size = Vector2(DW, DH + 26)
+	var dsc = ScrollContainer.new(); dsc.name = "dsc"; dsc.follow_focus = true; dsc.custom_minimum_size = Vector2(DW, DH + 26)
 	dsc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO; dsc.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	dt.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN; dt.custom_minimum_size = Vector2(0, DH + 18)
 	dsc.add_child(dt)
@@ -1109,6 +1269,7 @@ func _render_bag() -> void:
 		else: wrap.add_child(dsc)
 	main.hud.build_buttons()
 	if keep_focus != "":
+		re_idx = -1
 		await get_tree().process_frame
 		var all: Array = []; _collect_focus(box, all)
 		for c in all:
@@ -1128,6 +1289,8 @@ func _tradebar() -> Control:
 	if not can: sb_.modulate = Color(1, 1, 1, .4)
 	sb_.set_meta("key", "trade:sell"); bar.add_child(sb_)
 	bar.add_child(btn("가게로 돌아가기", func(): close_bag(), true))
+	if main.hud.pad_on:
+		var ph = label("A 판매 · B 가게로", 12, MUTED); ph.vertical_alignment = VERTICAL_ALIGNMENT_CENTER; bar.add_child(ph)
 	return bar
 
 func _sell_sel() -> void:
@@ -1158,12 +1321,18 @@ func _sell_ask(i: int) -> void:
 	var pr = HBoxContainer.new(); pr.alignment = BoxContainer.ALIGNMENT_CENTER; pr.add_theme_constant_override("separation", 8); v.add_child(pr)
 	pr.add_child(label("판매 가격", 15, MUTED)); pr.add_child(label("금화 %d" % int(it.value), 20, Color("#ffd76a"), display))
 	var close = func():
-		dim.queue_free(); _focus_first()
+		dim.queue_free(); _focus_key("bag:%d" % i)
 	var yes = btn("판매", func():
 		var val: int = int(game.P.bag[i].value) if i < game.P.bag.size() else 0
-		game.sell(i); bag_sel = null; dim.queue_free(); main.hud.show_toast("금화 +%d" % val); _render_bag())
+		game.sell(i); bag_sel = null; dim.queue_free(); main.hud.show_toast("금화 +%d" % val); want_key = "bag:%d" % mini(i, maxi(0, game.P.bag.size() - 1)); _render_bag())
 	var no = btn("취소", close, true)
 	v.add_child(row([yes, no]))
+	dim.set_meta("yes", yes)
+	for pr2 in [[yes, no], [no, yes]]:          # 확인창 안에서만 오가게(뒤 가방 칸으로 빠지지 않게)
+		var a: Button = pr2[0]; var o: Button = pr2[1]
+		a.focus_neighbor_left = a.get_path_to(o); a.focus_neighbor_right = a.get_path_to(o)
+		a.focus_neighbor_top = a.get_path_to(a); a.focus_neighbor_bottom = a.get_path_to(a)
+		a.focus_next = a.get_path_to(o); a.focus_previous = a.get_path_to(o)
 	pn.pivot_offset = pn.size / 2; pn.scale = Vector2(.92, .92); dim.modulate.a = 0.0
 	_tw().tween_property(dim, "modulate:a", 1.0, .15); _tw().tween_property(pn, "scale", Vector2.ONE, .18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	await get_tree().process_frame
@@ -1184,6 +1353,8 @@ func _silhouette(w: float, h: float) -> Control:
 			c.add_child(t)
 	return c
 
+var want_key := ""         # 다시 그린 뒤 이 칸에 초점
+var tab_ret := ""          # 일시정지에서 연 탭 창이면 닫을 때 일시정지로
 var tap_key := ""
 var tap_t := 0
 func _dbl(key: String) -> bool:
@@ -1226,6 +1397,8 @@ func _tabbar(active: String) -> Control:
 		b.set_meta("key", "tab:" + id)
 		bar.add_child(b)
 	var sp = Control.new(); sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL; bar.add_child(sp)
+	if main.hud.pad_on:
+		var ph = label("LB·RB 탭  ·  B 닫기", 12, MUTED); ph.vertical_alignment = VERTICAL_ALIGNMENT_CENTER; bar.add_child(ph)
 	var cb = btn("닫기", func(): close_bag()); bar.add_child(cb)
 	return bar
 
@@ -1244,6 +1417,8 @@ func open_tab(id: String) -> void:
 		"magic": _tab_magic(body)
 		"record": _tab_record(body)
 		"settings": _tab_settings(body)
+	if re_idx >= 0:
+		_focus_first(); return            # 설정을 바꿔 다시 그린 것 → 누르던 버튼 그대로
 	await get_tree().process_frame
 	var all: Array = []; _collect_focus(box, all)
 	for c in all:
@@ -1450,9 +1625,13 @@ func close_map() -> void:
 func close_bag() -> void:
 	var sa = root.get_node_or_null("sellask")
 	if sa:
-		sa.queue_free(); return          # 판매 확인창이 떠 있으면 그것만 닫기
+		sa.queue_free()                  # 판매 확인창이 떠 있으면 그것만 닫기
+		if bag_sel != null and bag_sel.from == "bag": _focus_key("bag:%d" % bag_sel.i)
+		return
 	var c = root.get_node_or_null("bagclose")
 	if c: c.queue_free()
+	if tab_ret == "pause" and not trade_bag:
+		tab_ret = ""; game.set_state("pause"); open_pause(); return
 	if trade_bag:
 		# 거래 중 연 가방이면 다시 가게로
 		trade_bag = false
@@ -1532,7 +1711,7 @@ func _render_sand() -> void:
 	c = _chips(_grp(body_, "융합 마법 (두 계열을 1단계 이상으로 맞춰줘요)"))
 	var nof = func():
 		P.fusion = null
-		if not game.active_list().has(P.active): P.active = game.active_list()[0]
+		if not game.active_list().has(P.active) and game.active_list().size(): P.active = game.active_list()[0]
 	_chip(c, "없음", nof, P.fusion == null)
 	for key in D.FUSIONS.keys():
 		var fz = func():
@@ -1567,6 +1746,7 @@ func _render_sand() -> void:
 		G.enemies = []; G.eshots = []; G.bossMax = 0.0)
 	box.add_child(row([btn("닫고 계속하기", func(): main.resume())]))
 	main.hud.build_buttons()
+	_focus_first()
 	await get_tree().process_frame
 	scroll.scroll_vertical = sv
 

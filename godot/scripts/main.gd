@@ -24,6 +24,7 @@ var autosave_min := 5          # 자동 저장 간격(분): 5 · 10 · 15 · 30
 var autosave_t := 0.0
 var pad_prev := {}
 var pad_was := false
+var a_block := false      # 창에서 A 로 고른 뒤, 손을 떼기 전까지는 발사로 이어지지 않게
 var last_town := false
 
 # 시험용(스크린샷·성능 측정)
@@ -41,6 +42,8 @@ var fxtest := false
 var tiertest := false
 var roomtest := false
 var terrtest := false
+var padtest := false
+var test_pad = null
 
 func _ready() -> void:
 	Ui.init_fonts()
@@ -53,6 +56,11 @@ func _ready() -> void:
 		autosave_min = cfg.get_value("game", "autosave", 5)
 		snd.music_vol = cfg.get_value("sound", "music", .7); snd.sfx_vol = cfg.get_value("sound", "sfx", .9)
 	Game.migrate_old()
+	# 패드로 창 고르기는 ui.pad_ui 가 직접 처리(엔진 기본 패드 연결은 빼서 A·B 바꿈 설정과 두 번 눌림을 막음)
+	for a in InputMap.get_actions():
+		if String(a).begins_with("ui_"):
+			for e in InputMap.action_get_events(a):
+				if e is InputEventJoypadButton or e is InputEventJoypadMotion: InputMap.action_erase_event(a, e)
 	if OS.has_feature("mobile"): Input.emulate_touch_from_mouse = false     # 폰: 터치→마우스→터치로 한 번 더 들어오는 가짜 터치 막기
 	get_viewport().scaling_3d_scale = quality
 	for a in OS.get_cmdline_user_args():
@@ -66,6 +74,7 @@ func _ready() -> void:
 		elif a == "--tiertest": tiertest = true
 		elif a == "--roomtest": roomtest = true
 		elif a == "--terrtest": terrtest = true
+		elif a == "--padtest": padtest = true
 		elif a.begins_with("--seed="): seed(int(a.substr(7)))
 	add_child(game)
 	World.set_fog(PackedByteArray())
@@ -87,12 +96,13 @@ func _ready() -> void:
 	_title_scene()
 	ui.open_title()
 	if test_floor > 0 or shot_mode != "": _test_setup()
-	if samples_dir != "" and not fxtest and not tiertest and not roomtest and not terrtest: _run_samples()
+	if samples_dir != "" and not fxtest and not tiertest and not roomtest and not terrtest and not padtest: _run_samples()
 	if lvtest: _run_lvtest()
 	if fxtest: _run_fxtest()
 	if tiertest: _run_tiertest()
 	if roomtest: _run_roomtest()
 	if terrtest: _run_terrtest()
+	if padtest: _run_padtest()
 
 func _setup_env(town: bool) -> void:
 	var mg := game.mg
@@ -273,6 +283,10 @@ func _dz(v: Vector2, d: float) -> Vector2:
 
 func _pad_state() -> Dictionary:
 	var st = {on = false, l = Vector2(), r = Vector2(), b = {}}
+	if test_pad != null:
+		st.on = true; st.l = test_pad.get("l", Vector2())
+		for k in ["a", "b", "x", "y", "lb", "rb", "select", "start", "l3", "r3", "up", "down", "left", "right", "lt", "rt"]: st.b[k] = test_pad.b.get(k, false)
+		return st
 	var js = Input.get_connected_joypads()
 	if js.is_empty(): return st
 	var d: int = js[0]; st.on = true
@@ -301,14 +315,16 @@ func _pad_frame() -> Dictionary:
 		for k in st.b.keys(): any = any or st.b[k]
 		if any and not hud.pad_on:
 			hud.pad_on = true; pad_mode(true)
+	if not st.b.get("a", false): a_block = false
 	if hud.pad_on and game.G != null:
 		if ui.cur != "":
-			if hit.call("b") or (hit.call("start") and game.G.state in ["pause", "bag"]): ui.back()
-			elif hit.call("select") and game.G.state == "bag": ui.close_bag()
+			if st.b.get("a", false): a_block = true
+			ui.pad_ui(st, hit, pad_prev, get_process_delta_time())
 		elif game.G.state == "play":
 			if hit.call("start"): open_pause()
 			elif hit.call("select"): ui.open_bag()
-			elif hit.call("a") and game.G.floor == 0 and game.near_npc() != null: try_talk()
+			elif hit.call("l3"): ui.open_map()
+			elif hit.call("a") and game.G.floor == 0 and game.near_npc() != null: try_talk(); a_block = true
 			else:
 				var P = game.P
 				if hit.call("x") and P.secOrder.size() > 0: game.cast_sec(P.secOrder[0])
@@ -360,7 +376,7 @@ func _read_input(st: Dictionary) -> void:
 				if ad < bd and game.mg.los(P.x, P.y, e.x, e.y):
 					bd = ad; best = e
 			if best != null: ang = atan2(best.y - P.y, best.x - P.x)
-		elif B.rt or (B.a and not (G.floor == 0 and game.near_npc() != null)):
+		elif B.rt or (B.a and not a_block and not (G.floor == 0 and game.near_npc() != null)):
 			firing = true; var e = game.nearest_enemy(P.x, P.y, 420, true, null)
 			if e != null: ang = atan2(e.y - P.y, e.x - P.x)
 	game.inp = {mx = mx, my = my, firing = firing, ang = ang}
@@ -801,3 +817,71 @@ func _run_terrtest() -> void:
 		print("TERR ", dirs[i], " ", evs[i], " shape=", r.get("shape", ""), " size=", r.w, "x", r.h, " door=", game.mg.door.get("side", "n"))
 		game.leave_terrace(); await _frames(2)
 	print("TERRTEST done"); get_tree().quit()
+
+# 컨트롤러로 창 다루기 확인(개발용): --samples=DIR --padtest
+func _press(k: String) -> void:
+	test_pad = {b = {k: true}}; await _frames(3)
+	test_pad = {b = {}}; await _frames(3)
+
+func _fo(tag: String) -> void:
+	var f = get_viewport().gui_get_focus_owner()
+	var d := "없음"
+	if f != null:
+		d = f.get_class()
+		if f.has_meta("key"): d += " key=" + str(f.get_meta("key"))
+		if f is Button: d += " '" + f.text + "'"
+	print("PAD ", tag, " | cur=", ui.cur, " state=", game.G.state if game.G else "-", " focus=", d)
+
+func _run_padtest() -> void:
+	DirAccess.make_dir_recursive_absolute(samples_dir)
+	await _frames(10)
+	test_pad = {b = {}}; await _frames(3)
+	_fo("title")
+	await _press("right"); _fo("title →")
+	await _press("a"); await _frames(4); _fo("new(난이도)"); await _snap("p01_new")
+	await _press("b"); await _frames(4); _fo("B → title")
+	new_game("norm", 4); await _frames(8)
+	var P = game.P; var G = game.G
+	G.talkSeen.guide = 1; G.gold = 5000
+	for i in 5: P.bag.append(game.make_item(["magic", "rare", "unique", "set", "magic"][i], 5))
+	game.go_town(false); await _frames(4); print("PAD npcs ", G.npcs.size())
+	await _press("start"); await _frames(4); _fo("pause"); await _snap("p02_pause")
+	await _press("down"); _fo("pause ↓")
+	for i in 3: await _press("left")
+	_fo("pause ←←← (가방에서 멈춰야)")
+	await _press("a"); await _frames(6); _fo("bag (A)"); await _snap("p03_bag")
+	await _press("right"); await _frames(4); _fo("bag →"); await _snap("p04_bag_hover")
+	var n0: int = P.bag.size()
+	await _press("a"); await _frames(6); _fo("bag A(착용)"); print("PAD bag size ", n0, " → ", P.bag.size())
+	await _press("rb"); await _frames(4); _fo("RB"); await _press("rb"); await _frames(4); _fo("RB"); await _press("rb"); await _frames(4); _fo("RB settings"); await _snap("p05_settings")
+	for i in 3: await _press("down")
+	_fo("settings ↓↓↓"); await _press("a"); await _frames(6); _fo("settings A (같은 버튼이어야)")
+	await _press("b"); await _frames(4); _fo("B → pause 로 돌아와야")
+	await _press("b"); await _frames(4); _fo("B → play")
+	for n in G.npcs:
+		if n.id == "shop": ui.open_talk(n)
+	await _frames(6); _fo("shop")
+	await _press("down"); await _press("a"); await _frames(6); _fo("shop 구매 뒤(같은 자리)"); await _snap("p06_shop")
+	await _press("b"); await _frames(4)
+	ui.open_bag(true); await _frames(6); _fo("trade bag")
+	await _press("a"); await _frames(8); _fo("판매 확인창"); await _snap("p07_sellask")
+	await _press("up"); await _press("left"); _fo("확인창 ←↑ (창 안에 있어야)")
+	await _press("b"); await _frames(6); _fo("B → 확인창만 닫힘")
+	await _press("b"); await _frames(6); _fo("B → 가게"); await _press("b"); await _frames(4)
+	G.talkSeen.erase("guide")
+	for n in G.npcs:
+		if n.id == "guide": ui.open_talk(n)
+	await _frames(6); _fo("guide talk(다음 이어야)"); await _press("a"); await _frames(6); _fo("talk 다음 →"); await _snap("p08_talk")
+	await _press("b"); await _frames(4)
+	G.pendingLv = 1; game.set_state("levelup"); ui.open_level(); await _frames(60); _fo("level")
+	await _press("right"); await _press("a"); await _frames(50); _fo("level 고름 → 선택"); await _snap("p09_level_confirm")
+	await _press("b"); await _frames(20); _fo("B → 다시 고르기")
+	ui.hide_all(); game.set_state("play")
+	ui.open_sand(); await _frames(6); _fo("sand")
+	for i in 6: await _press("down")
+	_fo("sand ↓x6"); await _press("a"); await _frames(6); _fo("sand A(같은 칩)"); await _snap("p10_sand")
+	await _press("start"); await _frames(4); _fo("start → play")
+	ui.hide_all(); G.pendingLv = 0; game.set_state("play"); P.prim.fire = 2; P.active = "fire"; game.enter_tower(1); hud.build_buttons(); hud.set_pad(true); await _frames(10); await _snap("p11_play_hints")
+	game.set_state("pause"); ui.open_pause(); await _frames(4); await _snap("p12_pause_focus")
+	test_pad = null
+	get_tree().quit()

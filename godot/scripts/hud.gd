@@ -62,6 +62,10 @@ func _ready() -> void:
 	talk_b.add_theme_stylebox_override("normal", Ui.sb(Color("#e8b552"), 28, Color("#4a2e0c"), 2, Vector4(18, 8, 18, 8))); talk_b.add_theme_color_override("font_color", Color("#1b1206"))
 	talk_b.add_theme_font_size_override("font_size", 17); talk_b.add_theme_font_override("font", Ui.bold); talk_b.mouse_filter = Control.MOUSE_FILTER_IGNORE; talk_b.visible = false
 	root.add_child(talk_b)
+	# 패드를 쓰면 일시정지·가방·지도 옆에도 버튼 이름
+	_hint(pause_b, "ST"); pause_b.get_node("hint").position = Vector2(20, 24)
+	bag_b.custom_minimum_size = Vector2(38, 38); _hint(bag_b, "SEL"); bag_b.get_node("hint").position = Vector2(24, 26)
+	_hint(mini, "L3 지도"); mini.get_node("hint").position = Vector2(-4, -6)
 	toast_l.add_theme_stylebox_override("normal", Ui.sb(Color(.1, .08, .14, .92), 16, Color("#e3b04b"), 1, Vector4(18, 8, 18, 8)))
 	toast_l.add_theme_font_size_override("font_size", 16); toast_l.add_theme_font_override("font", Ui.bold); toast_l.add_theme_color_override("font_color", Color("#fff3d6")); toast_l.modulate.a = 0; toast_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(toast_l)
@@ -175,7 +179,7 @@ func _hint(c: Control, t: String) -> void:
 
 func set_pad(on: bool) -> void:
 	pad_on = on
-	for c in skills.get_children() + belt.get_children():
+	for c in skills.get_children() + belt.get_children() + [pause_b, bag_b, mini]:
 		var h = c.get_node_or_null("hint")
 		if h: h.visible = on
 
