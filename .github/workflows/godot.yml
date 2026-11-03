@@ -124,6 +124,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         if: steps.check.outputs.ok == 'true'
+        continue-on-error: true      # 저장 공간이 꽉 차도 릴리스는 올라가게
         with:
           name: godot-apk
           path: apprentice-tower-godot.apk
