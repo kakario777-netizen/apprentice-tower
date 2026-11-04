@@ -43,6 +43,7 @@ var tiertest := false
 var roomtest := false
 var terrtest := false
 var padtest := false
+var bosstest := false
 var test_pad = null
 
 func _ready() -> void:
@@ -75,6 +76,7 @@ func _ready() -> void:
 		elif a == "--roomtest": roomtest = true
 		elif a == "--terrtest": terrtest = true
 		elif a == "--padtest": padtest = true
+		elif a == "--bosstest": bosstest = true
 		elif a.begins_with("--seed="): seed(int(a.substr(7)))
 	add_child(game)
 	World.set_fog(PackedByteArray())
@@ -96,13 +98,14 @@ func _ready() -> void:
 	_title_scene()
 	ui.open_title()
 	if test_floor > 0 or shot_mode != "": _test_setup()
-	if samples_dir != "" and not fxtest and not tiertest and not roomtest and not terrtest and not padtest: _run_samples()
+	if samples_dir != "" and not fxtest and not tiertest and not roomtest and not terrtest and not padtest and not bosstest: _run_samples()
 	if lvtest: _run_lvtest()
 	if fxtest: _run_fxtest()
 	if tiertest: _run_tiertest()
 	if roomtest: _run_roomtest()
 	if terrtest: _run_terrtest()
 	if padtest: _run_padtest()
+	if bosstest: _run_bosstest()
 
 func _setup_env(town: bool) -> void:
 	var mg := game.mg
@@ -885,3 +888,69 @@ func _run_padtest() -> void:
 	game.set_state("pause"); ui.open_pause(); await _frames(4); await _snap("p12_pause_focus")
 	test_pad = null
 	get_tree().quit()
+
+# 보스 패턴·감옥·드랍 확인(개발용): --samples=DIR --bosstest
+func _run_bosstest() -> void:
+	DirAccess.make_dir_recursive_absolute(samples_dir)
+	await _frames(10)
+	new_game("norm", 4); await _frames(4)
+	var P = game.P; var G = game.G
+	P.prim.arcane = 3; P.active = "arcane"; P.lv = 20; game.recalc(); G.sb = {god = true, mana = true, nocd = true, still = true}
+	# 1) 드랍 등급 분포
+	for f in [1, 3, 5, 8, 12, 20, 40]:
+		G.floor = f
+		var cnt := {}
+		for i in 20000:
+			var r: String = game.roll_rarity(1.0); cnt[r] = cnt.get(r, 0) + 1
+		print("RAR f%d %s" % [f, str(cnt)])
+	# 2) 감옥 칸 안에 몬스터가 생기는지
+	var bad := 0; var prisons := 0
+	for f in range(2, 30):
+		if D.boss_kind(f) != "": continue
+		G.cleared = []; G.fcache = {}; G.resume = f; game.enter_tower(f); await _frames(1)
+		if game.mg.nospawn.size() > 0: prisons += 1
+		for e in G.enemies:
+			if game.mg.no_spawn(e.x, e.y): bad += 1
+		if prisons == 1 and game.mg.nospawn.size() > 0:
+			var q: Rect2 = game.mg.nospawn[0]
+			P.x = q.position.x + q.size.x / 2; P.y = q.end.y + 90; game.mg.reveal(P.x, P.y); game.mg.dirty = true
+			G.enemies = []; await _frames(8); await _snap("b00_prison_f%d" % f)
+	print("PRISON floors=", prisons, " enemies_in_cells=", bad)
+	var bfloors: Array = [100] if OS.get_cmdline_user_args().has("--final") else [5, 10, 20, 40, 100]
+	# 3) 보스: 층마다 패턴을 하나씩 강제로 써 보고 찍기
+	for f in bfloors:
+		G.cleared = []; G.fcache = {}; G.resume = f; game.enter_tower(f); await _frames(4)
+		var b = null
+		for e in G.enemies:
+			if e.isBoss: b = e
+		if b == null:
+			print("BOSS none f", f); continue
+		print("BOSS f%d %s hp=%d dmg=%.1f pool=%s lvl=%.2f" % [f, b.name, int(b.max), b.dmg, b.pk, b.lvl])
+		var pool: Array = Game.PAT[b.pk].duplicate()
+		var uniq := {}
+		for p in pool: uniq[p] = true
+		if f == 100: uniq["safe"] = true
+		for p in uniq.keys():
+			G.zones = []; G.eshots = []; b.cast = 0.0; b.dash = null; b.spin = null; b.q = []; b.stun = 0.0; b.pt = 99.0
+			P.x = b.x + 150; P.y = b.y + 60; b.aggro = true
+			game._pat(b, p, 160.0)
+			await _frames(3)
+			await _snap("b_f%d_%s" % [f, p])
+			await _frames(25)
+		if f == 100:
+			b.hp = b.max * .6; b.pt = 99.0; G.sb.still = false; await _frames(6); G.sb.still = true
+			print("SEAL ", b.get("seal", false)); await _snap("b_f100_seal")
+			for e in G.enemies:
+				if e.get("guard", false): game.kill_enemy(e)
+			G.sb.still = false; await _frames(6); G.sb.still = true; print("SEAL after guards ", b.get("seal", false), " stun=", b.stun)
+		# 잠깐 실제로 싸우게 두기(오류 확인)
+		b.pt = .5; G.sb.still = false
+		var r0: Dictionary = game.mg.rooms[0]; P.x = r0.cx; P.y = r0.cy + 100
+		if f == 100: b.hp = b.max * .36
+		for k in 240:
+			test_inp = {mx = 0.0, my = 0.0, firing = true, ang = atan2(b.y - P.y, b.x - P.x)}
+			await get_tree().process_frame
+			if k == 60: print("FIGHT shots=", G.shots.size(), " P=", Vector2(P.x, P.y), " B=", Vector2(b.x, b.y), " seal=", b.get("seal", false), " state=", G.state, " mp=", P.mp)
+		test_inp = null; G.sb.still = true
+		print("BOSS f%d after fight hp=%d/%d" % [f, int(b.hp), int(b.max)])
+	print("BOSSTEST done"); get_tree().quit()

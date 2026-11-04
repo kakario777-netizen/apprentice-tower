@@ -28,6 +28,7 @@ var alcoves: Array = []         # 벽을 판 자리 {tx, ty0, depth, kind}
 var sidedoors: Array = []       # 동·서·남쪽 벽에 뚫은 문 {x,y,side,dx,dy,kind}
 var tdir := "s"                 # 테라스가 탑에서 뻗어 나간 쪽
 var down = null                 # 내려가는 계단(올라와서 도착한 자리 뒤 벽) {x,y,found}
+var nospawn: Array = []          # 몬스터가 생기면 안 되는 자리(감방 안 등) Rect2(px)
 var dirty := true                 # 안개·미니맵 다시 그리기
 
 static func hash2(i: int, j: int) -> int:
@@ -75,7 +76,7 @@ func _reset() -> void:
 	seen = PackedByteArray(); seen.resize(MW * MH); seen.fill(0)
 	flow = PackedInt32Array(); flow.resize(MW * MH); flow.fill(-1)
 	rooms = []; torches = []; decor = []; obst = []; town = null; gate = null; stairs = null; boss_room = false
-	terrace = false; door = null; alcoves = []; down = null; sidedoors = []
+	terrace = false; door = null; alcoves = []; down = null; sidedoors = []; nospawn = []
 	dirty = true
 
 func carve(x: int, y: int, w: int, h: int) -> void:
@@ -691,6 +692,24 @@ func _free(r: Dictionary, p: Vector2, rad: float) -> bool:
 		if p.distance_to(Vector2(o.x, o.y)) < rad + o.r: return false
 	return true
 
+# 사각형(타일) 둘레 근처에 방 밖 바닥(통로·문)이 닿아 있으면 true
+func _opening_near(r: Dictionary, i0: int, j0: int, i1: int, j1: int) -> bool:
+	for j in range(j0 - 1, j1 + 1):
+		for i in range(i0 - 1, i1 + 1):
+			if at(i, j) != 0: continue
+			if i < r.x or i >= r.x + r.w or j < r.y or j >= r.y + r.h: return true
+	for a in alcoves:
+		if a.tx + 1 >= i0 and a.tx <= i1 and a.ty0 + a.depth == r.y: return true
+	for d in sidedoors:
+		var ti := int(d.x / T); var tj := int(d.y / T)
+		if ti >= i0 - 1 and ti <= i1 + 1 and tj >= j0 - 1 and tj <= j1 + 1: return true
+	return false
+
+func no_spawn(x: float, y: float) -> bool:
+	for q in nospawn:
+		if q.has_point(Vector2(x, y)): return true
+	return false
+
 func _has_alcove(r: Dictionary) -> bool:
 	for a in alcoves:
 		if a.tx >= r.x - 1 and a.tx <= r.x + r.w and a.ty0 + a.depth == r.y: return true
@@ -748,24 +767,36 @@ func _decorate_theme(r: Dictionary) -> void:
 			var cb := Vector2((r.x + r.w - .5) * T, (r.y + r.h / 2.0) * T)
 			if _free(r, cb, 16): _mdl("Cabinet", cb, -PI / 2, FS, 14.0)
 		"prison":
-			# 감옥: 북쪽 벽에 쇠창살 감방(한 칸만 열림), 안에는 사슬·양동이·뼈
+			# 감옥: 북쪽 벽에 쇠창살 감방. 통로·문이 닿는 칸에는 감방을 만들지 않고(입구를 막지 않게),
+			# 감방 안은 몬스터가 생기지 않는 자리로 표시. 한 칸만 문이 열려 있다
 			var depth := 3; var cw := 3
 			var y1: float = (r.y + depth) * T
 			var ncell: int = (r.w - 1) / cw
-			var open_i: int = randi() % max(1, ncell)
+			var ok: Array = []
 			for ci in ncell:
+				var i0: int = r.x + ci * cw
+				ok.append(not _opening_near(r, i0 - 1, r.y - 1, i0 + cw + 1, r.y + depth + 1))
+			var valid: Array = []
+			for ci in ncell:
+				if ok[ci]: valid.append(ci)
+			if valid.size() < 2:
+				r.theme = "storage"; _decorate_theme(r); return
+			var open_i: int = pick(valid)
+			for ci in valid:
 				var x0: float = (r.x + .5 + ci * cw) * T; var x1: float = x0 + cw * T
 				if ci == open_i:
 					decor.append({kind = "bars", a = Vector2(x0, y1), b = Vector2(x0 + cw * T * .35, y1)}); _bar_obst(Vector2(x0, y1), Vector2(x0 + cw * T * .35, y1))
 					decor.append({kind = "bars", a = Vector2(x1 - cw * T * .3, y1), b = Vector2(x1, y1)}); _bar_obst(Vector2(x1 - cw * T * .3, y1), Vector2(x1, y1))
 				else:
 					decor.append({kind = "bars", a = Vector2(x0, y1), b = Vector2(x1, y1)}); _bar_obst(Vector2(x0, y1), Vector2(x1, y1))
+				if ci == 0 or not ok[ci - 1]:
+					decor.append({kind = "bars", a = Vector2(x0, r.y * T), b = Vector2(x0, y1)}); _bar_obst(Vector2(x0, r.y * T), Vector2(x0, y1))
 				decor.append({kind = "bars", a = Vector2(x1, r.y * T), b = Vector2(x1, y1)}); _bar_obst(Vector2(x1, r.y * T), Vector2(x1, y1))
+				nospawn.append(Rect2(x0 - 6, r.y * T - 6, cw * T + 12, depth * T + 12))
 				var inn := Vector2((x0 + x1) / 2.0, (r.y + 1.3) * T)
 				_mdl("Chain_Coil", inn + Vector2(rnd(-12, 12), -8), rnd(0, TAU), FS, 0.0)
 				if randf() < .6: _mdl("Bucket_Wooden_1", inn + Vector2(rnd(-16, 16), 10), rnd(0, TAU), FS, 0.0)
 				if randf() < .7: decor.append({kind = "prop", p = pick(["bones1", "bones3", "skulls", "skeleton1"]), pos = inn + Vector2(rnd(-14, 14), rnd(0, 14)), s = .7})
-			decor.append({kind = "bars", a = Vector2((r.x + .5) * T, r.y * T), b = Vector2((r.x + .5) * T, y1)}); _bar_obst(Vector2((r.x + .5) * T, r.y * T), Vector2((r.x + .5) * T, y1))
 			for i in ri(1, 2):
 				var p := Vector2((r.x + rnd(1.5, r.w - 1.5)) * T, (r.y + rnd(depth + 1.5, r.h - 1)) * T)
 				if _free(r, p, 14): _mdl(pick(["Cage_Small", "Crate_Metal", "Barrel"]), p, rnd(0, TAU), FS, 12.0)

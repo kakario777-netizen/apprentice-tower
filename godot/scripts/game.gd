@@ -6,7 +6,8 @@ signal toast(msg: String)
 signal ui(what: String)        # "buttons" "belt" "bag" "levelup" "end" "state" "talk"
 signal rumble(ms: int, strength: float)
 const GOLD_RATE := .1   # 떨어지는 금화 양(예전의 1/10)
-const BOSS_HP := 20.0   # 보스 체력 배수(너무 빨리 녹는다는 의견 → 20배)
+const BOSS_HP := 35.0   # 층 보스 체력 배수(20배 → 아직 약하다는 의견으로 35배. 비전탄 다중 시전 약화와 합치면 체감 4~5배)
+const COW_HP := 20.0    # 토끼 동산 쪽(괴생물·토끼왕)은 그대로
 signal sfx(name: String)        # 효과음
 signal saved                    # 저장할 때마다(오른쪽 위 "자동 저장 중…")
 
@@ -363,13 +364,13 @@ func gen_floor() -> void:
 				var t = pick_type(); var pack = randf() < .6
 				var ex: float = (clampf_(pcx + rnd(-3, 3), r.x + 1, r.x + r.w - 1) if pack else r.x + rnd(1, r.w - 1)) * T
 				var ey: float = (clampf_(pcy + rnd(-3, 3), r.y + 1, r.y + r.h - 1) if pack else r.y + rnd(1, r.h - 1)) * T
-				if not mg.hits(ex, ey, D.MONSTERS[t].r): spawn_enemy(t, ex, ey)
+				if not mg.hits(ex, ey, D.MONSTERS[t].r) and not mg.no_spawn(ex, ey): spawn_enemy(t, ex, ey)
 		# 유니크 몬스터: 한 층에 나올까 말까(4층에 1번꼴) · 많아야 한 마리
 		if G.floor >= 2 and mg.rooms.size() > 1 and randf() < .25:
 			for tries in 6:
 				var r: Dictionary = mg.rooms[ri(1, mg.rooms.size() - 1)]
 				var t2 = pick_type(); var ex2: float = (r.x + rnd(2, r.w - 2)) * T; var ey2: float = (r.y + rnd(2, r.h - 2)) * T
-				if not mg.hits(ex2, ey2, D.MONSTERS[t2].r * 1.4):
+				if not mg.hits(ex2, ey2, D.MONSTERS[t2].r * 1.4) and not mg.no_spawn(ex2, ey2):
 					spawn_elite(t2, ex2, ey2); break
 		if G.cowQ == 1 and G.floor == G.cowF and mg.stairs != null: spawn_cow_quest()
 		G.chests = []
@@ -377,7 +378,7 @@ func gen_floor() -> void:
 			var r: Dictionary = mg.rooms[i]
 			if randf() > .2: continue          # 상자: 방 다섯에 하나꼴
 			var cx: float = (r.x + pick([1.6, r.w - 1.6])) * T; var cy: float = (r.y + pick([1.6, r.h - 1.6])) * T
-			if hyp(cx - mg.stairs.x, cy - mg.stairs.y) < 70 or mg.near_alcove(Vector2(cx, cy)) or mg.hits(cx, cy, 16): continue
+			if hyp(cx - mg.stairs.x, cy - mg.stairs.y) < 70 or mg.near_alcove(Vector2(cx, cy)) or mg.hits(cx, cy, 16) or mg.no_spawn(cx, cy): continue
 			G.chests.append({x = cx, y = cy, open = false, t = 0.0, id = nid()})
 			mg.obst.append({x = cx, y = cy + 2, r = 16.0})         # 상자에 부딪힘
 		G.banner = {text = floor_name(G.floor), t = 2.2}
@@ -424,8 +425,8 @@ func gen_cow() -> void:
 	# 토끼왕: 멀리 어딘가(무리 하나가 호위)
 	var kc: Vector2 = mg.far_cell(mg.start, 900.0)
 	var king := _rabbit("rabbit_king", kc.x, kc.y, 14.0)
-	king.isBoss = true; king.named = true; king.slam = true; king.t2 = 3.0; king.name = "만렙 토끼왕"
-	king.dmg *= 2.2; king.r = 26.0; king.xp *= 20; king.hp *= BOSS_HP; king.max *= BOSS_HP
+	king.isBoss = true; king.named = true; boss_setup(king, "rabbit", 2.5); king.name = "만렙 토끼왕"
+	king.dmg *= 2.2; king.r = 26.0; king.xp *= 20; king.hp *= COW_HP; king.max *= COW_HP
 	G.bossMax = king.max
 	var kh = {x = kc.x, y = kc.y, tx = kc.x, ty = kc.y, t = 99.0, aggro = false}
 	G.herds.append(kh); king.herd = G.herds.size() - 1; king.hoff = Vector2.ZERO
@@ -443,11 +444,11 @@ func spawn_cow_quest() -> void:
 	var e := spawn_enemy("rabbit", x, y, 1.0)
 	var lf100: int = 100 + 100 * int(G.tier)
 	var bd: Dictionary = D.BOSSES[15]
-	var hp: float = bd.hp * diff_d().hp * (1 + .25 * (lf100 - 1)) / (1 + .25 * 14) * .8 * BOSS_HP
+	var hp: float = bd.hp * diff_d().hp * (1 + .25 * (lf100 - 1)) / (1 + .25 * 14) * .8 * COW_HP
 	e.hp = hp; e.max = hp
 	e.dmg = bd.dmg * diff_d().dmg * (1 + .1 * (lf100 - 1)) / (1 + .1 * 14) * .8
 	e.xp = int(120 * (1 + .3 * (lf100 - 5) / 5.0) * .6)
-	e.isBoss = true; e.named = true; e.slam = true; e.t2 = 2.5; e.cowq = true; e.r = 22.0; e.spd *= 1.1
+	e.isBoss = true; e.named = true; boss_setup(e, "rabbit", 2.0); e.cowq = true; e.r = 22.0; e.spd *= 1.1
 	e.name = "정체 모를 괴생물 · 만렙 토끼"; e.tint = "#ffd8d0"
 	G.bossMax += e.max
 
@@ -483,7 +484,8 @@ func spawn_floor_boss(kind: String, x: float, y: float) -> Dictionary:
 		var e := spawn_enemy(t, x, y, 9.0)
 		e.isBoss = true; e.named = true; e.split = false; e.name = "%s %s" % [pick(NAMED_PRE), D.MONSTERS[t].name]
 		e.hp *= BOSS_HP; e.max *= BOSS_HP
-		e.r *= 1.35; e.dmg *= 1.6; e.xp *= 12; e.aggro = true; e.t1 = 3.0
+		e.r *= 1.35; e.dmg *= 1.8; e.xp *= 12; e.aggro = true; e.t1 = 3.0; e.spd *= 1.15
+		boss_setup(e, "melee" if D.MONSTERS[t].atk == "melee" else "ranged", 1.0 + f / 100.0)
 		G.bossMax += e.max
 		return e
 	var bd: Dictionary
@@ -501,6 +503,11 @@ func spawn_floor_boss(kind: String, x: float, y: float) -> Dictionary:
 	b.xp = int(120 * (1 + .3 * (lf - 5) / 5.0))
 	if kind == "tier": b.name = "%s · 계층 수호자" % bd.name
 	elif kind == "sub": b.name = "%s의 그림자" % bd.name if f > base_f else bd.name
+	# 패턴 세기: 10·30층 준보스 < 20·40·60·80층 계층 수호자(층이 오를수록 더) < 옥상 최종
+	var lvl: float = 1.2 + f / 100.0
+	if kind == "tier": lvl = 1.8 + f / 50.0
+	if kind == "final": lvl = 3.6
+	boss_setup(b, "final" if kind == "final" else String(bd.id), lvl)
 	return b
 
 # 유니크 몬스터: 체력 5~10배 · 공격 2~3배 · 큰 몸집 · 다른 색 · 빛 · 고유 이름
@@ -508,11 +515,13 @@ const ELITE_A := ["뼈", "피", "재", "서리", "독", "그림자", "천둥", "
 const ELITE_B := ["송곳니", "갈퀴", "발톱", "아귀", "눈", "칼날", "뿔", "이빨"]
 const ELITE_COL := ["#ffd76a", "#ff7a6a", "#8affc8", "#c08aff", "#7ad8ff", "#ff9ae0"]
 func spawn_elite(t: String, x: float, y: float) -> Dictionary:
-	var e := spawn_enemy(t, x, y, rnd(5, 10))
+	# 네임드(유니크): 체력 7배 더(35~70배) · 빠르고 아프게 · 돌진·내려찍기·베기 패턴
+	var e := spawn_enemy(t, x, y, rnd(5, 10) * 7.0)
 	e.elite = true; e.split = false; e.aggro = false
 	e.name = "%s%s %s" % [pick(ELITE_A), pick(ELITE_B), D.MONSTERS[t].name]
-	e.r *= 1.3; e.hmul = 1.45; e.dmg *= rnd(2, 3); e.xp = int(e.xp * 8); e.spd *= 1.12
-	e.cd = e.cd * .7; e.tint = pick(ELITE_COL)
+	e.r *= 1.3; e.hmul = 1.45; e.dmg *= rnd(2.6, 3.4); e.xp = int(e.xp * 20); e.spd *= 1.35
+	e.cd = e.cd * .55; e.tint = pick(ELITE_COL)
+	boss_setup(e, "elite", .9 + G.floor / 120.0)
 	return e
 
 func drop_stone(x: float, y: float, n: int) -> void:
@@ -570,6 +579,10 @@ static func anim_dur(name: String, anim: String) -> float:
 
 func damage_enemy(e: Dictionary, amt: float, els, silent := false) -> void:
 	if e.dead or amt <= 0: return
+	if e.get("seal", false):
+		# 봉인(무적) 중: 피해 없음
+		if randf() < .15: float_text(e.x, e.y - e.r, "무적", "#c9a3ff")
+		return
 	if e.shield > 0:
 		var a: float = min(e.shield, amt); e.shield -= a; amt -= a; e.shieldRegen = 7.0
 		if e.shield <= 0: ring(e.x, e.y, e.r, e.r + 24, .3, "#9fd0ff")
@@ -578,7 +591,8 @@ func damage_enemy(e: Dictionary, amt: float, els, silent := false) -> void:
 	if els != null:
 		if els.has("fire") and P.es.burn:
 			e.burnT = 2.0 + P.es.burn; e.burnDps = max(e.burnDps, 3 * P.es.burn * (1 + .15 * P.lv))
-		if els.has("frost"): e.slowT = max(e.slowT, 1.2)
+		if els.has("frost"):
+			e.slowT = max(e.slowT, 1.2); e.chillT = max(float(e.get("chillT", 0.0)), 1.3)
 		if els.has("storm") and P.es.shock: e.slowT = max(e.slowT, .4 + .3 * P.es.shock)
 	if not silent and amt >= 1: float_text(e.x, e.y - e.r, str(int(round(amt))), "#f3e3c0")
 	if e.boss == "flesh" and not e.split and e.hp < e.max * .5 and e.hp > 0:
@@ -590,6 +604,7 @@ func split_flesh(e: Dictionary) -> void:
 	var bd: Dictionary = D.BOSSES[10]
 	for s in [-1, 1]:
 		var c = spawn_boss(bd, e.x + s * 36, e.y, max(60.0, e.hp * .65), 24.0); c.t1 = 1.5 + s * .4
+		c.dmg = e.dmg; boss_setup(c, "flesh", max(1.0, float(e.get("lvl", 1.2)) - .3)); c.pt = 1.0 + s * .8
 	toast.emit("여왕 개미귀신이 둘로 갈라졌다!")
 
 func debris(x: float, y: float, shape: String, color: String, n := 1, sp := 120.0) -> void:
@@ -646,11 +661,12 @@ func kill_enemy(e: Dictionary) -> void:
 		G.drops.append({x = e.x + rnd(-8, 8), y = e.y + rnd(-8, 8), kind = "gold", v = max(1, int(round((300 + lvf() * 30 if e.isBoss else (ri(2, 6) + lvf()) * 4) * diff_d().reward * (1 + P.st.gold) * GOLD_RATE))), t = 0.0, vx = rnd(-90, 90), vy = rnd(-90, 90), h = 0.0, vh = rnd(70, 120), id = nid()})
 	if not e.isBoss and lvf() >= 20 and randf() < (.006 if lvf() >= 50 else .003): drop_stone(e.x, e.y, 1)
 	# 한 층을 다 돌아야 3~4개 주울까 말까
-	if not e.isBoss and not e.get("elite", false) and e.xp > 1 and randf() < (.035 if (e.type == "demon" or e.type == "mage") else .022): drop_item(e.x, e.y)
+	var ip: float = (.022 if (e.type == "demon" or e.type == "mage") else .013) * (.7 if lvf() < 5 else 1.0)
+	if not e.isBoss and not e.get("elite", false) and e.xp > 1 and randf() < ip: drop_item(e.x, e.y)
 	if e.get("elite", false):
 		# 유니크 몬스터: 장비 1~2개(좋은 등급 쪽으로) + 낮은 확률로 강화석
-		drop_item(e.x - 8, e.y, roll_rarity(3.0, "magic"))
-		if randf() < .2: drop_item(e.x + 8, e.y, "", 2.0)
+		drop_item(e.x - 8, e.y, roll_rarity(3.0 if lvf() >= 5 else 1.0, "magic"))
+		if lvf() >= 5 and randf() < .2: drop_item(e.x + 8, e.y, "", 2.0)
 		var ep: float = .08 if lvf() < 10 else (.3 if lvf() < 30 else .45)
 		if randf() < ep: drop_stone(e.x, e.y, 2 if (lvf() >= 40 and randf() < .2) else 1)
 	if e.get("cowq", false):
@@ -731,6 +747,7 @@ func boss_ai(e: Dictionary, dt: float, d: float) -> void:
 		e.shieldRegen -= dt
 		if e.shield <= 0 and e.shieldRegen <= -2:
 			e.shield = e.shieldMax * .4; ring(e.x, e.y, e.r, e.r + 30, .4, "#c9a3ff")
+	if e.has("pk"): return
 	if e.boss == "golem":
 		if e.t1 <= 0:
 			e.t1 = 6.0
@@ -776,6 +793,9 @@ func upd_enemy(e: Dictionary, dt: float) -> void:
 	if e.frozenT > 0:
 		e.frozenT -= dt; e.vx = 0.0; e.vy = 0.0; return
 	e.slowT -= dt; e.fearT -= dt
+	if e.has("chillT"): e.chillT -= dt
+	if e.has("pk") and e.aggro and not e.dead:
+		if boss_pat(e, dt): return
 	if e.get("slam", false):
 		e.t2 -= dt
 		if e.t2 <= 0 and e.aggro and hyp(P.x - e.x, P.y - e.y) < 150:
@@ -783,7 +803,7 @@ func upd_enemy(e: Dictionary, dt: float) -> void:
 	elif e.get("named", false):
 		e.t1 -= dt
 		if e.t1 <= 0:
-			e.t1 = 7.0; ring(e.x, e.y, 10, 70, .5, e.d.color)
+			e.t1 = 11.0; ring(e.x, e.y, 10, 70, .5, e.d.color)
 			for i in 2:
 				var a = rnd(0, TAU); var s = spawn_enemy(e.type, e.x + cos(a) * 50, e.y + sin(a) * 50); s.aggro = true; s.xp = 1
 	var dx: float = P.x - e.x; var dy: float = P.y - e.y; var d: float = max(1.0, hyp(dx, dy))
@@ -816,7 +836,7 @@ func upd_enemy(e: Dictionary, dt: float) -> void:
 			e.vx += (tv.x - e.vx) * k0; e.vy += (tv.y - e.vy) * k0; mg.move(e, e.vx * dt, e.vy * dt)
 			return
 		else: return
-	var sp: float = e.spd * (.5 if e.slowT > 0 else 1.0) * (.35 if in_stasis(e) else 1.0)
+	var sp: float = e.spd * (.4 if e.get("chillT", 0.0) > 0 else (.5 if e.slowT > 0 else 1.0)) * (.35 if in_stasis(e) else 1.0)
 	var goal: Vector2
 	var see: bool = d < 520 and mg.los(e.x, e.y, P.x, P.y)
 	if e.fearT > 0: goal = Vector2(e.x - dx, e.y - dy)
@@ -828,7 +848,7 @@ func upd_enemy(e: Dictionary, dt: float) -> void:
 			sp *= .55
 		else: goal = Vector2(P.x, P.y)
 	elif e.d.atk != "melee" and see and d < e.d.range:
-		e.cd -= dt
+		e.cd -= dt * (.6 if e.get("chillT", 0.0) > 0 else 1.0)       # 얼어 둔해지면 쏘는 것도 느려짐
 		if e.cd <= 0:
 			enemy_fire(e); e.cd = e.d.cd * rnd(.8, 1.2)
 		if d < e.d.range * .45: goal = Vector2(e.x - dx, e.y - dy)
@@ -910,10 +930,13 @@ func fire(dt: float, ang: float) -> void:
 		P.mp -= a.mana; P.cdShot = a.cd / quick
 		sfx.emit("fire" if a.els.has("fire") else "arcane")
 		var n: int = 1 + (P.es.get("multi", 0) if a.els.has("arcane") else 0)
+		# 다중 시전: 발 수는 늘지만 한 발 피해는 줄어든다(5발이어도 합쳐서 2배 남짓)
+		var mk: float = 1.0 / (1.0 + .35 * (n - 1))
+		var sdm: Array = [a.dmg[0] * mk, a.dmg[1] * mk]
 		for i in n:
 			var an = ang + (i - (n - 1) / 2.0) * .2
 			G.shots.append({id = nid(), x = P.x + cos(an) * 14, y = P.y + sin(an) * 14, vx = cos(an) * a.speed, vy = sin(an) * a.speed, speed = a.speed,
-				dmg = a.dmg, r = a.r, life = 1.6, homing = a.homing, els = a.els, color = a.color, seek = P.es.get("seek", 0) if a.els.has("arcane") else 0, hitSet = {}})
+				dmg = sdm, r = a.r, life = 1.6, homing = a.homing, els = a.els, color = a.color, seek = P.es.get("seek", 0) if a.els.has("arcane") else 0, hitSet = {}})
 		return
 	var cost: float = a.manaps * dt
 	if P.mp < cost: return
@@ -937,13 +960,14 @@ func fire(dt: float, ang: float) -> void:
 			if randf() < .5: G.fx.append({x = ex, y = ey, vx = rnd(-60, 60), vy = rnd(-60, 60), life = .2, max = .2, color = "#e8fbff", size = 2.0, h = shot_h})
 			return
 		var from = Vector2(P.x, P.y); var cur = target; var hit = {}; var mult = 1.0
-		var links: int = 1 + P.es.get("chain", 0) + (1 if a.els.size() > 1 else 0)
+		# 번개 = 쓸어 담기: 기본으로 둘째 적까지 튐
+		var links: int = 2 + P.es.get("chain", 0) + (1 if a.els.size() > 1 else 0)
 		for i in links:
 			if cur == null: break
 			G.bolts.append({pts = [from, Vector2(cur.x, cur.y)], color = a.color, life = .06, elec = 1, from_p = 1 if i == 0 else 0})
 			if randf() < .6: G.fx.append({x = cur.x, y = cur.y, vx = rnd(-70, 70), vy = rnd(-70, 70), life = .22, max = .22, color = "#e8fbff", size = 2.2, h = shot_h})
 			damage_enemy(cur, a.dps * dt * mult, a.els, true); hit[cur.id] = true
-			from = Vector2(cur.x, cur.y); mult *= .75
+			from = Vector2(cur.x, cur.y); mult *= .8
 			var nx = null; var nd = 150.0
 			for e in G.enemies:
 				if e.dead or hit.has(e.id): continue
@@ -1002,7 +1026,7 @@ func shot_hit(s: Dictionary, e: Dictionary) -> bool:
 	sfx.emit("hit")
 	if s.els.has("arcane") and P.es.get("siphon", 0): P.mp = min(P.maxmp, P.mp + 1.2 * P.es.siphon)
 	if s.els.has("fire"):
-		var bl: int = P.es.get("blast", 0); var rad: float = 28 + 18 * bl if bl else 0.0
+		var bl: int = P.es.get("blast", 0); var rad: float = 26.0 + 18 * bl      # 화염 = 묵직한 한 방 + 기본 작은 폭발
 		sfx.emit("boom"); fire_explode(s.x, s.y, 1.0 + .25 * bl)
 		if rad:
 			ring(s.x, s.y, 6, rad, .25, "#ffb05a")
@@ -1022,7 +1046,7 @@ func shot_hit(s: Dictionary, e: Dictionary) -> bool:
 		burst(s.x, s.y, "#cdf2ff", 6, 90, .3, 2, shot_h * .8); fx_anim("fx_spark_blue", s.x, s.y + 8, 26, 0.0, 0.0, shot_h * .8)
 	if s.els.has("arcane") and not s.els.has("fire") and not s.els.has("frost"): fx_anim("fx_spark_orange", s.x, s.y + 8, 22, 0.0, 0.0, shot_h * .8)
 	if s.seek > 0:
-		s.seek -= 1
+		s.seek -= 1; s.dmg = [s.dmg[0] * .65, s.dmg[1] * .65]      # 다시 쫓아갈 때마다 약해짐
 		var n = nearest_enemy(s.x, s.y, 300, true, e)
 		if n != null:
 			s.life = 1.4; return false
@@ -1333,8 +1357,11 @@ func roll_rarity(luck := 1.0, min_rar := "normal", f_over := -1) -> String:
 	var tb: float = 1.0 + .5 * int(G.tier)
 	var pu: float = (.0006 if f < 20 else (.002 if f < 50 else min(.03 * tb, .008 + (f - 50) * .0004))) * luck
 	var ps: float = (.001 if f < 15 else (.005 if f < 40 else min(.035 * tb, .012 + (f - 40) * .0004))) * luck
-	var pr: float = min(.22 * (1 + .25 * int(G.tier)), .03 + f * .0016) * luck
-	var pm: float = min(.5, .26 + f * .0025) * sqrt(luck)
+	# 초반(5층 전)은 흰템 위주: 매직은 드물게, 레어는 거의 없음 → 15층 즈음 원래 확률까지 서서히
+	var ramp: float = clampf((f - 3.0) / 12.0, 0.0, 1.0) if int(G.tier) == 0 else 1.0
+	var pr: float = max(.0015, min(.22 * (1 + .25 * int(G.tier)), .03 + f * .0016) * ramp * ramp) * luck
+	var pm: float = lerpf(.06, min(.5, .26 + f * .0025), ramp) * sqrt(luck)
+	pu *= ramp * ramp; ps *= ramp * ramp          # 세트·유니크도 초반엔 사실상 안 나옴
 	var r := randf(); var out := "normal"
 	if r < pu: out = "unique"
 	elif r < pu + ps: out = "set"
@@ -1415,7 +1442,7 @@ func open_chest(c: Dictionary) -> void:
 	if randf() < .15: n = 0
 	var v: int = max(1, int(round((6 + lvf() * 3) * diff_d().reward * GOLD_RATE * rnd(.6, 1.4))))
 	for i in n: G.drops.append({id = nid(), x = c.x, y = c.y + 6, kind = "gold", v = v, t = .5, vx = rnd(-130, 130) * (.5 + n / 18.0), vy = rnd(-40, 150) * (.5 + n / 18.0), h = 8.0, vh = rnd(140, 220)})
-	if randf() < .18: drop_item(c.x, c.y, "", 1.5)
+	if randf() < (.08 if lvf() < 5 else .13): drop_item(c.x, c.y, "", 1.5 if lvf() >= 5 else 1.0)
 	if lvf() >= 25 and randf() < .05: drop_stone(c.x, c.y, 1)
 	var r = randf()
 	if r < .45: G.drops.append({id = nid(), x = c.x, y = c.y, kind = pick(["pothp", "pothp", "potmp"]), t = 0.0, vx = rnd(-60, 60), vy = rnd(40, 90), h = 0.0, vh = 110.0})
@@ -1852,8 +1879,16 @@ func update(dt: float) -> void:
 	G.eshots = G.eshots.filter(func(s): return s.life > 0)
 
 	# 구역
+	var fired: Array = []
 	for z in G.zones:
+		if z.get("pre", 0.0) > 0:
+			z.pre -= dt; continue          # 아직 나타나기 전(차례차례 터지는 장판)
 		z.life -= dt
+		if z.kind == "tele" and z.life <= 0: fired.append(z)
+		if z.kind == "pool":
+			z.tick -= dt
+			if z.tick <= 0 and hyp(P.x - z.x, P.y - z.y) < z.r:
+				z.tick = .5; hurt_player(z.dps * .5)
 		if z.kind == "ember" or z.kind == "acid":
 			for e in G.enemies:
 				if not e.dead and hyp(e.x - z.x, e.y - z.y) < z.r + e.r: damage_enemy(e, z.dps * dt, {fire = true} if z.kind == "ember" else null, true)
@@ -1863,6 +1898,7 @@ func update(dt: float) -> void:
 			ring(z.x, z.y, 10, z.r, .3, "#e6dcc4"); burst(z.x, z.y, "#9b927f", 24, 240, .4, 4)
 			if hyp(P.x - z.x, P.y - z.y) < z.r: hurt_player(z.dmg)
 	G.zones = G.zones.filter(func(z): return z.life > 0)
+	for z in fired: tele_fire(z)
 	for l in G.lights: l.life -= dt
 	G.lights = G.lights.filter(func(l): return l.life > 0)
 
@@ -2018,3 +2054,336 @@ func buy_bag() -> bool:
 	if G.gold < price:
 		toast.emit("금화가 모자라요"); return false
 	G.gold -= price; P.bagMax = min(D.BAG_LIMIT, P.bagMax + D.BAG_STEP); save(); toast.emit("가방이 %d칸이 됐어요" % P.bagMax); return true
+
+# ================= 보스 패턴 =================
+# 로스트아크·디아4·메이플식: 빨간 장판(예고) → 터짐. 원형·도넛(안/밖)·직선 돌진·부채꼴 베기·땅 가르기·운석·십자 광선·
+# 회전 탄막·가시 방사·끌어당기기·순간이동·소환·안전지대·(최종) 봉인 무적.
+# lvl: 1 = 5층 네임드, 1.3 = 10·30층, 2.2~3.4 = 20·40·60·80층 계층 수호자, 3.6 = 옥상 최종
+const PAT := {
+	golem = ["slam", "charge", "quake", "cleave", "inout", "summon", "shards", "pull", "charge"],
+	flesh = ["spikes", "acidrain", "quake", "charge", "summon", "cleave", "spin", "acidrain"],
+	warlock = ["skulls", "blink", "cross", "meteor", "spin", "inout", "summon", "rings"],
+	final = ["skulls", "blink", "cross", "meteor", "spin", "inout", "summon", "rings", "spikes", "quake"],
+	melee = ["charge", "slam", "cleave", "quake", "spikes", "inout"],
+	ranged = ["spikes", "spin", "meteor", "cleave", "skulls", "rings"],
+	elite = ["charge", "slam", "cleave", "charge"],
+	rabbit = ["charge", "slam", "quake", "charge"],
+}
+
+func boss_setup(e: Dictionary, pool: String, lvl: float) -> void:
+	e.pk = pool; e.lvl = lvl; e.pt = 2.2 if pool != "elite" else 1.5
+	e.cast = 0.0; e.dash = null; e.spin = null; e.last = ""; e.q = []; e.stun = 0.0; e.pullT = 0.0
+
+func _tt(e: Dictionary, k := 1.0) -> float:
+	return max(.55, 1.05 - .09 * float(e.lvl)) * k
+
+# 예고 장판 하나. shape: circle(r) · donut(r0,r) · line(ang,len,w) · fan(ang,half,len) · safe(spots,sr)
+func tele(shape: String, x: float, y: float, delay: float, dmg: float, ex := {}) -> Dictionary:
+	var z := {kind = "tele", shape = shape, x = x, y = y, life = delay, max = delay, dmg = dmg, pre = 0.0, cap = .45}
+	for k in ex.keys(): z[k] = ex[k]
+	G.zones.append(z); return z
+
+func in_tele(z: Dictionary, px: float, py: float, pr: float) -> bool:
+	var dx: float = px - z.x; var dy: float = py - z.y; var d := hyp(dx, dy)
+	match z.shape:
+		"circle": return d < z.r + pr * .5
+		"donut": return d > z.r0 - pr * .5 and d < z.r + pr * .5
+		"line":
+			var t: float = dx * cos(z.ang) + dy * sin(z.ang); var o: float = absf(-dx * sin(z.ang) + dy * cos(z.ang))
+			return t > -pr and t < z.len + pr and o < z.w + pr * .5
+		"fan": return d < z.len + pr * .5 and absf(ang_diff(atan2(dy, dx), z.ang)) < z.half
+		"safe":
+			for q in z.spots:
+				if hyp(px - q.x, py - q.y) < z.sr: return false
+			return true
+	return false
+
+func tele_fire(z: Dictionary) -> void:
+	var col: String = z.get("col", "#e6dcc4")
+	match z.shape:
+		"circle":
+			ring(z.x, z.y, 6, z.r, .3, col); burst(z.x, z.y, col, int(10 + z.r / 6), 60 + z.r * 2, .4, 3)
+		"donut":
+			ring(z.x, z.y, z.r0, z.r, .35, col)
+			for k in 10:
+				var a := k * TAU / 10 + rnd(0, .5); var rr: float = rnd(z.r0, z.r)
+				burst(z.x + cos(a) * rr, z.y + sin(a) * rr, col, 4, 120, .35, 3)
+		"line":
+			for k in int(z.len / 40):
+				var t := (k + .5) * 40.0
+				burst(z.x + cos(z.ang) * t, z.y + sin(z.ang) * t, col, 3, 90, .3, 3)
+		"fan":
+			for k in 8:
+				var a: float = z.ang + rnd(-z.half, z.half); var rr: float = rnd(20, z.len)
+				burst(z.x + cos(a) * rr, z.y + sin(a) * rr, col, 4, 110, .3, 3)
+		"safe":
+			G.shake = .5
+			for k in 24:
+				burst(P.x + rnd(-300, 300), P.y + rnd(-220, 220), col, 4, 140, .4, 3)
+	if z.get("warn_only", false): return
+	G.shake = max(G.shake, .18); sfx.emit("boom" if z.shape != "line" else "hit")
+	if in_tele(z, P.x, P.y, P.r): hurt_player(min(z.dmg, P.maxhp * z.cap))
+	if z.has("pool"):
+		G.zones.append({kind = "pool", x = z.x, y = z.y, r = z.r * .9, life = z.pool, max = z.pool, dps = z.dmg * .3, tick = 0.0, col = z.get("pcol", "#8fd14f")})
+
+func _add_pos(e: Dictionary, rad: float) -> Vector2:
+	for k in 12:
+		var a := rnd(0, TAU); var p := Vector2(e.x + cos(a) * rad * rnd(.7, 1.2), e.y + sin(a) * rad * rnd(.7, 1.2))
+		if not mg.hits(p.x, p.y, 14) and not mg.no_spawn(p.x, p.y): return p
+	return Vector2(e.x, e.y)
+
+func _shot_kind(e: Dictionary) -> String:
+	match e.pk:
+		"flesh": return "spit"
+		"warlock", "final": return "skull"
+		"golem": return "spike"
+	match e.d.get("atk", "melee"):
+		"orb": return String(e.d.get("orb", e.get("orb", "ice")))
+		"fireball": return "fire"
+		"skull": return "skull"
+	return "spike"
+
+# 매 프레임. true 를 돌려주면 이번 프레임은 패턴이 몸을 잡고 있으니 평소 이동은 건너뜀
+func boss_pat(e: Dictionary, dt: float) -> bool:
+	var lv: float = e.lvl
+	# 미뤄 둔 일(연속 탄막 등)
+	for qi in range(e.q.size() - 1, -1, -1):
+		var it: Dictionary = e.q[qi]; it.t -= dt
+		if it.t <= 0:
+			e.q.remove_at(qi); _pat_then(e, it)
+	if e.pk == "final": _final_phase(e, dt)
+	if e.hp < e.max * .4 and not e.get("enr", false):
+		e.enr = true; e.spd *= 1.18; ring(e.x, e.y, e.r, e.r + 50, .5, "#ff5a4a")
+		if e.isBoss: G.banner = {text = "%s 이(가) 분노했다!" % e.get("name", "보스"), t = 1.6}
+	if e.dash != null:
+		var ds: Dictionary = e.dash; ds.t -= dt
+		var step: float = ds.spd * dt; var ox: float = e.x; var oy: float = e.y
+		mg.move(e, cos(ds.ang) * step, sin(ds.ang) * step)
+		e.vx = cos(ds.ang) * ds.spd * .2; e.vy = sin(ds.ang) * ds.spd * .2
+		if randf() < dt * 25: smoke(e.x, e.y + 6, 1, "#4a4038")
+		if not ds.hit and hyp(P.x - e.x, P.y - e.y) < e.r + P.r + 8:
+			ds.hit = true; hurt_player(min(ds.dmg, P.maxhp * .45)); mg.move(P, cos(ds.ang) * 30, sin(ds.ang) * 30)
+		var moved := hyp(e.x - ox, e.y - oy)
+		if ds.t <= 0 or moved < step * .3:
+			e.dash = null
+			if moved < step * .3:
+				# 벽에 쾅: 잠깐 휘청 + (강한 보스는) 파편이 사방으로
+				burst(e.x, e.y, "#b8a888", 22, 200, .4, 3); G.shake = .3; e.stun = .7; sfx.emit("boom")
+				if lv >= 2: _radial(e, int(8 + 2 * lv), "spike", 170.0, e.dmg * .5, rnd(0, 1))
+			if ds.n > 1:
+				e.q.append({t = .35, k = "recharge", n = ds.n - 1})
+		return true
+	if e.stun > 0:
+		e.stun -= dt; e.vx = 0.0; e.vy = 0.0; return true
+	if e.spin != null:
+		var sp: Dictionary = e.spin; sp.t -= dt; sp.cd -= dt; sp.ang += sp.rate * dt
+		if sp.cd <= 0:
+			sp.cd = sp.every
+			for k in sp.arms: enemy_shot(e, sp.kind, sp.ang + k * TAU / sp.arms, sp.speed, {r = 7.0, dmg = sp.dmg, life = 3.2})
+		if sp.t <= 0: e.spin = null
+		e.vx = 0.0; e.vy = 0.0
+		return true
+	if e.pullT > 0:
+		e.pullT -= dt
+		var dx: float = e.x - P.x; var dy: float = e.y - P.y; var dl: float = max(1.0, hyp(dx, dy))
+		if dl > e.r + P.r + 10: mg.move(P, dx / dl * 105 * dt, dy / dl * 105 * dt)
+		if randf() < dt * 30: G.fx.append({x = P.x + rnd(-20, 20), y = P.y + rnd(-20, 20), vx = dx / dl * 120, vy = dy / dl * 120, life = .3, max = .3, color = "#c9a3ff", size = 2.0})
+	if e.cast > 0:
+		e.cast -= dt; e.vx *= .8; e.vy *= .8
+		return true
+	var d := hyp(P.x - e.x, P.y - e.y)
+	e.pt -= dt * (1.35 if e.get("enr", false) else 1.0)
+	if e.pt <= 0 and d < 560 and not e.get("seal", false):
+		var pool: Array = PAT[e.pk]
+		var p: String = pick(pool)
+		for k in 4:
+			if p != e.last: break
+			p = pick(pool)
+		e.last = p
+		_pat(e, p, d)
+		e.pt = 3.6 / (.55 + .45 * lv) * rnd(.85, 1.2) + e.cast
+		if e.pk == "elite": e.pt += 1.6
+		# 강한 보스는 가끔 패턴 두 개를 겹쳐 씀
+		if lv >= 2.5 and e.get("enr", false) and randf() < .35:
+			e.q.append({t = e.cast * .6, k = "extra"})
+	return false
+
+# 벽에 닿기 전까지의 길이
+func _ray_len(x: float, y: float, ang: float, mx: float) -> float:
+	var l := 0.0
+	while l < mx and not mg.solid_at(x + cos(ang) * l, y + sin(ang) * l): l += 10.0
+	return l
+
+func _radial(e: Dictionary, n: int, kind: String, speed: float, dmg: float, off := 0.0) -> void:
+	for k in n: enemy_shot(e, kind, off + k * TAU / n, speed, {r = 7.0, dmg = dmg, life = 3.4})
+	ring(e.x, e.y, e.r, e.r + 40, .3, "#ffdca0")
+
+func _pat(e: Dictionary, p: String, d: float) -> void:
+	var lv: float = e.lvl; var dm: float = e.dmg; var tt := _tt(e)
+	var a := atan2(P.y - e.y, P.x - e.x)
+	var col := "#e6dcc4"
+	match e.pk:
+		"flesh": col = "#b6e06a"
+		"warlock", "final": col = "#c08aff"
+	match p:
+		"slam":
+			# 내려찍기 → (강하면) 바깥으로 퍼지는 충격파
+			var r1: float = e.r + 80 + 10 * lv
+			e.cast = tt; tele("circle", e.x, e.y, tt, dm * 1.5, {r = r1, col = col})
+			if lv >= 1.8: tele("donut", e.x, e.y, tt + .55, dm * 1.2, {r0 = r1, r = r1 + 110 + 15 * lv, col = col})
+		"charge":
+			e.cast = tt
+			tele("line", e.x, e.y, tt, 0.0, {ang = a, len = _ray_len(e.x, e.y, a, 400.0), w = e.r + 10, warn_only = true})
+			var n: int = 1 + (1 if lv >= 2 else 0) + (1 if e.get("enr", false) else 0)
+			e.q.append({t = tt, k = "dash", ang = a, n = n})
+		"quake":
+			# 땅 가르기: 나를 향해 이어 터지는 충격(강하면 세 갈래)
+			e.cast = .55
+			var dirs: Array = [a] if lv < 2.4 else [a - .45, a, a + .45]
+			for aa in dirs:
+				for k in int(6 + lv * 2):
+					var q := Vector2(e.x, e.y) + Vector2(cos(aa), sin(aa)) * (55 + k * 40)
+					if mg.solid_at(q.x, q.y): break
+					tele("circle", q.x, q.y, tt * .75, dm * 1.2, {r = 32.0 + 3 * lv, pre = .1 + k * .085, col = col})
+		"cleave":
+			# 앞을 크게 베기(강하면 뒤까지 한 번 더)
+			e.cast = tt * .85
+			tele("fan", e.x, e.y, tt * .85, dm * 1.7, {ang = a, half = .62 + .05 * lv, len = e.r + 150 + 10 * lv, col = col})
+			if lv >= 1.8: tele("fan", e.x, e.y, tt * .7, dm * 1.7, {ang = a + PI, half = .62 + .05 * lv, len = e.r + 150 + 10 * lv, pre = tt * .85, col = col})
+		"inout":
+			# 메이플식 안/밖: 붙어 있다가 떨어지거나, 떨어져 있다가 파고들거나
+			var r1: float = e.r + 105.0
+			e.cast = tt + 1.0
+			var big: float = r1 + 300
+			if randf() < .5:
+				tele("circle", e.x, e.y, tt + .25, dm * 1.6, {r = r1, col = col}); tele("donut", e.x, e.y, tt * .9, dm * 1.6, {r0 = r1, r = big, pre = tt + .25, col = col})
+			else:
+				tele("donut", e.x, e.y, tt + .25, dm * 1.6, {r0 = r1, r = big, col = col}); tele("circle", e.x, e.y, tt * .9, dm * 1.6, {r = r1, pre = tt + .25, col = col})
+		"summon":
+			var alive := 0
+			for o in G.enemies:
+				if not o.dead and o.get("minion", false): alive += 1
+			if alive >= int(4 + 2 * lv):
+				_pat(e, "slam", d); return
+			e.cast = .6; ring(e.x, e.y, 10, 90, .5, col)
+			var types: Array = {golem = ["skel", "skel", "archer", "skel_knight"], flesh = ["zombie", "zombie", "plague", "imp"], warlock = ["imp", "skel", "mage", "ice_mage"], final = ["imp", "skel_knight", "mage", "fire_archer"]}.get(e.pk, [e.type])
+			for k in int(2 + lv):
+				var t: String = pick(types)
+				if not D.MONSTERS.has(t) or D.MONSTERS[t].from > max(G.floor, 1) + 10: t = "skel"
+				var pp := _add_pos(e, 70.0)
+				var s = spawn_enemy(t, pp.x, pp.y); s.aggro = true; s.xp = 1; s.minion = true
+				smoke(pp.x, pp.y, 4)
+		"shards", "spikes":
+			# 가시 방사: 한 바퀴 빙 둘러 쏨, 강하면 엇갈린 파도 여러 번
+			e.cast = .5
+			var n: int = int(10 + 3 * lv); var waves: int = 1 + (1 if lv >= 1.8 else 0) + (1 if lv >= 3 else 0)
+			for w in waves: e.q.append({t = .3 + w * .45, k = "radial", n = n, off = w * PI / n + rnd(0, .3), kind = _shot_kind(e), dmg = dm * .55})
+		"spin":
+			e.spin = {t = 2.0 + .4 * lv, cd = 0.0, every = max(.07, .17 - .025 * lv), ang = a, rate = (1.5 + .25 * lv) * pick([-1, 1]), arms = 2 + int(lv), speed = 140.0 + 15 * lv, dmg = dm * .45, kind = _shot_kind(e)}
+		"meteor", "acidrain":
+			# 하늘에서 떨어짐: 내 주변으로 차례차례(산성비는 독 웅덩이를 남김)
+			e.cast = .7
+			var n: int = int(4 + 2 * lv)
+			for k in n:
+				var q := Vector2(P.x, P.y) if k == 0 else Vector2(P.x + rnd(-150, 150), P.y + rnd(-120, 120))
+				var ex := {r = rnd(44, 58), pre = k * (.22 - .02 * min(lv, 3.0)), col = "#ff8a3a" if p == "meteor" else "#a6e34f"}
+				if p == "acidrain": ex.pool = 3.0
+				tele("circle", q.x, q.y, tt + .25, dm * 1.3, ex)
+		"cross":
+			# 십자 광선(강하면 X 로 한 번 더)
+			e.cast = tt + .3
+			var a0 := a if randf() < .5 else a + PI / 4
+			for k in 4: tele("line", e.x, e.y, tt + .3, dm * 1.6, {ang = a0 + k * PI / 2, len = _ray_len(e.x, e.y, a0 + k * PI / 2, 560.0), w = 26.0, col = col})
+			if lv >= 2.4:
+				for k in 4: tele("line", e.x, e.y, tt * .8, dm * 1.6, {ang = a0 + PI / 4 + k * PI / 2, len = _ray_len(e.x, e.y, a0 + PI / 4 + k * PI / 2, 560.0), w = 26.0, pre = tt + .3, col = col})
+		"rings":
+			# 퍼져 나가는 고리: 터진 고리 안쪽으로 파고들어야 함
+			e.cast = .6
+			var rr: float = e.r + 10.0
+			for k in int(3 + lv):
+				tele("donut", e.x, e.y, .75, dm * 1.1, {r0 = rr, r = rr + 85, pre = .2 + k * (.55 - .05 * min(lv, 3.0)), col = col})
+				rr += 85
+		"skulls":
+			e.cast = .45
+			for k in int(2 + lv): enemy_shot(e, "skull", a + (k - (1 + lv) / 2.0) * .35, 150, {r = 9.0, homing = 2.0 + .2 * lv, life = 5.0, dmg = dm * .7})
+		"blink":
+			var r: Dictionary = mg.rooms[0]
+			for k in 14:
+				var nx: float = (r.x + rnd(2, r.w - 2)) * T; var ny: float = (r.y + rnd(2, r.h - 2)) * T
+				if not mg.hits(nx, ny, e.r) and hyp(nx - P.x, ny - P.y) > 160 and hyp(nx - P.x, ny - P.y) < 380:
+					burst(e.x, e.y, col, 16, 140, .4, 3); e.x = nx; e.y = ny; burst(nx, ny, col, 16, 140, .4, 3); break
+			if lv >= 2: e.q.append({t = .3, k = "pat", p = pick(["skulls", "rings", "cross"])})
+		"pull":
+			# 끌어당긴 뒤 내려찍기
+			e.cast = 1.5; e.pullT = 1.3
+			tele("circle", e.x, e.y, 1.5, dm * 1.8, {r = e.r + 95.0, col = "#c9a3ff"})
+			G.banner = {text = "끌려간다! 버텨서 빠져나오자", t = 1.2}
+		"safe":
+			_pat_safe(e, 2)
+
+func _pat_safe(e: Dictionary, n: int) -> void:
+	# 안전지대: 방 전체가 터지고 초록 원 안만 안전
+	var r: Dictionary = mg.rooms[0]; var spots: Array = []
+	for k in 40:
+		if spots.size() >= n: break
+		var q := Vector2((r.x + rnd(2.5, r.w - 2.5)) * T, (r.y + rnd(2.5, r.h - 2.5)) * T)
+		var ok: bool = not mg.hits(q.x, q.y, 30) and hyp(q.x - P.x, q.y - P.y) > 110 and hyp(q.x - P.x, q.y - P.y) < 420
+		for s2 in spots:
+			if hyp(q.x - s2.x, q.y - s2.y) < 200: ok = false
+		if ok: spots.append(q)
+	if spots.is_empty(): spots.append(Vector2(r.cx, r.cy + 80))
+	e.cast = 1.0
+	tele("safe", r.cx, r.cy, 3.0, P.maxhp * .7, {spots = spots, sr = 58.0, cap = .75, col = "#c08aff"})
+	G.banner = {text = "초록 원 안으로 피하세요!", t = 1.8}
+
+func _pat_then(e: Dictionary, it: Dictionary) -> void:
+	if e.dead: return
+	match it.k:
+		"dash":
+			e.dash = {ang = it.ang, t = .85, spd = 470.0 + 30 * float(e.lvl), hit = false, dmg = e.dmg * 1.7, n = it.n}
+			sfx.emit("roar")
+		"recharge":
+			var a := atan2(P.y - e.y, P.x - e.x); var tt := _tt(e, .75)
+			e.cast = tt; tele("line", e.x, e.y, tt, 0.0, {ang = a, len = _ray_len(e.x, e.y, a, 400.0), w = e.r + 10, warn_only = true})
+			e.q.append({t = tt, k = "dash", ang = a, n = it.n})
+		"radial": _radial(e, it.n, it.kind, 165.0 + 10 * float(e.lvl), it.dmg, it.off)
+		"pat": _pat(e, it.p, hyp(P.x - e.x, P.y - e.y))
+		"extra":
+			var pool: Array = ["meteor", "spikes", "skulls", "quake"]
+			_pat(e, pick(pool), hyp(P.x - e.x, P.y - e.y)); e.cast = min(e.cast, .3)
+
+# 옥상 최종 보스: 체력 66%·33% 에서 봉인(무적) → 방 구석의 봉인 수호자들을 모두 쓰러뜨려야 풀림.
+# 봉인 중엔 안전지대 패턴을 되풀이. 풀리면 잠깐 그로기(크게 때릴 기회). 10% 아래는 마지막 발악.
+func _final_phase(e: Dictionary, dt: float) -> void:
+	for ph in [[.66, "ph1", 3], [.33, "ph2", 4]]:
+		if e.hp < e.max * ph[0] and not e.get(ph[1], false):
+			e[ph[1]] = true; _seal(e, ph[2])
+	if e.get("seal", false):
+		e.sealT -= dt; e.sealFx = float(e.get("sealFx", 0.0)) - dt
+		if e.sealFx <= 0:
+			e.sealFx = .6; ring(e.x, e.y, e.r + 4, e.r + 26, .5, "#c9a3ff")
+		var alive := 0
+		for g in G.enemies:
+			if not g.dead and g.get("guard", false): alive += 1
+		if alive == 0:
+			e.seal = false; e.stun = 2.5; e.cast = 0.0; e.spin = null
+			G.banner = {text = "봉인이 깨졌다! 지금이 기회!", t = 2.0}; ring(e.x, e.y, 10, 200, .6, "#fff2c2"); sfx.emit("levelup")
+		elif e.sealT <= 0 and e.cast <= 0:
+			e.sealT = 9.0; _pat_safe(e, 2 if alive > 2 else 1)
+	if e.hp < e.max * .1 and not e.get("desp", false):
+		e.desp = true; e.lvl = 4.2; e.pt = .5
+		G.banner = {text = "흑마법사가 마지막 힘을 끌어모은다!", t = 2.0}
+
+func _seal(e: Dictionary, n: int) -> void:
+	e.seal = true; e.sealT = 5.0; e.dash = null; e.spin = null
+	var r: Dictionary = mg.rooms[0]
+	var corners: Array = [Vector2(r.x + 3, r.y + 3), Vector2(r.x + r.w - 3, r.y + 3), Vector2(r.x + 3, r.y + r.h - 3), Vector2(r.x + r.w - 3, r.y + r.h - 3)]
+	corners.shuffle()
+	for k in n:
+		var c: Vector2 = corners[k] * T
+		if mg.hits(c.x, c.y, 16): c = _add_pos(e, 200.0)
+		var g := spawn_enemy("mage", c.x, c.y, 14.0)
+		g.guard = true; g.aggro = true; g.spd = 0.0; g.name = "봉인의 수호자"; g.tint = "#c9a3ff"; g.hmul = 1.25; g.xp = 1; g.minion = true
+		ring(c.x, c.y, 10, 60, .5, "#c9a3ff")
+	e.x = r.cx; e.y = r.cy - 40
+	G.banner = {text = "봉인! 구석의 수호자를 모두 쓰러뜨려라", t = 2.4}; sfx.emit("roar")

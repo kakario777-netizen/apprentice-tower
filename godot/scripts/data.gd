@@ -28,17 +28,17 @@ static func bag_price(cur: int) -> int:
 	return [3000, 8000, 18000, 35000, 60000][min(n, 4)]
 
 const PRIMARIES := {
-	arcane = {name = "비전탄", color = "#c39bff", kind = "shot", desc = "적을 스스로 쫓아가는 마력탄. 조준이 서툴러도 잘 맞는다.", cd = .65, speed = 205, homing = 3.2, radius = 5},
-	fire = {name = "화염구", color = "#ff7b34", kind = "shot", desc = "곧게 날아가 부딪히면 터지는 불덩이. 한 방이 묵직하다.", cd = .55, speed = 300, homing = 0, radius = 7},
-	storm = {name = "번개", color = "#86e3ff", kind = "chain", desc = "조준한 쪽 적에게 전격을 계속 흘려보낸다. 누르는 동안 지속.", range = 230},
-	frost = {name = "냉기 숨결", color = "#cdf2ff", kind = "cone", desc = "앞쪽으로 냉기를 뿜어 여러 적을 한꺼번에 느리게 만든다.", range = 138},
+	arcane = {name = "비전탄", color = "#c39bff", kind = "shot", desc = "적을 스스로 쫓아가는 마력탄. 잘 맞는 대신 한 발은 가볍다.", cd = .65, speed = 205, homing = 3.2, radius = 5},
+	fire = {name = "화염구", color = "#ff7b34", kind = "shot", desc = "곧게 날아가 부딪히면 터지는 불덩이. 가장 묵직한 한 방, 주변도 조금 태운다.", cd = .55, speed = 300, homing = 0, radius = 7},
+	storm = {name = "번개", color = "#86e3ff", kind = "chain", desc = "조준한 쪽 적에게 전격을 흘려 옆 적까지 튀긴다. 무리를 쓸어 담는다.", range = 230},
+	frost = {name = "냉기 숨결", color = "#cdf2ff", kind = "cone", desc = "앞쪽으로 냉기를 뿜어 여러 적을 크게 느리게 만든다(움직임·공격 모두).", range = 138},
 }
 const PRIM_ORDER := ["arcane", "fire", "storm", "frost"]
 
 static func prim_dmg(id: String, l: float) -> Array:
 	match id:
 		"arcane": return [3 * l + 2, 4 * l + 3]
-		"fire": return [5 * l + 5, 5 * l + 9]
+		"fire": return [6 * l + 6, 6 * l + 11]
 	return [0, 0]
 static func prim_mana(id: String, l: float) -> float:
 	match id:
@@ -47,8 +47,8 @@ static func prim_mana(id: String, l: float) -> float:
 	return 0
 static func prim_dps(id: String, l: float) -> float:
 	match id:
-		"storm": return 12 + 8 * l
-		"frost": return 10 + 7 * l
+		"storm": return 11 + 7 * l
+		"frost": return 8 + 6 * l
 	return 0
 static func prim_manaps(id: String, l: float) -> float:
 	match id:
@@ -57,7 +57,7 @@ static func prim_manaps(id: String, l: float) -> float:
 	return 0
 
 const SUBS := [
-	{id = "multi", of = "arcane", name = "다중 시전", desc = "비전 계열 탄을 한 번에 1발 더 쏜다.", max = 4},
+	{id = "multi", of = "arcane", name = "다중 시전", desc = "비전 계열 탄을 한 번에 1발 더 쏜다(발이 늘수록 한 발 피해는 줄어듦).", max = 4},
 	{id = "seek", of = "arcane", name = "끈질긴 추적", desc = "적을 맞힌 탄이 다음 적을 다시 쫓는다. 레벨당 1회.", max = 3},
 	{id = "siphon", of = "arcane", name = "마력 흡수", desc = "비전 계열 탄이 명중하면 마나를 조금 되찾는다.", max = 3},
 	{id = "blast", of = "fire", name = "폭발", desc = "화염 계열 탄이 주변까지 터진다. 레벨마다 반경 증가.", max = 4},

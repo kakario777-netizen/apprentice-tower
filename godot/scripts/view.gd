@@ -744,6 +744,57 @@ func _circle_pts(x: float, y: float, r: float, a0 := 0.0, a1 := TAU, n := 40) ->
 		out.append(Vector2(x + cos(a) * r, y + sin(a) * r))
 	return out
 
+# 보스 예고 장판: 빨간 테두리 + 터질 때까지 차오르는 안쪽(안전지대는 초록)
+const TELE_C := Color(.95, .3, .24)
+func _fill(im: ImmediateMesh, pts: Array, c: Color, h := .05) -> void:
+	if pts.size() < 3: return
+	im.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
+	for i in range(1, pts.size() - 1):
+		for q in [pts[0], pts[i], pts[i + 1]]:
+			im.surface_set_color(c); im.surface_add_vertex(w3(q.x, q.y, h))
+	im.surface_end()
+
+func _annulus(im: ImmediateMesh, x: float, y: float, r0: float, r1: float, c: Color, h := .05) -> void:
+	im.surface_begin(Mesh.PRIMITIVE_TRIANGLE_STRIP)
+	for i in 49:
+		var a: float = TAU * i / 48
+		im.surface_set_color(c); im.surface_add_vertex(w3(x + cos(a) * r1, y + sin(a) * r1, h))
+		im.surface_set_color(c); im.surface_add_vertex(w3(x + cos(a) * r0, y + sin(a) * r0, h))
+	im.surface_end()
+
+func _tele_draw(z: Dictionary) -> void:
+	var t: float = clampf(1 - z.life / max(z.max, .001), 0, 1)
+	var wo: bool = z.get("warn_only", false)
+	var c := TELE_C; var edge := Color(c, .9); var fill := Color(c, .16 + .14 * t)
+	match z.shape:
+		"circle":
+			_line(lines_mix, _circle_pts(z.x, z.y, z.r), 2.5, edge); _disc(lines_mix, z.x, z.y, z.r * t, fill)
+			_disc(lines_mix, z.x, z.y, z.r, Color(c, .07))
+		"donut":
+			_line(lines_mix, _circle_pts(z.x, z.y, z.r0), 2.5, edge); _line(lines_mix, _circle_pts(z.x, z.y, z.r), 2.5, edge)
+			_annulus(lines_mix, z.x, z.y, z.r0, z.r, Color(c, .07)); _annulus(lines_mix, z.x, z.y, z.r0, z.r0 + (z.r - z.r0) * t, fill)
+		"line":
+			var dv := Vector2(cos(z.ang), sin(z.ang)); var nv: Vector2 = Vector2(-dv.y, dv.x) * z.w
+			var o := Vector2(z.x, z.y); var L: float = z.len
+			var box: Array = [o + nv, o + dv * L + nv, o + dv * L - nv, o - nv, o + nv]
+			_line(lines_mix, box, 2.0, edge)
+			_fill(lines_mix, [o + nv, o + dv * L + nv, o + dv * L - nv, o - nv], Color(c, .06 if not wo else .1))
+			_fill(lines_mix, [o + nv, o + dv * L * t + nv, o + dv * L * t - nv, o - nv], fill)
+		"fan":
+			var arc: Array = [Vector2(z.x, z.y)] + _circle_pts(z.x, z.y, z.len, z.ang - z.half, z.ang + z.half, 20)
+			_line(lines_mix, arc + [Vector2(z.x, z.y)], 2.5, edge); _fill(lines_mix, arc, Color(c, .07))
+			_fill(lines_mix, [Vector2(z.x, z.y)] + _circle_pts(z.x, z.y, z.len * t, z.ang - z.half, z.ang + z.half, 20), fill)
+		"safe":
+			var pul: float = .5 + .5 * sin(G_time() * 8)
+			_disc(lines_mix, P_pos().x, P_pos().y, 900, Color(c, .06 + .1 * t), .04)
+			for q in z.spots:
+				_disc(lines_mix, q.x, q.y, z.sr, Color(.3, 1, .45, .25 + .15 * pul), .06)
+				_line(lines_mix, _circle_pts(q.x, q.y, z.sr), 3.5, Color(.45, 1, .55, .95), .07)
+				_line(lines_mix, _circle_pts(q.x, q.y, z.sr * (1 - t) + 6), 2.0, Color(.8, 1, .85, .7), .07)
+
+func G_time() -> float: return game.G.time
+func P_pos() -> Vector2: return Vector2(game.P.x, game.P.y)
+
 func _disc(im: ImmediateMesh, x: float, y: float, r: float, c: Color, h := .05) -> void:
 	im.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
 	var n = 40
@@ -798,10 +849,18 @@ func _sync_lines(G, P) -> void:
 		elif z.kind == "warn":
 			var t: float = 1 - z.life / z.max
 			_line(lines_mix, _circle_pts(z.x, z.y, z.r), 2.5, Color(.9, .35, .27, .85)); _disc(lines_mix, z.x, z.y, z.r * t, Color(.9, .35, .27, .22))
+		elif z.kind == "tele" and z.get("pre", 0.0) <= 0: _tele_draw(z)
+		elif z.kind == "pool":
+			var pc := Color(z.col); var pa: float = min(1.0, z.life / max(z.max, .001) * 3)
+			_disc(lines_mix, z.x, z.y, z.r, Color(pc, .22 * pa)); _line(lines_mix, _circle_pts(z.x, z.y, z.r), 2.0, Color(pc, .5 * pa))
 	for s in G.eshots:
 		if s.kind == "arrow":
 			var a = atan2(s.vy, s.vx)
 			_line(lines_mix, [Vector2(s.x - cos(a) * 10, s.y - sin(a) * 10), Vector2(s.x, s.y)], 2, Color("#e8dcc0"), .9)
+		elif s.kind == "spike":
+			var a = atan2(s.vy, s.vx)
+			_line(lines_mix, [Vector2(s.x - cos(a) * 16, s.y - sin(a) * 16), Vector2(s.x + cos(a) * 4, s.y + sin(a) * 4)], 4.5, Color("#d8cbb0"), .6)
+			_line(lines_add, [Vector2(s.x - cos(a) * 8, s.y - sin(a) * 8), Vector2(s.x + cos(a) * 4, s.y + sin(a) * 4)], 2.0, Color(1, .85, .6, .6), .62)
 	# 계단·문 앞의 회색 반원: 여기 들어서면 빨려 들어간다
 	for st in [game.mg.stairs, game.mg.door, game.mg.down]:
 		if st == null or G.floor == 0 or not st.get("alcove", false) or not game.mg.is_seen(st.x, st.y + 8): continue
