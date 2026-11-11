@@ -5,12 +5,10 @@ const CAM_ELEV := 40.0     # 바닥을 내려다보는 각도(웹 CTH=50° 와 �
 const CAM_DIST := 16.25    # 웹 RC=520px
 const CAM_FOV := 37.0
 const SETTINGS := "user://settings.cfg"
-const MODE2D := true       # 그래픽을 2D(3/4 탑뷰)로. 3D 판은 다 옮기면 지운다
 
 var game := Game.new()
 var world: World
 var view: View
-var view2d: View2D
 var cam := Camera3D.new()
 var env := WorldEnvironment.new()
 var moon := DirectionalLight3D.new()
@@ -82,18 +80,13 @@ func _ready() -> void:
 		elif a.begins_with("--seed="): seed(int(a.substr(7)))
 	add_child(game)
 	World.set_fog(PackedByteArray())
-	if MODE2D:
-		view2d = View2D.new(); view2d.game = game; add_child(view2d)
-	else:
-		world = World.new(); add_child(world)
-		view = View.new(); view.game = game; view.world = world; add_child(view)
+	world = World.new(); add_child(world)
+	view = View.new(); view.game = game; view.world = world; add_child(view)
 	cam.fov = CAM_FOV; cam.near = .5; cam.far = 90.0; add_child(cam)
 	env.environment = Environment.new(); add_child(env)
 	moon.rotation_degrees = Vector3(-55, 30, 0); add_child(moon)
 	plight = OmniLight3D.new(); plight.omni_range = 10.0; plight.light_energy = 1.1; plight.light_color = Color(1, .92, .85); add_child(plight)
 	_make_dust(); _make_vignette(); _apply_shadows()
-	if MODE2D:
-		dust.visible = false; moon.visible = false; plight.visible = false
 	hud = Hud.new(); hud.main = self; hud.game = game; hud.cam = cam; add_child(hud)
 	ui = Ui.new(); ui.main = self; ui.game = game; add_child(ui)
 	game.toast.connect(hud.show_toast)
@@ -156,10 +149,8 @@ func _rebuild_level() -> void:
 	World.TORCH = th.torch if game.G.floor > 0 else Color(1, .6, .3)
 	World.FLOOR_TEX = th.floor
 	World.FLOOR_PBR = th.fp; World.WALL_PBR = th.wp
-	if MODE2D: view2d.rebuild()
-	else:
-		world.build(game.mg); view.rebuild()
-		_setup_env(game.mg.town != null)
+	world.build(game.mg); view.rebuild()
+	_setup_env(game.mg.town != null)
 	game.mg.dirty = true
 	cam.position = Vector3()   # 다음 프레임에 바로 따라붙도록
 
@@ -228,7 +219,7 @@ func _make_dust() -> void:
 
 # 화면 가장자리를 살짝 어둡게(비네트) — 시선이 가운데로 모이고 화면이 묵직해 보인다
 func _make_vignette() -> void:
-	var cl := CanvasLayer.new(); cl.layer = 2; add_child(cl)
+	var cl := CanvasLayer.new(); cl.layer = 0; add_child(cl)
 	var r := ColorRect.new(); r.set_anchors_preset(Control.PRESET_FULL_RECT); r.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var sh := Shader.new(); sh.code = """
 shader_type canvas_item;
@@ -416,10 +407,8 @@ func _process(dt: float) -> void:
 	if game.level_changed: _rebuild_level()
 	_sound_frame()
 	if game.G != null:
-		if MODE2D: view2d.sync(dt)
-		else:
-			view.sync(dt)
-			_place_cam(dt)
+		view.sync(dt)
+		_place_cam(dt)
 	_test_hooks(dt)
 
 func _place_cam(dt: float) -> void:

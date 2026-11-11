@@ -37,7 +37,7 @@ var touch_ui := true
 var pad_on := false
 
 func _ready() -> void:
-	layer = 3
+	layer = 1
 	var root = Control.new(); root.set_anchors_preset(Control.PRESET_FULL_RECT); root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(root)
 	draw.hud = self; draw.set_anchors_preset(Control.PRESET_FULL_RECT); draw.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -140,7 +140,7 @@ func _upd_minimap() -> void:
 		mini_img.set_pixel(k % MapGen.MW, k / MapGen.MW, c)
 	mini_tex.update(mini_img)
 	World.set_fog(mg.fog_bytes())
-	if main.world != null: main.world.update_fog()
+	main.world.update_fog()
 	mg.dirty = false
 
 # ---------------- 버튼 만들기 ----------------
@@ -295,7 +295,6 @@ class HudDraw extends Control:
 		draw_style_box(hi, Rect2(fx + 1, y, max(fw - 2, 0), h * .4))
 
 	func wp(x: float, y: float, up := 0.0) -> Vector2:
-		if hud.main.view2d != null: return hud.main.view2d.to_screen(x, y, up)
 		var c: Camera3D = hud.cam
 		var v = Vector3(x / 32.0, up * World.STAND / 32.0, y / 32.0)
 		if c.is_position_behind(v): return Vector2(-9999, -9999)
