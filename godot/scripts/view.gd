@@ -19,6 +19,7 @@ var stairs_key := ""
 var portal_node: Node3D
 var red_node: Node3D
 var gate_node: Node3D
+var vm_keep: StandardMaterial3D
 var ward_q: MeshInstance3D
 var harden_q: MeshInstance3D
 
@@ -124,7 +125,7 @@ void fragment() { vec4 c = texture(tex, UV); ALBEDO = c.rgb; ALPHA = c.a * alpha
 	mm.mesh = q
 	var mi = MultiMeshInstance3D.new(); mi.multimesh = mm
 	var m = ShaderMaterial.new(); m.shader = FX_SHADER
-	m.set_shader_parameter("tex", load("res://assets/sprites/%s.png" % name))
+	m.set_shader_parameter("tex", load(("res://art/%s.png" % name.substr(1)) if name.begins_with("@") else ("res://assets/sprites/%s.png" % name)))
 	m.render_priority = 2
 	mi.material_override = m; mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	mi.custom_aabb = AABB(Vector3(-10, -10, -10), Vector3(200, 50, 200))
@@ -224,12 +225,21 @@ void fragment() {
 func _build_gate(g: Vector2) -> void:
 	# 마을 북쪽 탑 입구(디아블로1 대성당 입구처럼): 돌 계단 → 큰 고딕 아치 → 반쯤 열린 나무 문 → 어둠 속 으스스한 빛
 	gate_node = Node3D.new(); gate_node.position = w3(g.x, g.y); add_child(gate_node)
+	vm_keep = StandardMaterial3D.new()
 	var stone: Material = World.pbr("large_sandstone_blocks", .5)
 	var dark_stone: Material = World.pbr("stone_brick_wall_001", .5)
 	var step_m: Material = World.pbr("stone_tiles_02", .6)
+	var art_gate: bool = Actor.art().has("bld_tower_gate")
+	if art_gate:
+		# 손그림 탑 입구 한 장(돌벽·아치·계단·횃대가 다 그려져 있음)
+		var gs := world.art_sprite("bld_tower_gate", Vector2.ZERO, 1.3)
+		gs.get_parent().remove_child(gs); gate_node.add_child(gs)
+		gs.position.x = 0; gs.position.z = -.35
 	var box := func(size: Vector3, pos: Vector3, m: Material, rot := Vector3()) -> MeshInstance3D:
 		var mi = MeshInstance3D.new(); var bm = BoxMesh.new(); bm.size = size; mi.mesh = bm; mi.material_override = m
-		mi.position = pos; mi.rotation = rot; gate_node.add_child(mi); return mi
+		mi.position = pos; mi.rotation = rot
+		if art_gate and m != vm_keep: mi.visible = false
+		gate_node.add_child(mi); return mi
 	# 정면 벽(두껍게) + 위쪽 톱니 + 양옆 부벽
 	# 정면 벽은 문 자리를 비우고 세 덩어리로(왼쪽·오른쪽·문 위) — 문 안이 뚫려 보인다
 	box.call(Vector3(4.3, 4.4, 1.6), Vector3(-3.35, 2.2, -1.25), stone)
@@ -249,19 +259,20 @@ func _build_gate(g: Vector2) -> void:
 	# 활짝 열린 아치: 안쪽은 막힌 벽이 아니라 보랏빛이 쏟아져 나오는 통로
 	var pg := Gradient.new(); pg.set_color(0, Color(.95, .7, 1.0)); pg.add_point(.45, Color(.55, .25, .95)); pg.set_color(pg.get_point_count() - 1, Color(.12, .04, .22))
 	var pt2 := GradientTexture2D.new(); pt2.gradient = pg; pt2.fill = GradientTexture2D.FILL_RADIAL; pt2.fill_from = Vector2(.5, .75); pt2.fill_to = Vector2(1.0, .2); pt2.width = 128; pt2.height = 128
-	var vm := StandardMaterial3D.new(); vm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; vm.albedo_texture = pt2
+	var vm := vm_keep; vm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; vm.albedo_texture = pt2
 	vm.emission_enabled = true; vm.emission_texture = pt2; vm.emission = Color.WHITE; vm.emission_energy_multiplier = 1.6
 	box.call(Vector3(2.45, 3.05, .08), Vector3(0, 1.52, -2.05), vm)                 # 빛나는 안쪽
 	var side_m: Material = World.pbr("stone_brick_wall_001", .5)
 	for sx in [-1, 1]: box.call(Vector3(.1, 3.1, 1.7), Vector3(sx * 1.25, 1.55, -1.25), side_m)
-	for gq in [[3.6, .75, -1.6], [5.2, .45, -.4], [3.0, .5, .6]]:
+	for gq in ([[3.0, .5, .6]] if art_gate else [[3.6, .75, -1.6], [5.2, .45, -.4], [3.0, .5, .6]]):
 		var ig = world.glow_quad(Color(.7, .4, 1.0, gq[1]), gq[0]); ig.position = Vector3(0, 1.3, gq[2]); gate_node.add_child(ig)
-	_light(gate_node, Vector3(0, 1.4, -.6), Color(.7, .45, 1.0), 9.0, 2.6)
-	_light(gate_node, Vector3(0, .6, 1.6), Color(.6, .4, 1.0), 6.0, 1.2)
+	var gk: float = .3 if art_gate else 1.0       # 손그림은 빛이 이미 그려져 있어서 조명을 약하게
+	_light(gate_node, Vector3(0, 1.4, -.6 if not art_gate else .4), Color(.7, .45, 1.0), 9.0 * (.5 if art_gate else 1.0), 2.6 * gk)
+	_light(gate_node, Vector3(0, .6, 1.6), Color(.6, .4, 1.0), 6.0, 1.2 * gk)
 	# 반쯤 열린 무거운 나무 문 두 짝
 	var wood: Material = Props3D.m("wood", Color(.42, .3, .22), .8)
 	var iron: Material = Props3D.metal(Color(.25, .24, .26), .45)
-	for sx in [-1, 1]:
+	for sx in ([] if art_gate else [-1, 1]):
 		var dn := Node3D.new(); dn.position = Vector3(sx * 1.2, 0, -.45); dn.rotation.y = sx * -1.5; gate_node.add_child(dn)   # 안쪽 벽에 붙도록 활짝
 		var dmi = MeshInstance3D.new(); var db = BoxMesh.new(); db.size = Vector3(1.2, 3.0, .12); dmi.mesh = db; dmi.material_override = wood
 		dmi.position = Vector3(-sx * .6, 1.5, 0); dn.add_child(dmi)
@@ -274,8 +285,9 @@ func _build_gate(g: Vector2) -> void:
 	# 양옆 화로(기둥 위 불)
 	for sx in [-1, 1]:
 		var br := Props3D.make("brazier", .8, 7 + sx); br.position = Vector3(sx * 3.4, 0, .6); gate_node.add_child(br)
+		if art_gate: br.visible = false
 		var fg = world.glow_quad(Color(1, .55, .2, .95), 1.0); fg.position = Vector3(sx * 3.4, 1.15, .66); gate_node.add_child(fg)
-		_light(gate_node, Vector3(sx * 3.4, 1.6, .9), Color(1, .6, .3), 6.5, 1.6)
+		_light(gate_node, Vector3(sx * 3.4, 1.6, .9), Color(1, .6, .3), 6.5, 1.6 * gk)
 	# 입구에서 새어 나오는 빛 알갱이·안개
 	var pt := CPUParticles3D.new(); var pq := QuadMesh.new(); pq.size = Vector2(.08, .08)
 	var pm := StandardMaterial3D.new(); pm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; pm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -284,7 +296,7 @@ func _build_gate(g: Vector2) -> void:
 	pt.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX; pt.emission_box_extents = Vector3(1.0, .6, .2)
 	pt.direction = Vector3(0, .6, 1); pt.spread = 30.0; pt.initial_velocity_min = .2; pt.initial_velocity_max = .5; pt.gravity = Vector3.ZERO
 	var cg := Gradient.new(); cg.set_color(0, Color(1, 1, 1, 0)); cg.add_point(.3, Color(1, 1, 1, 1)); cg.set_color(cg.get_point_count() - 1, Color(1, 1, 1, 0)); pt.color_ramp = cg
-	pt.position = Vector3(0, .8, -1.4); gate_node.add_child(pt)
+	pt.position = Vector3(0, .8, -1.4 if not art_gate else -.1); gate_node.add_child(pt)
 
 # ---------------- 매 프레임 ----------------
 func sync(dt: float) -> void:
@@ -663,13 +675,42 @@ func _sync_fx(G, P) -> void:
 	while li < shot_lights.size():
 		shot_lights[li].visible = false; li += 1
 
+# 옛 효과 이름 → 새 손그림 효과(프레임 시트)
+const AFX := {fx_spark_blue = "fx_frost_hit", fx_spark_orange = "fx_arcane_hit", fx_freeze = "fx_flash_freeze", fx_blast = "fx_fire_explosion", fx_heal = "fx_heal"}
+# 탄: [그림, 그림 칸 크기 / 탄 반지름]
+const ASHOT := {arcane = ["fx_arcane_bolt", 8.5], fire = ["fx_fireball", 8.4], frost = ["fx_fusion_frosthoming", 7.0], af = ["fx_fusion_firehoming", 9.0],
+	asx = ["fx_fusion_ballbolt", 8.0], afr = ["fx_fusion_frosthoming", 7.5]}
+const AESHOT := {ice = ["fx_e_iceorb", 4.8], poison = ["fx_e_poisonorb", 4.8], skull = ["fx_e_skull", 4.6], fire = ["fx_e_fireball", 7.7], spit = ["fx_e_spit", 4.8]}
+
+func _shot_art(s: Dictionary) -> Array:
+	var e = s.els
+	if e.has("arcane") and e.has("fire"): return ASHOT.af
+	if e.has("arcane") and e.has("storm"): return ASHOT.asx
+	if e.has("arcane") and e.has("frost"): return ASHOT.afr
+	if e.has("fire"): return ASHOT.fire
+	if e.has("frost"): return ASHOT.frost
+	if e.has("storm"): return []
+	return ASHOT.arcane
+
 func _sync_sprite_fx(G) -> void:
 	var M = Actor.meta()
+	var AR: Dictionary = Actor.art()
 	var lists = {}
 	var addf = func(name: String, x: float, y: float, w: float, h: float, rot: float, fr: float, frames: float, alpha: float, ox: float, oy: float):
 		if not lists.has(name): lists[name] = []
 		lists[name].append([x, y, w, h, rot, fr, frames, alpha, ox, oy])
+	# 새 손그림: 칸 크기를 world px 로(정사각이 아니면 비율 유지)
+	var adda = func(id: String, x: float, y: float, size: float, rot: float, fr: float, alpha: float, h: float):
+		var A: Dictionary = AR[id]; var n: int = int(A.n)
+		var cw: float = float(A.w) / n; var ch: float = float(A.h); var k: float = size / max(cw, ch)
+		addf.call("@" + id, x, y, cw * k, ch * k, rot, fr, n, alpha, 0.0, 0.0)
+		lists["@" + id][-1].append(h)
 	for a in G.anims:
+		if AFX.has(a.name) and AR.has(AFX[a.name]):
+			var id: String = AFX[a.name]; var n: int = int(AR[id].n)
+			var al: float = max(0.0, 1 - (a.t - a.life * .7) / (a.life * .3)) if a.t > a.life * .7 else 1.0
+			adda.call(id, a.x, a.y, a.size * 1.5, 0.0, min(n - 1, int(a.t / a.life * n)), al, a.get("h", .08))
+			continue
 		if not M.has(a.name): continue
 		var m: Dictionary = M[a.name]; var A: Dictionary = m.anims.idle
 		var fr: int = min(A.frames - 1, int(a.t / a.life * A.frames)); var k: float = a.size / max(m.cw, m.ch)
@@ -682,6 +723,10 @@ func _sync_sprite_fx(G) -> void:
 			var fr = int(G.time * 1000 / A.dur * A.frames) % int(A.frames); var k: float = z.r * 2.1 / m.ch
 			addf.call("fx_runes", z.x, z.y + z.r * .4, m.cw * k, m.ch * k, 0, fr, A.frames, min(1.0, z.life) * .8, (m.cw / 2.0 - m.anchor[0]) * k, (m.ch / 2.0 - m.anchor[1]) * k)
 	for s in G.shots:
+		var sa: Array = _shot_art(s)
+		if sa.size() and AR.has(sa[0]):
+			adda.call(sa[0], s.x, s.y, s.r * sa[1], atan2(s.vy, s.vx), int(G.time * 12 + s.x) % int(AR[sa[0]].n), 1.0, shot_h)
+			continue
 		if s.els.has("fire"): continue
 		var sn = "fx_fireball" if s.els.has("fire") else ("fx_icicle" if s.els.has("frost") else ("fx_spark_blue" if s.els.has("storm") else "fx_plasma"))
 		if not M.has(sn): continue
@@ -693,6 +738,10 @@ func _sync_sprite_fx(G) -> void:
 		addf.call(sn, s.x, s.y, m.cw * k, m.ch * k, ang, fr, A.frames, 1.0, m.cw * k * (.25 if rot_ else 0.0), 0.0)
 		lists[sn][-1].append(shot_h)
 	for s in G.eshots:
+		if AESHOT.has(s.kind) and AR.has(AESHOT[s.kind][0]):
+			var ea: Array = AESHOT[s.kind]
+			adda.call(ea[0], s.x, s.y, s.r * ea[1], atan2(s.vy, s.vx), int(G.time * 12 + s.x) % int(AR[ea[0]].n), 1.0, .9)
+			continue
 		var sn: String = {ice = "fx_spark_blue", poison = "fx_spark_green", skull = "fx_spark_red", fire = "fx_fireball", spit = "fx_spark_green"}.get(s.kind, "")
 		if sn == "" or not M.has(sn): continue
 		var m: Dictionary = M[sn]; var A: Dictionary = m.anims.idle

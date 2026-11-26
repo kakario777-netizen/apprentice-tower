@@ -133,12 +133,16 @@ func _apply_art() -> void:
 	spr.position = Vector3(0, (foot - h / 2.0) * ps, 0)
 	spr.flip_h = false
 	spr.rotation = Vector3.ZERO
+	spr.scale = Vector3.ONE
 	# 걷기·맞기·공격은 그림을 흔들어 표현
 	if key == "idle" or key == "cast":
 		if anim == "run":
-			var ph := at * 9.0
-			spr.position.y += absf(sin(ph)) * .06 * height_px / 46.0
-			spr.rotation.z = sin(ph) * .06
+			# 걸음: 통통 튀고 좌우로 기우뚱 + 착지할 때 살짝 눌림
+			var ph := at * 10.0
+			var hop := absf(sin(ph))
+			spr.position.y += hop * .14 * height_px / 46.0
+			spr.rotation.z = sin(ph) * .13
+			spr.scale = Vector3(1.0 + (1.0 - hop) * .05, 1.0 - (1.0 - hop) * .06, 1.0)
 		elif anim == "hit": spr.rotation.z = .12 if c != 1 else -.12
 		elif anim == "attack": spr.position.y += sin(clampf(at * 6.0, 0.0, PI)) * .08
 		else: spr.position.y += sin(at * 2.4) * .012 * height_px / 46.0      # 숨쉬기

@@ -248,6 +248,15 @@ func gen_town() -> void:
 		decor.append({kind = "model", name = name, pos = pos, rot = rot, s = sc})
 		if r > 0: obst.append({x = pos.x, y = pos.y, r = r})
 	mdl.call("Anvil", smith + Vector2(66, 4), -.4, 1.0, 16.0)
+	# 손그림 건물: 카엘 교수 뒤 대장간, 미라 매대 뒤 상점(밑동을 따라 부딪힘)
+	for b in [["bld_forge", smith + Vector2(0, -150)], ["bld_shop", shop + Vector2(0, -150)]]:
+		var bp: Vector2 = b[1]
+		var bi := int(bp.x / T); var bj := int(bp.y / T)
+		for jj in range(bj - 3, bj + 1):
+			for ii in range(bi - 4, bi + 5):
+				if ii > 0 and jj > 0 and ii < MW - 1 and jj < MH - 1: map[jj * MW + ii] = 0
+		decor.append({kind = "bld", id = b[0], pos = bp})
+		for k in 7: obst.append({x = bp.x - 150 + k * 50, y = bp.y - 14, r = 26.0})
 	mdl.call("WeaponStand", smith + Vector2(-70, -12), .5, .9, 18.0)
 	mdl.call("Workbench", smith + Vector2(4, -66), 0.0, .85, 24.0)
 	mdl.call("CandleStick_Stand", smith + Vector2(-46, -46), 0.0, .9, 8.0)

@@ -488,6 +488,7 @@ func _build_props() -> void:
 			var tl: Vector2 = d.get("tilt", Vector2.ZERO)
 			md.rotation = Vector3(tl.x, d.rot, tl.y); add_child(md)
 			if mg.town == null: fog_nodes.append([md, d.pos.x, d.pos.y])
+		elif d.kind == "bld": art_sprite(d.id, d.pos, 1.0)
 		elif d.kind == "circle": _magic_circle(d.pos, d.get("red", false))
 		elif d.kind == "glowpt":
 			var g = glow_quad(Color(d.col, .6), 1.2); g.position = Vector3(d.pos.x / 32.0, d.h, d.pos.y / 32.0 + .05); add_child(g)

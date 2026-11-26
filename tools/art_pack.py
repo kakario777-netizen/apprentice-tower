@@ -8,8 +8,18 @@ os.makedirs(dst, exist_ok=True)
 files = {os.path.splitext(os.path.basename(p))[0]: p for p in glob.glob(src + '/**/*.png', recursive=True)}
 if fix:
     for p in glob.glob(fix + '/*.png'): files[os.path.splitext(os.path.basename(p))[0]] = p
-WORLD = ('player', 'npc_', 'mon_', 'boss_', 'tile_', 'prop_', 'bld_', 'nat_', 'spare_mon', 'spare_boss', 'spare_prop')
+WORLD = ('fx_', 'spare_fx', 'player', 'npc_', 'mon_', 'boss_', 'tile_', 'prop_', 'bld_', 'nat_', 'spare_mon', 'spare_boss', 'spare_prop')
 meta = {}
+import re
+FR = {}
+lst = os.path.join(os.path.dirname(__file__), 'art_list.txt')
+if os.path.exists(lst):
+    L = open(lst).read().split('\n')
+    for i, l in enumerate(L):
+        m = re.match(r'^([a-z][a-z0-9_]+) – ', l)
+        if m and i + 1 < len(L):
+            c = re.search(r'칸 (\d+)×(\d+) ×(\d+)', L[i + 1])
+            if c: FR[m.group(1)] = int(c.group(3))
 for k, p in sorted(files.items()):
     if not k.startswith(WORLD): continue
     im = Image.open(p).convert('RGBA')
@@ -23,7 +33,7 @@ for k, p in sorted(files.items()):
     im.save(os.path.join(dst, k + '.png'), optimize=True)
     if k.startswith('tile_'): continue
     al = np.array(im)[:, :, 3]
-    n = 4 if (w == 4 * h and h >= 256) else 1
+    n = FR.get(k) or (4 if (w == 4 * h and h >= 256 and not k.startswith('fx_')) else 1)
     cw = w // n
     boxes = []
     for c in range(n):
