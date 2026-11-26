@@ -567,6 +567,19 @@ static func spr_name(e: Dictionary) -> String:
 	if e.isBoss and e.boss != "": return D.BOSSMAP[e.boss]
 	return e.d.get("spr", D.SPRMAP.get(e.type, "skel"))
 
+# 새 손그림(godot/art) 이름
+const ART_T := {skel = "mon_skel", zombie = "mon_zombie", archer = "mon_archer", bat = "mon_goblin", imp = "mon_fireant", mage = "mon_skelmage",
+	shade = "mon_antlion", demon = "mon_firewyvern", skel_knight = "mon_skelknight", ice_mage = "mon_icemage", plague = "mon_plague",
+	ice_ant = "mon_iceant", goblin_chief = "mon_goblinchief", fire_archer = "mon_firearcher", ice_wyvern = "mon_icewyvern",
+	dune_lord = "mon_dunelord", lich_adept = "mon_lichadept", rabbit = "mon_rabbit", rabbit_king = "mon_rabbitking"}
+const ART_B := {golem = "boss_minotaur", flesh = "boss_antqueen", warlock = "boss_velor"}
+static func art_id(e: Dictionary) -> String:
+	if e.get("guard", false): return "mon_guardian"
+	if e.isBoss and e.boss != "":
+		if e.get("pk", "") == "final": return "boss_final"
+		return ART_B.get(e.boss, "")
+	return ART_T.get(e.type, "")
+
 static func enemy_h(e: Dictionary) -> float:
 	if e.boss == "flesh": return e.r * 1.9
 	var base: float = float(e.d.get("h", D.SPRH.get(e.type, 46))) if not (e.isBoss and e.boss != "") else float(D.SPRH.get(e.boss, 46))
@@ -632,8 +645,8 @@ func kill_enemy(e: Dictionary) -> void:
 	G.killsBy[kk] = G.killsBy.get(kk, 0) + 1
 	var nm = spr_name(e)
 	var corpse = false
-	if Actor.meta().has(nm) and Actor.meta()[nm].anims.has("die"):
-		G.corpses.append({id = nid(), name = nm, x = e.x, y = e.y, ang = atan2(P.y - e.y, P.x - e.x), t = 0.0, H = enemy_h(e)})
+	if Actor.art().has(art_id(e) + "_down") or (Actor.meta().has(nm) and Actor.meta()[nm].anims.has("die")):
+		G.corpses.append({id = nid(), name = nm, art = art_id(e), x = e.x, y = e.y, ang = atan2(P.y - e.y, P.x - e.x), t = 0.0, H = enemy_h(e)})
 		if G.corpses.size() > 40: G.corpses.pop_front()
 		corpse = true
 	if corpse:

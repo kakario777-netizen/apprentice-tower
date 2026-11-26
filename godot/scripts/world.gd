@@ -113,6 +113,58 @@ void fragment() {
 	PBR[key] = m
 	return m
 
+# ---------------- 새 손그림 타일(godot/art) ----------------
+# 월드 좌표로 이어 붙임: 바닥·벽 윗면은 위에서, 벽 앞면은 벽 밑동에서부터 그림 한 장이 벽 높이에 맞게
+static var ART_SHADER: Shader
+static var ARTM := {}
+static var ART_TIER := 1      # 1~5: 20층마다
+static func amat(name: String, scale := .25, hrep := 0.0, urep := 1.0) -> ShaderMaterial:
+	var key := "%s|%s|%s|%s|%s" % [name, scale, hrep, urep, TINT.to_html()]
+	if ARTM.has(key): return ARTM[key]
+	if ART_SHADER == null:
+		ART_SHADER = Shader.new()
+		ART_SHADER.code = """
+shader_type spatial;
+render_mode cull_disabled;
+uniform sampler2D tex : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform sampler2D fog : filter_linear;
+uniform vec3 tint = vec3(1.0);
+uniform float scale = .25;
+uniform float hrep = 0.0;
+uniform float urep = 1.0;
+uniform float bump = .35;
+varying vec3 wp;
+varying vec3 wn;
+void vertex() { wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz; wn = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz); }
+void fragment() {
+	vec2 uv;
+	if (hrep <= 0.0) uv = wp.xz * scale;
+	else uv = vec2((abs(wn.z) > .5 ? wp.x : wp.z) / urep, clamp(1.0 - wp.y / hrep, .002, .998));
+	vec4 c = texture(tex, uv);
+	float f = texture(fog, wp.xz / vec2(82.0, 62.0)).r;
+	float h = dot(c.rgb, vec3(.3, .59, .11));
+	vec3 dpx = dFdx(VERTEX); vec3 dpy = dFdy(VERTEX);
+	vec3 r1 = cross(dpy, NORMAL); vec3 r2 = cross(NORMAL, dpx);
+	float det = dot(dpx, r1);
+	vec3 grad = sign(det) * (dFdx(h) * r1 + dFdy(h) * r2);
+	NORMAL = normalize(abs(det) * NORMAL - grad * bump);
+	ALBEDO = c.rgb * COLOR.rgb * tint * f * 1.08;
+	ROUGHNESS = mix(.55, .92, h);
+	SPECULAR = .2 * f;
+}
+"""
+	var m := ShaderMaterial.new(); m.shader = ART_SHADER
+	m.set_shader_parameter("tex", tex("res://art/%s.png" % name))
+	m.set_shader_parameter("fog", fog_tex)
+	m.set_shader_parameter("scale", scale); m.set_shader_parameter("hrep", hrep); m.set_shader_parameter("urep", urep)
+	var t := Color.WHITE.lerp(TINT, .25)
+	m.set_shader_parameter("tint", Vector3(t.r, t.g, t.b))
+	ARTM[key] = m
+	return m
+
+static func art_tile(kind: String) -> String:
+	return "tile_t%d_%s" % [ART_TIER, kind]
+
 static var FLOOR_PBR := ""   # 층 분위기마다 바닥·벽 사진 질감
 static var WALL_PBR := ""
 
@@ -193,6 +245,12 @@ func _build_ground() -> void:
 		mf = pbr("forrest_ground_01", .35); mp = pbr("cobblestone_floor_001", .5)
 	elif mg.terrace: mf = pbr("stone_tiles", .4)
 	elif FLOOR_PBR != "": mf = pbr(FLOOR_PBR, .26 if FLOOR_PBR == "mossy_cobblestone" else .4)
+	# 새 손그림 타일(1024 그림 한 장 = 4×4칸)
+	var meadow: bool = town != null and town.get("meadow", false)
+	if town != null:
+		mf = amat("tile_meadow_grass" if meadow else "tile_town_grass"); mp = amat("tile_town_path")
+	elif mg.terrace: mf = amat("tile_roof_floor" if mg.floor_no > 99 else "tile_terrace_floor")
+	else: mf = amat(art_tile("floor_a"))
 	var wood := {}     # 숙소 방: 나무 바닥
 	for r in mg.rooms:
 		if r.get("wood", false):
@@ -232,8 +290,8 @@ func _build_ground() -> void:
 						_quad_floor(sp2, i, j, _uv(h % 16, 16), [.62, .62, .62, .62]); nf2 += 1
 			if nf: _add_mesh(sf, mf)
 			if np: _add_mesh(sp, mp)
-			if nf2: _add_mesh(sp2, pbr("brown_mud_leaves_01", .35))
-			if nw: _add_mesh(sw2, pbr("old_planks_02", .5))
+			if nf2: _add_mesh(sp2, amat("tile_town_forest"))
+			if nw: _add_mesh(sw2, amat("tile_dorm_floor"))
 
 func _add_mesh(st: SurfaceTool, m: Material) -> MeshInstance3D:
 	var mi = MeshInstance3D.new()
@@ -262,11 +320,21 @@ func _build_walls() -> void:
 	var wn: String = "stone_wall_04" if mg.terrace else WALL_PBR
 	if wn != "":
 		mw = pbr(wn, .55); mt = pbr(wn, .55)
+	# 새 손그림: 높은 벽(512×256 → 벽 높이에 한 장), 낮은 벽(512×128), 윗면(2칸에 한 장)
+	var mlow: Material
+	if mg.terrace:
+		mw = amat("tile_terrace_wall_low", .25, LOWZ * 1.35, LOWZ * 1.35 * 4.0); mlow = mw
+		mt = amat("tile_t1_wall_top", .5)
+	else:
+		mw = amat(art_tile("wall_front"), .25, WALLZ, WALLZ * 2.0)
+		mlow = amat(art_tile("wall_low"), .25, LOWZ, LOWZ * 4.0)
+		mt = amat(art_tile("wall_top"), .5)
 	for cy in range(0, MapGen.MH, CHUNK):
 		for cx in range(0, MapGen.MW, CHUNK):
 			var sw = SurfaceTool.new(); sw.begin(Mesh.PRIMITIVE_TRIANGLES)
+			var swl = SurfaceTool.new(); swl.begin(Mesh.PRIMITIVE_TRIANGLES)
 			var stt = SurfaceTool.new(); stt.begin(Mesh.PRIMITIVE_TRIANGLES)
-			var n = 0
+			var n = 0; var nl = 0
 			for j in range(cy, min(cy + CHUNK, MapGen.MH)):
 				for i in range(cx, min(cx + CHUNK, MapGen.MW)):
 					var w = mg.wall_bits(i, j)
@@ -275,13 +343,17 @@ func _build_walls() -> void:
 					var h: float = LOWZ * 1.35 if mg.terrace else (LOWZ if (w & 1) else WALLZ)
 					var v = MapGen.hash2(i, j) % 6
 					var uvw = Rect2((v * 128 + 2) / 768.0, 0, 124 / 768.0, 1)
-					if w & 4: _face(sw, Vector3(i, 0, j + 1), Vector3(i + 1, 0, j + 1), h, uvw, Vector3.BACK, 1.0)
-					if w & 8: _face(sw, Vector3(i, 0, j), Vector3(i, 0, j + 1), h, uvw, Vector3.LEFT, .78)
-					if w & 2: _face(sw, Vector3(i + 1, 0, j + 1), Vector3(i + 1, 0, j), h, uvw, Vector3.RIGHT, .78)
-					if w & 1: _face(sw, Vector3(i + 1, 0, j), Vector3(i, 0, j), h, uvw, Vector3.FORWARD, .7)
+					var sx: SurfaceTool = sw if h >= WALLZ else swl
+					if h < WALLZ: nl += 1
+					if w & 4: _face(sx, Vector3(i, 0, j + 1), Vector3(i + 1, 0, j + 1), h, uvw, Vector3.BACK, 1.0)
+					if w & 8: _face(sx, Vector3(i, 0, j), Vector3(i, 0, j + 1), h, uvw, Vector3.LEFT, .78)
+					if w & 2: _face(sx, Vector3(i + 1, 0, j + 1), Vector3(i + 1, 0, j), h, uvw, Vector3.RIGHT, .78)
+					if w & 1: _face(sx, Vector3(i + 1, 0, j), Vector3(i, 0, j), h, uvw, Vector3.FORWARD, .7)
 					_top(stt, i, j, h, _uv(w & 15, 16))
 			if n:
-				_add_mesh(sw, mw); _add_mesh(stt, mt)
+				if n > nl: _add_mesh(sw, mw)
+				if nl: _add_mesh(swl, mlow)
+				_add_mesh(stt, mt)
 
 # 마을: 벽 자리에 나무와 덤불
 func _build_forest() -> void:
@@ -309,8 +381,75 @@ func _build_forest() -> void:
 				add_prop(FOREST[h % FOREST.size()], p, .8 + (h % 5) * .08)
 				Props3D.cast = true
 
+# ---------------- 새 손그림 소품 ----------------
+# 그림 크기 기준: 사람 키 380px(원본) = 웹 46px. godot/art 는 절반 크기
+const ART_PS := 2.0 * 46.0 / 380.0 / 32.0 * STAND
+const ART_PROP := {
+	bones1 = "prop_bones_a", bones2 = "prop_bones_a", bones3 = "prop_bones_b", bones4 = "prop_bones_a", bones5 = "prop_bones_b",
+	skulls = "prop_bones_b", skeleton1 = "prop_skeleton_lying", skeleton2 = "prop_skeleton_lying",
+	barrel1 = "prop_barrel_a", barrel2 = "prop_barrel_b", dcrate1 = "prop_crate_a", dcrate2 = "prop_crate_b",
+	lectern1 = "prop_lib_stand", chain1 = "prop_chain", brazier = "prop_brazier",
+	oak1 = "nat_oak_a", oak2 = "nat_oak_b", oak3 = "nat_oak_c", oak4 = "nat_oak_a", birch1 = "nat_oak_c", birch3 = "nat_oak_b",
+	pine1 = "nat_pine_a", pine2 = "nat_pine_b", fpine = ["nat_pine_a", "nat_pine_b", "nat_pine_c"], foak = ["nat_oak_a", "nat_oak_b", "nat_oak_c"],
+	flower1 = "nat_flower_a", flower2 = "nat_flower_b", fern1 = "nat_bush_c", leaf1 = "nat_grass_b", grass1 = "nat_grass_a",
+	grass2 = "nat_grass_b", grass3 = "nat_grass_c", rock1 = "nat_rock_a", rock2 = "nat_rock_b",
+	shrub1 = "nat_bush_a", shrub2 = "nat_bush_b", shrub3 = "nat_bush_c", fountain = "bld_fountain", stall = "bld_stall"}
+const ART_MODEL := {
+	Barrel = "prop_barrel_a", Barrel_Apples = "prop_barrel_b", Crate_Wooden = "prop_crate_a", Crate_Metal = "prop_crate_c",
+	FarmCrate_Apple = "prop_crate_b", Bucket_Wooden_1 = "prop_prison_bucket", Chain_Coil = "prop_prison_straw", Cage_Small = "prop_prison_cage",
+	Cauldron = "prop_lab_cauldron", BookStand = "prop_lib_stand", CandleStick_Stand = "prop_candle_stand",
+	Bed_Twin1 = "prop_dorm_bed", Bed_Twin2 = "prop_dorm_bed_messy", Nightstand_Shelf = "prop_dorm_nightstand", Stool = "prop_dorm_trunk",
+	Bookcase_2 = "prop_lib_bookcase", Shelf_Arch = "prop_lib_bookcase", BookGroup_Medium_1 = "prop_lib_books", BookGroup_Medium_2 = "prop_lib_books",
+	Book_Stack_1 = "prop_lib_books", Pot_1 = "prop_jar_a", Vase_2 = "prop_jar_b", Rope_1 = "prop_sack_a", Bag = "prop_sack_b",
+	Barrel_Holder = "prop_store_shelf", WeaponStand = "prop_armory_rack", Shield_Wooden = "prop_armory_shield", Dummy = "prop_armory_dummy",
+	Anvil = "bld_anvil", Vase_Rubble_Medium = "prop_jar_broken", Rock_Medium_1 = "prop_rubble", Rock_Medium_2 = "prop_rubble",
+	Bench = "bld_bench", Workbench = "prop_lab_table", Chair_1 = "prop_meet_chair"}
+
+static func art_model(d: Dictionary) -> String:
+	var n: String = d.name; var th: String = d.get("th", "")
+	var tilted: bool = d.get("tilt", Vector2.ZERO) != Vector2.ZERO
+	if float(d.get("h", 0.0)) > .05 and n != "Shelf_Arch": return ""          # 탁자·선반 위 작은 물건: 탁자 그림에 이미 그려져 있음
+	match n:
+		"Table_Large":
+			match th:
+				"lab": return "prop_lab_table"
+				"library": return "prop_lib_desk"
+				"dining": return "prop_dining_table"
+				_: return "prop_meet_table_broken" if tilted else "prop_meet_table"
+		"Chair_1": return "prop_meet_chair_broken" if tilted else ("prop_dining_bench" if th == "dining" else "prop_meet_chair")
+		"Cabinet": return "prop_lab_shelf" if th == "lab" else "prop_dorm_wardrobe"
+		"Bookcase_2": return "prop_lib_bookcase_b" if tilted or th == "ruin" else "prop_lib_bookcase"
+		"Book_5", "Scroll_2": return "" if th == "meeting" else "prop_lib_books"
+	return ART_MODEL.get(n, "")
+
+func art_sprite(id: String, p: Vector2, sc := 1.0, flip := false, z_off := 0.0) -> Sprite3D:
+	var A: Dictionary = Actor.art()
+	if not A.has(id): return null
+	var m: Dictionary = A[id]
+	var s := Sprite3D.new()
+	s.texture = tex("res://art/%s.png" % id)
+	s.pixel_size = ART_PS * sc
+	s.centered = true; s.flip_h = flip
+	s.alpha_cut = SpriteBase3D.ALPHA_CUT_OPAQUE_PREPASS
+	s.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	s.shaded = true
+	s.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	var foot: float = float(m.b[0][3])         # 그림이 바닥에 닿는 줄
+	s.position = Vector3(p.x / 32.0, (foot - m.h / 2.0) * s.pixel_size, p.y / 32.0 + z_off)
+	if mg != null and mg.town == null: fog_nodes.append([s, p.x, p.y])
+	add_child(s); return s
+
 # ---------------- 소품 ----------------
 func add_prop(n: String, p: Vector2, sc := 1.0) -> Node3D:
+	if ART_PROP.has(n):
+		var id = ART_PROP[n]
+		var h := MapGen.hash2(int(p.x), int(p.y))
+		if id is Array: id = id[h % id.size()]
+		if mg != null and mg.town != null and mg.town.get("meadow", false) and String(id).begins_with("nat_flower"): id = "nat_flower_c"
+		var k: float = clampf(sc / (.8 if not n in ["fpine", "foak", "fountain", "stall", "brazier"] else 1.0), .7, 1.3)
+		if n == "brazier": k = 1.0
+		var o := art_sprite(id, p, k, h % 2 == 0 and not n in ["fountain", "stall"])
+		if o != null: return o
 	if Props3D.supports(n):
 		# 입체 소품
 		var o := Props3D.make(n, sc, MapGen.hash2(int(p.x), int(p.y)) * 131 + int(p.x))
@@ -339,6 +478,11 @@ func _build_props() -> void:
 			add_prop("fountain", d.pos, 1.0)
 		elif d.kind == "stall":
 			add_prop("stall", d.pos, 1.0)
+		elif d.kind == "model" and art_model(d) != "":
+			var k: float = clampf(float(d.s) / .74, .7, 1.3) if mg.town == null else 1.0
+			art_sprite(art_model(d), d.pos, k, false)
+		elif d.kind == "model" and mg.town == null and d.name in ["Bottle_1", "Potion_1", "Potion_2", "Potion_4", "Book_5", "Scroll_2", "Candle_1", "SmallBottles_1", "Shelf_Small_Bottles", "Table_Plate", "Mug", "Chalice", "Table_Spoon"]:
+			pass
 		elif d.kind == "model":
 			var md := Props3D.model(d.name, "prop", d.s); md.position = Vector3(d.pos.x / 32.0, d.get("h", 0.0), d.pos.y / 32.0)
 			var tl: Vector2 = d.get("tilt", Vector2.ZERO)
@@ -524,8 +668,8 @@ func _build_alcoves() -> void:
 					var qp := [A, B, B + Vector3(0, D2, 0), A + Vector3(0, D2, 0)]
 					for q in [0, 1, 2, 0, 2, 3]:
 						sr.set_color(Color(.35, .35, .4) if q < 2 else Color(.05, .05, .07)); sr.set_uv(Vector2(qp[q].x + qp[q].z, qp[q].y)); sr.set_normal(wq[2]); sr.add_vertex(qp[q])
-			var fm: Material = pbr(FLOOR_PBR, .6) if FLOOR_PBR != "" else mat(tex("res://assets/tiles/floor2.png"))
-			var wm: Material = pbr(WALL_PBR, .6) if WALL_PBR != "" else mat(tex("res://assets/tiles/wall2.png"))
+			var fm: Material = amat(art_tile("floor_a"))
+			var wm: Material = amat(art_tile("wall_front"), .25, WALLZ, WALLZ * 2.0)
 			_add_mesh(st, fm); _add_mesh(sr, wm)
 			_entrance_glow(x0, zb, zf, Color(1, .82, .5) if up else Color(.55, .75, 1), up)
 		else:

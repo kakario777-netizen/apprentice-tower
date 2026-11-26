@@ -57,7 +57,7 @@ static func dot_tex() -> Texture2D:
 static func w3(x: float, y: float, h := 0.0) -> Vector3: return Vector3(x * S, h, y * S)
 
 func _ready() -> void:
-	player = Actor.new(); add_child(player); player.setup("player", 46)
+	player = Actor.new(); add_child(player); player.setup("player", 46, "player_idle")
 	mm_add_glow = _mm(World.glow_tex(), true)
 	mm_add_dot = _mm(dot_tex(), true)
 	mm_mix_dot = _mm(dot_tex(), false)
@@ -298,7 +298,9 @@ func sync(dt: float) -> void:
 		if G.pull.what in ["stairs", "down"]: player.position.y = fr * World.WALLZ * .95 * (1.0 if G.pull.what == "stairs" else -1.0)
 	player.spr.no_depth_test = climbing
 	player.face = P.face
-	player.set_anim(P.anim); player.at = P.at; player.tick(0)
+	player.set_anim(P.anim); player.at = P.at
+	player.casting = P.firing and P.active != null and G.floor > 0 and G.state == "play"
+	player.tick(0)
 	var blink: bool = P.inv > 0 and int(G.time * 30) % 2 == 1
 	player.spr.modulate = Color(2.2, 2.2, 2.2) if blink else Color.WHITE
 	P.tip = {x = P.x + cos(P.face) * 16, y = P.y - 30 + sin(P.face) * 6}
@@ -307,8 +309,8 @@ func sync(dt: float) -> void:
 	# 마을 사람
 	for n in G.npcs:
 		if not npcs.has(n.id):
-			var a = Actor.new(); add_child(a); a.setup(n.get("spr", n.id), 46); npcs[n.id] = a
-			if n.has("tint"): a.spr.modulate = Color(n.tint).lerp(Color.WHITE, .45)
+			var a = Actor.new(); add_child(a); a.setup(n.get("spr", n.id), NPC_ART.get(n.id, ["", 46])[1], NPC_ART.get(n.id, [""])[0]); npcs[n.id] = a
+			if n.has("tint") and a.aid == "": a.spr.modulate = Color(n.tint).lerp(Color.WHITE, .45)
 		var a: Actor = npcs[n.id]
 		a.position = w3(n.x, n.y + 13); a.face = atan2(P.y - n.y, P.x - n.x); a.at = G.time + n.x; a.tick(0)
 	# 적
@@ -316,7 +318,7 @@ func sync(dt: float) -> void:
 	for e in G.enemies:
 		live[e.id] = true
 		if not enemies.has(e.id):
-			var a = Actor.new(); add_child(a); a.setup(Game.spr_name(e), Game.enemy_h(e)); enemies[e.id] = a
+			var a = Actor.new(); add_child(a); a.setup(Game.spr_name(e), Game.enemy_h(e), Game.art_id(e)); enemies[e.id] = a
 			if e.get("elite", false) or e.get("cowq", false) or e.type == "rabbit_king":
 				# 유니크 몬스터·괴생물·토끼왕: 몸 주위로 제 색 빛
 				var ec := Color(e.get("tint", "#ffd76a"))
@@ -333,7 +335,7 @@ func sync(dt: float) -> void:
 		if e.d.has("hidden"):
 			var dp = Game.hyp(P.x - e.x, P.y - e.y)
 			alpha = 1.0 if dp < 110 else (.35 if dp < 170 else .06)
-		var c = Color(e.tint).lerp(Color.WHITE, .25) * 1.15 if e.get("elite", false) else (Color(e.d.tint) if e.d.has("tint") else Color.WHITE)
+		var c = Color(e.tint).lerp(Color.WHITE, .25) * 1.15 if e.get("elite", false) else (Color(e.d.tint) if e.d.has("tint") and a.aid == "" else Color.WHITE)
 		if e.flash > 0: c = Color(2.4, 2.4, 2.4)
 		elif e.frozenT > 0: c = Color(.62, .86, 1.35)
 		elif e.shield > 0: c = Color(.85, .9, 1.2)
@@ -349,7 +351,7 @@ func sync(dt: float) -> void:
 	for c in G.corpses:
 		live[c.id] = true
 		if not corpses.has(c.id):
-			var a = Actor.new(); add_child(a); a.setup(c.name, c.H); a.face = c.ang; a.set_anim("die"); corpses[c.id] = a
+			var a = Actor.new(); add_child(a); a.setup(c.name, c.H, c.get("art", "")); a.face = c.ang; a.set_anim("die"); corpses[c.id] = a
 			a.position = w3(c.x, c.y)
 		var a: Actor = corpses[c.id]
 		a.visible = mg.is_seen(c.x, c.y)
@@ -425,12 +427,22 @@ func sync(dt: float) -> void:
 	_sync_fx(G, P)
 
 # 스태프 끝: 시전하는 동안 스킬 색으로 반짝임
+const NPC_ART := {guide = ["npc_lumen_full", 48.0], shop = ["npc_mira_full", 45.0], smith = ["npc_kael_full", 51.0]}
+# 새 주인공 그림의 스태프 끝(칸 가운데 기준 x, 위에서 y — 절반 크기 px)
+const TIP_ART := {idle = [[-41, 96], [-32, 97], [31, 97], [36, 96]], cast = [[-49, 121], [-91, 117], [98, 120], [86, 120]]}
+
 func _staff_tip(P, G, dt: float) -> void:
 	var casting: bool = P.firing and P.active != null and G.floor > 0 and G.state == "play"
 	tip_a = move_toward(tip_a, 1.0 if casting else 0.0, dt * (10.0 if casting else 5.0))
 	tip3 = player.position + Vector3(0, .9, 0)
 	var vis := tip_a > .01 and tips.size() > 0
 	tip_glow.visible = vis; tip_core.visible = vis; tip_light.visible = vis
+	var pos: Vector3
+	if player.aid != "":
+		var tt: Array = TIP_ART.get(player.sheet, TIP_ART.idle)[player.cell]
+		var ap: float = player.aps
+		pos = player.position + player.spr.position + Vector3(tt[0] * ap, (128.0 - tt[1]) * ap, .08)
+		_tip_fx(P, G, pos, vis); return
 	if tips.is_empty(): return
 	var cf: Array = player.cur_frame()
 	var an: String = "run" if cf[0] == "run" else "stance"
@@ -439,7 +451,10 @@ func _staff_tip(P, G, dt: float) -> void:
 	if t == null: t = row[0]
 	if t == null: return
 	var ps: float = player.spr.pixel_size
-	var pos := player.position + Vector3(t[0] * ps, -t[1] * ps, .08)
+	pos = player.position + Vector3(t[0] * ps, -t[1] * ps, .08)
+	_tip_fx(P, G, pos, vis)
+
+func _tip_fx(P, G, pos: Vector3, vis: bool) -> void:
 	tip3 = pos
 	shot_h = clamp(pos.y + .1, 1.3, 1.9); game.shot_h = shot_h
 	if not vis: return

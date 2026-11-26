@@ -149,6 +149,7 @@ func _rebuild_level() -> void:
 	World.TORCH = th.torch if game.G.floor > 0 else Color(1, .6, .3)
 	World.FLOOR_TEX = th.floor
 	World.FLOOR_PBR = th.fp; World.WALL_PBR = th.wp
+	World.ART_TIER = clampi((max(1, game.G.floor) - 1) / 20 + 1, 1, 5)
 	world.build(game.mg); view.rebuild()
 	_setup_env(game.mg.town != null)
 	game.mg.dirty = true

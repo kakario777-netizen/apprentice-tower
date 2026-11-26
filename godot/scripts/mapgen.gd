@@ -682,8 +682,9 @@ func _shape_octagon(r: Dictionary, c: int) -> void:
 
 # ---------- 방 꾸미기(3D 소품) ----------
 const FS := .74     # 가구 크기(사람 키에 맞춤)
+var cur_theme := ""
 func _mdl(name: String, p: Vector2, rot := 0.0, sc := FS, r_obst := 0.0, h := 0.0, tilt := Vector2.ZERO) -> void:
-	decor.append({kind = "model", name = name, pos = p, rot = rot, s = sc, h = h, tilt = tilt})
+	decor.append({kind = "model", name = name, pos = p, rot = rot, s = sc, h = h, tilt = tilt, th = cur_theme})
 	if r_obst > 0: obst.append({x = p.x, y = p.y, r = r_obst})
 
 func _free(r: Dictionary, p: Vector2, rad: float) -> bool:
@@ -733,6 +734,7 @@ func _on_table(p: Vector2, hw: float, hd: float, h: float, items: Array, n: int)
 func _decorate_theme(r: Dictionary) -> void:
 	var c := Vector2(r.cx, r.cy)
 	if r.theme == "prison" and _has_alcove(r): r.theme = "storage"      # 계단·문이 있는 벽엔 감방을 만들지 않음
+	cur_theme = r.theme
 	match r.theme:
 		"lab":
 			# 연구실: 가운데 큰 탁자 + 약병·책·촛불, 벽에는 장식장과 약병 선반, 구석에 솥
