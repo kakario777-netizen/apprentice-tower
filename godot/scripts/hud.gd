@@ -36,6 +36,11 @@ var mouse_down := false
 var touch_ui := true
 var pad_on := false
 
+static var TX := {}
+static func tx(n: String) -> Texture2D:
+	if not TX.has(n): TX[n] = load("res://art/ui/%s.png" % n)
+	return TX[n]
+
 func _ready() -> void:
 	layer = 1
 	var root = Control.new(); root.set_anchors_preset(Control.PRESET_FULL_RECT); root.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -47,17 +52,15 @@ func _ready() -> void:
 	root.add_child(mini)
 	mini_img = Image.create(MapGen.MW, MapGen.MH, false, Image.FORMAT_RGBA8); mini_tex = ImageTexture.create_from_image(mini_img); mini.texture = mini_tex
 	# 일시정지 버튼(두 줄)
-	pause_b.custom_minimum_size = Vector2(34, 34); pause_b.size = Vector2(34, 34); pause_b.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	pause_b.draw.connect(func():
-		var c = Color("#e8e4f0"); var o = Vector2(9, 9)
-		pause_b.draw_rect(Rect2(o + Vector2(1, 1), Vector2(5, 16)), Color(0, 0, 0, .6)); pause_b.draw_rect(Rect2(o + Vector2(12, 1), Vector2(5, 16)), Color(0, 0, 0, .6))
-		pause_b.draw_rect(Rect2(o, Vector2(5, 16)), c); pause_b.draw_rect(Rect2(o + Vector2(11, 0), Vector2(5, 16)), c))
+	pause_b.custom_minimum_size = Vector2(40, 40); pause_b.size = Vector2(40, 40); pause_b.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pause_b.draw.connect(func(): pause_b.draw_texture_rect(tx("ui_hud_btn_pause"), Rect2(0, 0, 40, 40), false))
 	root.add_child(pause_b)
-	bag_b.texture = load("res://ui/bag.png"); bag_b.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; bag_b.size = Vector2(38, 38); bag_b.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bag_b.texture = tx("ui_hud_btn_bag"); bag_b.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; bag_b.size = Vector2(40, 40); bag_b.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(bag_b)
-	bag_dot.color = Color("#ff6a5a"); bag_dot.size = Vector2(10, 10); bag_dot.position = Vector2(29, 1); bag_dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bag_dot.color = Color(0, 0, 0, 0); bag_dot.size = Vector2(13, 13); bag_dot.position = Vector2(29, -1); bag_dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var dot = TextureRect.new(); dot.texture = tx("ui_hud_newdot"); dot.expand_mode = TextureRect.EXPAND_IGNORE_SIZE; dot.size = Vector2(13, 13); dot.mouse_filter = Control.MOUSE_FILTER_IGNORE; bag_dot.add_child(dot)
 	bag_b.add_child(bag_dot)
-	belt.add_theme_constant_override("separation", 2); belt.mouse_filter = Control.MOUSE_FILTER_IGNORE; root.add_child(belt)
+	belt.add_theme_constant_override("separation", 4); belt.mouse_filter = Control.MOUSE_FILTER_IGNORE; root.add_child(belt)
 	skills.add_theme_constant_override("separation", 6); skills.alignment = BoxContainer.ALIGNMENT_BEGIN; skills.mouse_filter = Control.MOUSE_FILTER_IGNORE; root.add_child(skills)
 	talk_b.add_theme_stylebox_override("normal", Ui.sb(Color("#e8b552"), 28, Color("#4a2e0c"), 2, Vector4(18, 8, 18, 8))); talk_b.add_theme_color_override("font_color", Color("#1b1206"))
 	talk_b.add_theme_font_size_override("font_size", 17); talk_b.add_theme_font_override("font", Ui.bold); talk_b.mouse_filter = Control.MOUSE_FILTER_IGNORE; talk_b.visible = false
@@ -111,8 +114,8 @@ func _process(dt: float) -> void:
 	var on = playing()
 	for c in [pause_b, bag_b, belt, skills]: c.visible = on
 	if not on: talk_b.visible = false
-	pause_b.position = Vector2(ins.l + 14, ins.t + 10)
-	bag_b.position = Vector2(ins.l + 54, ins.t + 6)
+	pause_b.position = Vector2(ins.l + 12, ins.t + 8)
+	bag_b.position = Vector2(ins.l + 58, ins.t + 8)
 	belt.reset_size()
 	belt.position = Vector2(ins.l + 14, pad_pos(0).y - STICKR - 16 - belt.size.y)
 	skills.reset_size(); skills.position = Vector2(vs.x - ins.r - 16 - skills.size.x, ins.t + 112)
@@ -128,7 +131,7 @@ func _process(dt: float) -> void:
 		_upd_cooldowns()
 	var mw: float = min(120.0, vs.x * .15)
 	mini.visible = on or (game.G != null and game.G.state in ["pause", "levelup"])
-	mini.position = Vector2(vs.x - ins.r - 12 - mw, ins.t + 10); mini.size = Vector2(mw, mw * MapGen.MH / MapGen.MW)
+	mini.position = Vector2(vs.x - ins.r - 22 - mw, ins.t + 14); mini.size = Vector2(mw, mw * MapGen.MH / MapGen.MW)
 	if game.G != null and game.mg.dirty: _upd_minimap()
 	draw.queue_redraw()
 
@@ -159,12 +162,14 @@ func build_buttons() -> void:
 		_hint(b, "LT")
 	for si in P.secOrder.size():
 		var id: String = P.secOrder[si]
-		var b = TextureRect.new(); b.texture = load("res://ui/sec_%s_p.png" % id); b.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		b.custom_minimum_size = Vector2(50, 50); b.mouse_filter = Control.MOUSE_FILTER_IGNORE; b.set_meta("sec", id)
+		var b = TextureRect.new(); b.texture = tx("ui_hud_skill_sub"); b.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		b.custom_minimum_size = Vector2(54, 54); b.mouse_filter = Control.MOUSE_FILTER_IGNORE; b.set_meta("sec", id)
+		var ic = TextureRect.new(); ic.texture = load("res://ui/sec_%s_p.png" % id); ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		ic.position = Vector2(11, 11); ic.size = Vector2(32, 32); ic.mouse_filter = Control.MOUSE_FILTER_IGNORE; b.add_child(ic)
 		var cd = Control.new(); cd.set_anchors_preset(Control.PRESET_FULL_RECT); cd.mouse_filter = Control.MOUSE_FILTER_IGNORE; cd.name = "cd"
 		cd.draw.connect(func():
 			var f: float = cd.get_meta("f", 0.0)
-			if f > 0: cd.draw_arc(Vector2(25, 25), 9.5, -PI / 2, -PI / 2 + TAU * f, 32, Color(.016, .008, .03, .8), 19))
+			if f > 0: cd.draw_arc(Vector2(27, 27), 10, -PI / 2, -PI / 2 + TAU * f, 32, Color(.016, .008, .03, .8), 20))
 		b.add_child(cd)
 		skills.add_child(b); hot.append([b, func(): game.cast_sec(id)])
 		_hint(b, ["X", "Y", "B"][si])
@@ -199,12 +204,14 @@ func build_belt() -> void:
 	for id in ["pothp", "potmp", "scroll"]:
 		var n: int = game.P.pot.get(id, 0)
 		if id == "scroll" and (n == 0 or game.G.floor == 0): continue
-		var b = Control.new(); b.custom_minimum_size = Vector2(60, 60); b.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var b = Control.new(); b.custom_minimum_size = Vector2(52, 52); b.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var bg = TextureRect.new(); bg.texture = tx("ui_hud_belt_slot"); bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		bg.size = Vector2(52, 52); bg.mouse_filter = Control.MOUSE_FILTER_IGNORE; b.add_child(bg)
 		var t = TextureRect.new(); t.texture = load("res://ui/item_%s.png" % id); t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		t.position = Vector2(2, 2); t.size = Vector2(56, 56); t.mouse_filter = Control.MOUSE_FILTER_IGNORE; b.add_child(t)
+		t.position = Vector2(8, 8); t.size = Vector2(36, 36); t.mouse_filter = Control.MOUSE_FILTER_IGNORE; b.add_child(t)
 		var l = Label.new(); l.text = str(n); l.add_theme_font_size_override("font_size", 15)
 		l.add_theme_color_override("font_outline_color", Color(0, 0, 0)); l.add_theme_constant_override("outline_size", 4)
-		l.position = Vector2(42, 38); l.mouse_filter = Control.MOUSE_FILTER_IGNORE; b.add_child(l)
+		l.position = Vector2(36, 30); l.mouse_filter = Control.MOUSE_FILTER_IGNORE; b.add_child(l)
 		if n == 0: b.modulate.a = .4
 		belt.add_child(b); hot.append([b, func(): game.use_pot(id)])
 		_hint(b, {pothp = "LB", potmp = "RB", scroll = "R3"}[id])
@@ -308,19 +315,27 @@ class HudDraw extends Control:
 		var showing: bool = G.state in ["play", "pause", "levelup", "talk", "first"]
 		if not showing: return
 		_world_labels(game, G, P)
-		var Tp: float = 8 + ins.t; var cx = vs.x / 2; var bw: float = min(118.0, vs.x * .15)
+		var Tp: float = 8 + ins.t; var cx = vs.x / 2; var bw: float = min(130.0, vs.x * .16)
 		var poison: bool = P.poisonT > 0
-		pill(cx - bw - 16, Tp + 2, bw, 9, P.hp, P.maxhp, Color("#a6e05a") if poison else Color("#ff4a4a"), Color("#3a7a1a") if poison else Color("#8a1018"), false)
+		# 새 손그림 막대: 틀 450×48(절반 그림) 안 채움 자리 420×20 이 (15,14)
+		var k: float = bw / 420.0; var fh: float = 48.0 * k; var fy: float = Tp + 6 - fh / 2
+		var hx: float = cx - 20 - 450.0 * k
+		var hf: float = clamp(P.hp / max(1.0, float(P.maxhp)), 0, 1)
+		if hf > 0: draw_texture_rect_region(Hud.tx("ui_hud_hp_fill"), Rect2(hx + 15 * k + 420 * k * (1 - hf), fy + 14 * k, 420 * k * hf, 20 * k), Rect2(420 * (1 - hf), 0, 420 * hf, 20), Color("#b8ff6a") if poison else Color.WHITE)
+		draw_texture_rect(Hud.tx("ui_hud_hp_frame"), Rect2(hx, fy, 450 * k, fh), false)
 		if P.ward > 0:
-			var wf: float = min(1.0, P.ward / P.maxhp); draw_rect(Rect2(cx - 16 - bw * wf, Tp + 2, bw * wf, 3), Color(.59, .76, 1, .85))
-		pill(cx + 16, Tp + 2, bw, 9, P.mp, P.maxmp, Color("#6aa0ff"), Color("#1a3a9a"), true)
-		draw_circle(Vector2(cx, Tp + 6), 12, Color(0, 0, 0, .7))
-		draw_arc(Vector2(cx, Tp + 6), 11, 0, TAU, 32, Color(1, 1, 1, .15), 2.5, true)
+			var wf: float = min(1.0, P.ward / P.maxhp); draw_rect(Rect2(hx + 15 * k + 420 * k * (1 - wf), fy + 14 * k, 420 * k * wf, 4 * k), Color(.59, .76, 1, .85))
+		var mx: float = cx + 20
+		var mf: float = clamp(P.mp / max(1.0, float(P.maxmp)), 0, 1)
+		if mf > 0: draw_texture_rect_region(Hud.tx("ui_hud_mp_fill"), Rect2(mx + 15 * k, fy + 14 * k, 420 * k * mf, 20 * k), Rect2(0, 0, 420 * mf, 20))
+		draw_texture_rect(Hud.tx("ui_hud_mp_frame"), Rect2(mx, fy, 450 * k, fh), false)
+		var rr: float = 17.0
+		draw_texture_rect(Hud.tx("ui_hud_level_ring"), Rect2(cx - rr, Tp + 6 - rr, rr * 2, rr * 2), false)
 		var xf: float = clamp(float(P.xp) / P.next, 0, 1)
-		if xf > 0: draw_arc(Vector2(cx, Tp + 6), 11, -PI / 2, -PI / 2 + TAU * xf, 32, Color("#ffd76a"), 2.5, true)
+		if xf > 0: draw_arc(Vector2(cx, Tp + 6), rr * .78, -PI / 2, -PI / 2 + TAU * xf, 32, Color("#ffd76a"), 2.2, true)
 		text(Vector2(cx, Tp + 10.5), str(P.lv), 11, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER, dfont(), 0)
-		text(Vector2(cx - bw - 22, Tp + 11), "%d/%d" % [ceili(P.hp), P.maxhp], 10, Color("#ffb0b0"), HORIZONTAL_ALIGNMENT_RIGHT)
-		text(Vector2(cx + bw + 22, Tp + 11), "%d/%d" % [floori(P.mp), P.maxmp], 10, Color("#b8ccff"), HORIZONTAL_ALIGNMENT_LEFT)
+		text(Vector2(hx - 4, Tp + 10), "%d/%d" % [ceili(P.hp), P.maxhp], 10, Color("#ffb0b0"), HORIZONTAL_ALIGNMENT_RIGHT)
+		text(Vector2(mx + 450 * k + 4, Tp + 10), "%d/%d" % [floori(P.mp), P.maxmp], 10, Color("#b8ccff"), HORIZONTAL_ALIGNMENT_LEFT)
 		if G.goldPulse > 0: G.goldPulse -= 1.0 / 60
 		var gp: float = max(0.0, G.goldPulse)
 		var wh: String = ("토끼 동산" if G.floor == D.COW else ("옥상" if G.floor == D.ROOF else "%d층" % G.floor)) if G.floor else "마을"
@@ -331,7 +346,10 @@ class HudDraw extends Control:
 		# 미니맵 표시
 		var mm: TextureRect = hud.mini
 		if mm.visible:
-			draw_rect(Rect2(mm.position - Vector2(3, 3), mm.size + Vector2(6, 6)), Color(.024, .016, .04, .5))
+			# 틀 260×170(절반 그림), 안쪽 240×150 이 (10,10): 지도 높이에 맞추고 가로는 가운데
+			var fk: float = mm.size.y / 150.0
+			var fo: Vector2 = mm.position - Vector2(10 * fk + (240 * fk - mm.size.x) / 2, 10 * fk)
+			draw_rect(Rect2(fo + Vector2(10, 10) * fk, Vector2(240, 150) * fk), Color(.024, .016, .04, .75))
 			var k: float = mm.size.x / (MapGen.MW * 32.0)
 			var st = game.mg.stairs
 			if st != null and st.found: draw_rect(Rect2(mm.position + Vector2(st.x * k - 2.5, st.y * k - 2.5), Vector2(5, 5)), Color("#ffd76a"))
@@ -340,19 +358,20 @@ class HudDraw extends Control:
 			var dl := Vector2(cos(P.face), sin(P.face))
 			draw_colored_polygon(PackedVector2Array([dp + dl * 6, dp + dl.rotated(2.4) * 4, dp + dl.rotated(-2.4) * 4]), Color(1, 1, 1, .9))
 			draw_circle(dp, 2.8, Color("#7fe0ff")); draw_arc(dp, 3.2, 0, TAU, 16, Color.WHITE, 1.0, true)
+			draw_texture_rect(Hud.tx("ui_hud_minimap_frame"), Rect2(fo, Vector2(260, 170) * fk), false)
 		# 보스 체력
 		var bosses: Array = G.enemies.filter(func(e): return e.isBoss and (e.aggro or not (e.has("herd") or e.get("cowq", false))))
 		if bosses.size():
 			var tot = 0.0; var sh = 0.0; var shm = 0.0
 			for e in bosses:
 				tot += max(0.0, e.hp); sh += e.shield; shm += e.shieldMax
-			var w: float = min(300.0, vs.x - 300); var bx = (vs.x - w) / 2; var by: float = Tp + 56
-			draw_rect(Rect2(bx - 2, by - 2, w + 4, 14), Color("#0a0710")); draw_rect(Rect2(bx - 1.5, by - 1.5, w + 3, 13), Color("#6a5640"), false, 1)
-			draw_rect(Rect2(bx, by, w, 10), Color("#1a1220"))
+			# 틀 650×55(절반 그림), 채움 610×20 이 (20,30)·이름 자리 위쪽
+			var w: float = min(300.0, vs.x - 300); var bk: float = w / 610.0; var bx = (vs.x - 650 * bk) / 2; var by: float = Tp + 44
 			var f: float = clamp(tot / max(1.0, G.bossMax), 0, 1)
-			draw_rect(Rect2(bx, by, w * f, 10), Color("#c42a32")); draw_rect(Rect2(bx, by, w * f, 4), Color(1, 1, 1, .22))
-			if shm > 0: draw_rect(Rect2(bx, by + 11, w * sh / shm, 2), Color("#c9a3ff"))
-			text(Vector2(vs.x / 2, by - 6), bosses[0].name, 13, Color("#ffd0c0"), HORIZONTAL_ALIGNMENT_CENTER, dfont())
+			if f > 0: draw_texture_rect_region(Hud.tx("ui_hud_boss_fill"), Rect2(bx + 20 * bk, by + 30 * bk, 610 * bk * f, 20 * bk), Rect2(0, 0, 610 * f, 20))
+			draw_texture_rect(Hud.tx("ui_hud_boss_frame"), Rect2(bx, by, 650 * bk, 55 * bk), false)
+			if shm > 0: draw_rect(Rect2(bx + 20 * bk, by + 51 * bk, 610 * bk * sh / shm, 2), Color("#c9a3ff"))
+			text(Vector2(vs.x / 2, by + 20 * bk), bosses[0].name, 13, Color("#ffd0c0"), HORIZONTAL_ALIGNMENT_CENTER, dfont())
 		# 계단 방향
 		var st2 = game.mg.stairs
 		if st2 != null and st2.found and G.floor > 0:
@@ -368,21 +387,27 @@ class HudDraw extends Control:
 		if G.banner.t > 0:
 			var a: float = min(1.0, G.banner.t); var by = vs.y * .42
 			var tw: float = dfont().get_string_size(G.banner.text, HORIZONTAL_ALIGNMENT_LEFT, -1, 28).x
-			for i in 12:
-				var t = i / 11.0; var aa = (1 - absf(t - .5) * 2) * .55
-				draw_rect(Rect2(vs.x / 2 - tw + t * tw * 2 - tw / 11, by - 30, tw * 2 / 11 + 1, 42), Color(0, 0, 0, aa * a))
-			draw_rect(Rect2(vs.x / 2 - tw * .7, by - 31, tw * 1.4, 1), Color(.79, .64, .29, .6 * a)); draw_rect(Rect2(vs.x / 2 - tw * .7, by + 11, tw * 1.4, 1), Color(.79, .64, .29, .6 * a))
+			draw_texture_rect(Hud.tx("ui_hud_banner"), Rect2(vs.x / 2 - 250, by - 38, 500, 57), false, Color(1, 1, 1, a))
 			text(Vector2(vs.x / 2, by), G.banner.text, 28, Color(1, .87, .6, a), HORIZONTAL_ALIGNMENT_CENTER, dfont(), 4, Color(.12, .06, .016, .9 * a))
 		# 스틱
 		if not hud.pad_on and hud.touch_ui and G.state == "play":
 			var L0: Vector2 = hud.pad_pos(0); var R0: Vector2 = hud.pad_pos(1)
 			# 손가락을 대면 마법진이 손가락 자리로 와서 반투명 조이스틱이 되고, 떼면 제자리로
 			if hud.move_id >= 0:
-				rune_ring(hud.mo, Hud.STICKR, 0, true, G.time, .5); knob(hud.mo, hud.mc, Color("#8fc0ff"))
-			else: rune_ring(L0, Hud.STICKR, 0, false, G.time)
+				stick(hud.mo, "ui_hud_stick_base", .55); tknob(hud.mo, hud.mc, "ui_hud_stick_knob")
+			else: stick(L0, "ui_hud_stick_base", .8)
 			if hud.aim_id >= 0:
-				rune_ring(hud.ao, Hud.STICKR, 1, true, G.time, .5); knob(hud.ao, hud.ac, Color(game.act_color()))
-			else: rune_ring(R0, Hud.STICKR, 1, false, G.time)
+				stick(hud.ao, "ui_hud_aim_base", .55); tknob(hud.ao, hud.ac, "ui_hud_aim_knob")
+			else: stick(R0, "ui_hud_aim_base", .8)
+
+	func stick(c: Vector2, n: String, a: float) -> void:
+		var r: float = Hud.STICKR * 1.15
+		draw_texture_rect(Hud.tx(n), Rect2(c - Vector2(r, r), Vector2(r, r) * 2), false, Color(1, 1, 1, a))
+
+	func tknob(o: Vector2, c: Vector2, n: String) -> void:
+		var d = c - o; var l = d.length(); var kk: float = Hud.STICKR * .7 / l if l > Hud.STICKR * .7 else 1.0
+		var p = o + d * kk; var r: float = Hud.STICKR * .48
+		draw_texture_rect(Hud.tx(n), Rect2(p - Vector2(r, r), Vector2(r, r) * 2), false, Color(1, 1, 1, .9))
 
 	func knob(o: Vector2, c: Vector2, col: Color) -> void:
 		var d = c - o; var l = d.length(); var k: float = Hud.STICKR * .7 / l if l > Hud.STICKR * .7 else 1.0
