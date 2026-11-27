@@ -318,24 +318,24 @@ class HudDraw extends Control:
 		var Tp: float = 8 + ins.t; var cx = vs.x / 2; var bw: float = min(130.0, vs.x * .16)
 		var poison: bool = P.poisonT > 0
 		# 새 손그림 막대: 틀 450×48(절반 그림) 안 채움 자리 420×20 이 (15,14)
-		var k: float = bw / 420.0; var fh: float = 48.0 * k; var fy: float = Tp + 6 - fh / 2
-		var hx: float = cx - 20 - 450.0 * k
+		var kb: float = bw / 420.0; var fh: float = 48.0 * kb; var fy: float = Tp + 6 - fh / 2
+		var hx: float = cx - 20 - 450.0 * kb
 		var hf: float = clamp(P.hp / max(1.0, float(P.maxhp)), 0, 1)
-		if hf > 0: draw_texture_rect_region(Hud.tx("ui_hud_hp_fill"), Rect2(hx + 15 * k + 420 * k * (1 - hf), fy + 14 * k, 420 * k * hf, 20 * k), Rect2(420 * (1 - hf), 0, 420 * hf, 20), Color("#b8ff6a") if poison else Color.WHITE)
-		draw_texture_rect(Hud.tx("ui_hud_hp_frame"), Rect2(hx, fy, 450 * k, fh), false)
+		if hf > 0: draw_texture_rect_region(Hud.tx("ui_hud_hp_fill"), Rect2(hx + 15 * kb + 420 * kb * (1 - hf), fy + 14 * kb, 420 * kb * hf, 20 * kb), Rect2(420 * (1 - hf), 0, 420 * hf, 20), Color("#b8ff6a") if poison else Color.WHITE)
+		draw_texture_rect(Hud.tx("ui_hud_hp_frame"), Rect2(hx, fy, 450 * kb, fh), false)
 		if P.ward > 0:
-			var wf: float = min(1.0, P.ward / P.maxhp); draw_rect(Rect2(hx + 15 * k + 420 * k * (1 - wf), fy + 14 * k, 420 * k * wf, 4 * k), Color(.59, .76, 1, .85))
+			var wf: float = min(1.0, P.ward / P.maxhp); draw_rect(Rect2(hx + 15 * kb + 420 * kb * (1 - wf), fy + 14 * kb, 420 * kb * wf, 4 * kb), Color(.59, .76, 1, .85))
 		var mx: float = cx + 20
 		var mf: float = clamp(P.mp / max(1.0, float(P.maxmp)), 0, 1)
-		if mf > 0: draw_texture_rect_region(Hud.tx("ui_hud_mp_fill"), Rect2(mx + 15 * k, fy + 14 * k, 420 * k * mf, 20 * k), Rect2(0, 0, 420 * mf, 20))
-		draw_texture_rect(Hud.tx("ui_hud_mp_frame"), Rect2(mx, fy, 450 * k, fh), false)
+		if mf > 0: draw_texture_rect_region(Hud.tx("ui_hud_mp_fill"), Rect2(mx + 15 * kb, fy + 14 * kb, 420 * kb * mf, 20 * kb), Rect2(0, 0, 420 * mf, 20))
+		draw_texture_rect(Hud.tx("ui_hud_mp_frame"), Rect2(mx, fy, 450 * kb, fh), false)
 		var rr: float = 17.0
 		draw_texture_rect(Hud.tx("ui_hud_level_ring"), Rect2(cx - rr, Tp + 6 - rr, rr * 2, rr * 2), false)
 		var xf: float = clamp(float(P.xp) / P.next, 0, 1)
 		if xf > 0: draw_arc(Vector2(cx, Tp + 6), rr * .78, -PI / 2, -PI / 2 + TAU * xf, 32, Color("#ffd76a"), 2.2, true)
 		text(Vector2(cx, Tp + 10.5), str(P.lv), 11, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER, dfont(), 0)
 		text(Vector2(hx - 4, Tp + 10), "%d/%d" % [ceili(P.hp), P.maxhp], 10, Color("#ffb0b0"), HORIZONTAL_ALIGNMENT_RIGHT)
-		text(Vector2(mx + 450 * k + 4, Tp + 10), "%d/%d" % [floori(P.mp), P.maxmp], 10, Color("#b8ccff"), HORIZONTAL_ALIGNMENT_LEFT)
+		text(Vector2(mx + 450 * kb + 4, Tp + 10), "%d/%d" % [floori(P.mp), P.maxmp], 10, Color("#b8ccff"), HORIZONTAL_ALIGNMENT_LEFT)
 		if G.goldPulse > 0: G.goldPulse -= 1.0 / 60
 		var gp: float = max(0.0, G.goldPulse)
 		var wh: String = ("토끼 동산" if G.floor == D.COW else ("옥상" if G.floor == D.ROOF else "%d층" % G.floor)) if G.floor else "마을"
