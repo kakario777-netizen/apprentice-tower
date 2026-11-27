@@ -1028,6 +1028,11 @@ func _portrait(n) -> Control:
 	var c = Control.new(); c.custom_minimum_size = Vector2(84, 84); c.clip_contents = true
 	var bgp = ColorRect.new(); bgp.color = Color("#0e0b14"); bgp.size = Vector2(84, 84); c.add_child(bgp)
 	var sp: String = n.get("spr", n.id)
+	var face: String = {guide = "npc_lumen_face1", shop = "npc_mira_face1", smith = "npc_kael_face1"}.get(n.id, "")
+	if face != "" and Actor.art().has(face):
+		# 새 손그림 초상(얼굴이 가운데 원 안에 그려져 있음)
+		var ft = TextureRect.new(); ft.texture = load("res://art/%s.png" % face); ft.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		ft.size = Vector2(84, 84); c.add_child(ft); return c
 	var m: Dictionary = Actor.meta().get(sp, {})
 	if m.has("fr"):
 		var row_: int = int(m.anims.stance.row) + 6

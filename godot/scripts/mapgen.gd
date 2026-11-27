@@ -206,6 +206,9 @@ func gen_town() -> void:
 		for ii in range(cx - 16, cx - 6):
 			if Vector2(ii + .5, jj + .5).distance_to(smith / T) < 3.6: map[jj * MW + ii] = 0
 	start = Vector2(cx * T, (cy + 9) * T)
+	# 시작 자리~분수까지는 늘 뚫어 둠(숲 가장자리가 들쭉날쭉해 시작 칸이 막히는 경우가 있었음)
+	for jj in range(cy + 1, cy + 11):
+		for ii in range(cx - 2, cx + 2): map[jj * MW + ii] = 0
 	# 서쪽 끝: 토끼 동산으로 가는 붉은 포탈 자리(늘 비워 둠)
 	var redp := Vector2((cx - 15) * T, (cy + 1) * T)
 	for jj in range(cy - 3, cy + 5):

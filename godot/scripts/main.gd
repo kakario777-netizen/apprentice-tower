@@ -43,6 +43,7 @@ var tiertest := false
 var roomtest := false
 var terrtest := false
 var padtest := false
+var movetest := false
 var bosstest := false
 var test_pad = null
 
@@ -76,6 +77,7 @@ func _ready() -> void:
 		elif a == "--roomtest": roomtest = true
 		elif a == "--terrtest": terrtest = true
 		elif a == "--padtest": padtest = true
+		elif a == "--movetest": movetest = true
 		elif a == "--bosstest": bosstest = true
 		elif a.begins_with("--seed="): seed(int(a.substr(7)))
 	add_child(game)
@@ -105,6 +107,7 @@ func _ready() -> void:
 	if roomtest: _run_roomtest()
 	if terrtest: _run_terrtest()
 	if padtest: _run_padtest()
+	if movetest: _run_movetest()
 	if bosstest: _run_bosstest()
 
 func _setup_env(town: bool) -> void:
@@ -821,6 +824,27 @@ func _run_terrtest() -> void:
 		print("TERR ", dirs[i], " ", evs[i], " shape=", r.get("shape", ""), " size=", r.w, "x", r.h, " door=", game.mg.door.get("side", "n"))
 		game.leave_terrace(); await _frames(2)
 	print("TERRTEST done"); get_tree().quit()
+
+# 마을 시작 지점에서 사방으로 걸어 보기(개발용): --movetest
+func _run_movetest() -> void:
+	await _frames(10)
+	test_pad = {b = {}}
+	for rep in 6:
+		new_game("norm", 1); await _frames(8)
+		await _movecheck()
+	get_tree().quit()
+
+func _movecheck() -> void:
+	var P = game.P
+	var mg = game.mg
+	for o in mg.obst:
+		if Vector2(o.x, o.y).distance_to(Vector2(P.x, P.y)) < 90: print("MOVE obst ", o)
+	print("MOVE tile ", mg.at(int(P.x / 32), int(P.y / 32)), " town ", mg.town.cx, ",", mg.town.cy, " smith ", mg.town.smith, " stall ", mg.town.stall)
+	print("MOVE start ", P.x, ",", P.y, " floor ", game.G.floor, " state ", game.G.state, " talk ", game.G.get("talk"))
+	for d in [Vector2(0, -1), Vector2(1, 0), Vector2(-1, 0), Vector2(0, 1)]:
+		var x0: float = P.x; var y0: float = P.y
+		test_pad.l = d; await _frames(40); test_pad.l = Vector2()
+		print("MOVE ", d, " → ", snappedf(P.x - x0, .1), ",", snappedf(P.y - y0, .1), " state ", game.G.state)
 
 # 컨트롤러로 창 다루기 확인(개발용): --samples=DIR --padtest
 func _press(k: String) -> void:
