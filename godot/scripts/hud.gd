@@ -315,7 +315,7 @@ class HudDraw extends Control:
 		var showing: bool = G.state in ["play", "pause", "levelup", "talk", "first"]
 		if not showing: return
 		_world_labels(game, G, P)
-		var Tp: float = 8 + ins.t; var cx = vs.x / 2; var bw: float = min(130.0, vs.x * .16)
+		var Tp: float = 8 + ins.t; var cx = vs.x / 2; var bw: float = min(185.0, vs.x * .22)
 		var poison: bool = P.poisonT > 0
 		# 새 손그림 막대: 틀 450×48(절반 그림) 안 채움 자리 420×20 이 (15,14)
 		var kb: float = bw / 420.0; var fh: float = 48.0 * kb; var fy: float = Tp + 6 - fh / 2
@@ -329,7 +329,7 @@ class HudDraw extends Control:
 		var mf: float = clamp(P.mp / max(1.0, float(P.maxmp)), 0, 1)
 		if mf > 0: draw_texture_rect_region(Hud.tx("ui_hud_mp_fill"), Rect2(mx + 15 * kb, fy + 14 * kb, 420 * kb * mf, 20 * kb), Rect2(0, 0, 420 * mf, 20))
 		draw_texture_rect(Hud.tx("ui_hud_mp_frame"), Rect2(mx, fy, 450 * kb, fh), false)
-		var rr: float = 17.0
+		var rr: float = 19.0
 		draw_texture_rect(Hud.tx("ui_hud_level_ring"), Rect2(cx - rr, Tp + 6 - rr, rr * 2, rr * 2), false)
 		var xf: float = clamp(float(P.xp) / P.next, 0, 1)
 		if xf > 0: draw_arc(Vector2(cx, Tp + 6), rr * .78, -PI / 2, -PI / 2 + TAU * xf, 32, Color("#ffd76a"), 2.2, true)
